@@ -55,7 +55,8 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | Bit | Mask | Name | Description | Specification |
 |---|---|---|---|---|
 | 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](capabilities-large-file.md) |
-| 1–63 | — | *Reserved* | Available for future extensions | — |
+| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](capabilities-text-encoding.md) |
+| 2–63 | — | *Reserved* | Available for future extensions | — |
 
 ---
 
@@ -96,6 +97,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Extension | Negotiation Mechanism |
 |---|---|
 | Large files | `DATA_CAPABILITIES` bit 0 + server config overrides |
+| Text encoding | `DATA_CAPABILITIES` bit 1 + server config fallback |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
 | GIF icons | No negotiation — feature is always available if server supports it |
@@ -107,7 +109,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 ## Implementation Notes
 
 - **Server-side overrides:** The server may grant capabilities beyond what the client advertises. For example, a server may enable large-file mode for known clients (via a whitelist) even if they did not set `CAPABILITY_LARGE_FILES`. Similarly, a global toggle can enable a capability for all clients.
-- **Bit width:** While currently only bit 0 is defined, implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
+- **Bit width:** While currently bits 0–1 are defined, implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
 - **Unknown bits:** Both client and server should ignore bits they do not recognise. Do not reject a connection because of unknown capability bits.
 - **Absence handling:** If `DATA_CAPABILITIES` is not present in the login request, the server should treat the client as having zero capabilities. If not present in the reply, the client should treat the session as standard mode.
 
