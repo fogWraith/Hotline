@@ -17,7 +17,8 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](capabi
   - [Download File (202)](#download-file-202)
   - [Upload File (203)](#upload-file-203)
   - [Get File Info (206)](#get-file-info-206)
-  - [Download Folder (210) / Upload Folder (213)](#download-folder-210--upload-folder-213)
+  - [Download Folder (210)](#download-folder-210)
+  - [Upload Folder (213)](#upload-folder-213)
 - [Transfer Side-Channel (HTXF)](#transfer-side-channel-htxf)
   - [Handshake Flags and Length](#handshake-flags-and-length)
   - [Flattened File Object Fork Headers](#flattened-file-object-fork-headers)
@@ -56,9 +57,9 @@ Adds 64-bit sizing to control-plane fields (transactions) and transfer-plane hea
 | `0x01F1` | `DATA_FILESIZE64` | 64 | File size in bytes. Paired with legacy `DATA_FILESIZE` (32-bit) for compatibility. |
 | `0x01F2` | `DATA_OFFSET64` | 64 | Offset into file (downloads/resume). Paired with legacy `DATA_OFFSET`. |
 | `0x01F3` | `DATA_XFERSIZE64` | 64 | Transfer length (remaining bytes). Paired with legacy `DATA_XFERSIZE`. |
-| `0x01F4` | `DATA_FOLDER_ITEM_COUNT64` | 64 | Folder item counts. Paired with legacy `DATA_FOLDER_ITEM_COUNT`. |
+| `0x01F4` | `DATA_FOLDER_ITEM_COUNT64` | 64 | Folder item counts. Paired with legacy `DATA_FOLDER_ITEM_COUNT` (16-bit). While a 64-bit width is far larger than any realistic item count, this matches the convention used by the other companion fields for consistency. |
 
-Send both 32-bit and 64-bit forms when large-file mode is active; legacy fields remain mandatory for compatibility.
+Send both legacy and 64-bit forms when large-file mode is active; legacy fields remain mandatory for compatibility.
 
 ## Transaction Changes
 
@@ -81,17 +82,22 @@ Send both 32-bit and 64-bit forms when large-file mode is active; legacy fields 
 ### Upload File (203)
 
 - Request: clients SHOULD send `DATA_XFERSIZE64` with the full upload size and keep `DATA_XFERSIZE` as the low 32 bits (or clamped). Servers use the 64-bit value when available.
-- Reply: unchanged; refnum allocation is 32-bit.
+- Reply: servers include the refnum (32-bit) and, when resuming a partially transferred file, include both the legacy `DATA_OFFSET` (clamped) and `DATA_OFFSET64` fields, plus `DATA_XFERSIZE` and `DATA_XFERSIZE64` echoing the expected transfer size.
 - Transfer side-channel MUST set the HTXF large-file flag when large-file mode is active.
 
 ### Get File Info (206)
 
 - Reply: servers include `DATA_FILESIZE64` alongside `DATA_FILESIZE` when large-file mode is active.
 
-### Download Folder (210) / Upload Folder (213)
+### Download Folder (210)
 
-- Replies and progress packets include `DATA_FOLDER_ITEM_COUNT64` and `DATA_XFERSIZE64` when large-file mode is active; legacy 32-bit fields remain present.
+- Reply: servers include `DATA_FOLDER_ITEM_COUNT64` and `DATA_XFERSIZE64` alongside their legacy counterparts when large-file mode is active.
 - When large-file mode is denied for the peer, folder listings filter out oversized children; counts reflect only items visible to that legacy client.
+
+### Upload Folder (213)
+
+- Request: clients SHOULD send `DATA_FOLDER_ITEM_COUNT64` and `DATA_XFERSIZE64` alongside their legacy counterparts. Servers prefer the 64-bit values when present.
+- Reply: servers include the refnum (32-bit). The server stores the folder item count and transfer size for progress tracking.
 
 ## Transfer Side-Channel (HTXF)
 
@@ -121,28 +127,43 @@ The HTXF handshake is a 16-byte (or 24-byte) header sent at the start of each tr
 
 ### Flattened File Object Fork Headers
 
-When `HTXF_FLAG_LARGE_FILE` is set, fork headers in the Flattened File Object use high/low 32-bit words to carry 64-bit lengths:
+The legacy fork header is a 16-byte structure used to introduce each fork (INFO, DATA, MACR) in a Flattened File Object:
 
-| Offset | Size | Description |
+| Offset | Size | Legacy field name | Legacy purpose |
+|---|---|---|---|
+| 0–3 | 4 | Fork type | Four-character code: `"INFO"`, `"DATA"`, or `"MACR"` |
+| 4–7 | 4 | Compression type | Compression algorithm (0 = none) |
+| 8–11 | 4 | Reserved | Reserved, must be zero |
+| 12–15 | 4 | Data size | Fork length in bytes (32-bit) |
+
+When `HTXF_FLAG_LARGE_FILE` is set, the same 16-byte structure is reinterpreted. The Compression type field (offset 4–7) is repurposed to carry the **high** 32 bits of the fork length, while the Data size field (offset 12–15) carries the **low** 32 bits. The Reserved field (offset 8–11) remains zero.
+
+| Offset | Size | Large-file interpretation |
 |---|---|---|
-| 0–3 | 4 | Fork type (`"DATA"`, `"MACR"`, etc.) |
-| 4–7 | 4 | High 32 bits of the fork length |
-| 8–11 | 4 | Compression type (0 = none) |
-| 12–15 | 4 | Low 32 bits of the fork length |
+| 0–3 | 4 | Fork type (unchanged) |
+| 4–7 | 4 | **High** 32 bits of the 64-bit fork length |
+| 8–11 | 4 | Reserved (zero) |
+| 12–15 | 4 | **Low** 32 bits of the 64-bit fork length |
 
-Info fork lengths follow the same pattern. Legacy readers that ignore the high word will see truncated sizes and should not enable large-file mode.
+To reconstruct the full fork size: `fork_length = (high << 32) | low`.
+
+The binary layout is **identical** in both modes; only the interpretation of offset 4–7 changes. Compression is not used in practice (always zero), which makes this repurposing safe. Legacy readers that do not check high bits will see only the low 32-bit size — a truncated value — and should not enable large-file mode.
+
+Info fork and resource fork (`"MACR"`) headers follow the same pattern.
 
 ## Implementation Notes
 
 - Treat all integer fields as unsigned; clamp legacy 32-bit fields instead of wrapping when conveying >4 GiB values.
-- Validate HTXF flags before attempting to read the optional 64-bit length; reject SIZE64 use when the peer is not authorised for large-file mode.
+- **Clamping vs. zeroing:** control-plane legacy fields (`DATA_FILESIZE`, `DATA_XFERSIZE`, etc.) should be **clamped** to `0xFFFFFFFF`. The HTXF handshake legacy length field (bytes 8–11) should be set to **zero** when the transfer size exceeds 32 bits. The distinction matters: clamped control-plane values let legacy clients display approximate sizes, while a zeroed HTXF length prevents a legacy peer from attempting a partial read and treating it as complete.
+- Validate HTXF flags before attempting to read the optional 64-bit length. Servers MUST reject `HTXF_FLAG_SIZE64` when the peer is not authorised for large-file mode.
 - In legacy mode, omit oversized entries from directory listings and use the 32-bit ceiling for reported sizes and counts to avoid advertising un-fetchable items.
-- Always send both 32-bit and 64-bit companions in large-file mode so mixed peers can continue operating; fall back to legacy values when a 64-bit counterpart is absent.
+- Always send both legacy and 64-bit companion fields in large-file mode so mixed peers can continue operating; fall back to legacy values when a 64-bit counterpart is absent.
+- `DATA_FILESIZE64` in Get File Name List (200) is a **separate transaction field** appended to the response field list after each `DATA_FILE` field — it is not embedded inside the `DATA_FILE` binary blob. Clients parse it by reading the field list sequentially: each `DATA_FILESIZE64` corresponds to the most recently parsed `DATA_FILE`.
+- Resume: the 64-bit offset (`DATA_OFFSET64`) determines the byte position to resume from. The 64-bit transfer length in the HTXF handshake reflects the **remaining** bytes to transfer (total size minus offset), not the full file size.
 
 ## Notes
 
-- Always include legacy 32-bit fields for compatibility, even in large-file mode.
-- Resume uses the 64-bit offset fields when present; fallback is the legacy 32-bit offset.
+- Always include legacy fields for compatibility, even in large-file mode.
 - Resource forks: resource fork headers also use the high/low 64-bit layout under `HTXF_FLAG_LARGE_FILE`.
 - Setting HTXF length to zero for >4 GiB is required to avoid early termination by 32-bit peers.
 
