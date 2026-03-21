@@ -57,7 +57,8 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](capabilities-large-file.md) |
 | 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](capabilities-text-encoding.md) |
 | 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](capabilities-voice.md) |
-| 3–63 | — | *Reserved* | Available for future extensions | — |
+| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments in chat | See [Inline Media Extension](capabilities-inline-media.md) |
+| 4–63 | — | *Reserved* | Available for future extensions | — |
 
 ---
 
@@ -100,6 +101,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Large files | `DATA_CAPABILITIES` bit 0 + server config overrides |
 | Text encoding | `DATA_CAPABILITIES` bit 1 + server config fallback |
 | Voice chat | `DATA_CAPABILITIES` bit 2 + server config (`EnableVoice`) |
+| Inline media | `DATA_CAPABILITIES` bit 3 + server config (`MediaGateway` for legacy fallback) |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
 | GIF icons | No negotiation — feature is always available if server supports it |
