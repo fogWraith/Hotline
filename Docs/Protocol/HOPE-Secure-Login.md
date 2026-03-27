@@ -105,10 +105,10 @@ The client sends a `htlcHdrLogin` (107) packet with the following fields:
 <u16:count> [<u8:length> <str:name>]+
 ```
 
-Example: two algorithms, `HMAC-SHA1` (preferred) and `HMAC-MD5`:
+Example: three algorithms, `HMAC-SHA256` (preferred), `HMAC-SHA1`, and `HMAC-MD5`:
 ```
-00 02  09 48 4D 41 43 2D 53 48 41 31  08 48 4D 41 43 2D 4D 44 35
-count  len "HMAC-SHA1"                 len "HMAC-MD5"
+00 03  0B 48 4D 41 43 2D 53 48 41 32 35 36  09 48 4D 41 43 2D 53 48 41 31  08 48 4D 41 43 2D 4D 44 35
+count  len "HMAC-SHA256"                     len "HMAC-SHA1"                 len "HMAC-MD5"
 ```
 
 ### Step 2 — Server Identification Reply
@@ -152,13 +152,14 @@ From this point, the normal Hotline login flow continues (agreement, user list, 
 
 The following algorithms are defined, listed from strongest to weakest. Both client and server are **required** to support `INVERSE`.
 
-| Algorithm | Computation | Notes |
-|---|---|---|
-| `HMAC-SHA1` | `hmac_sha1(key=password, msg=session_key)` | Preferred |
-| `SHA1` | `sha1(password + session_key)` | |
-| `HMAC-MD5` | `hmac_md5(key=password, msg=session_key)` | |
-| `MD5` | `md5(password + session_key)` | |
-| `INVERSE` | Bitwise NOT of each byte | Required fallback |
+| Algorithm | Computation | Output Size | Notes |
+|---|---|---|---|
+| `HMAC-SHA256` | `hmac_sha256(key=password, msg=session_key)` | 32 bytes | Preferred; ideal for AEAD key derivation |
+| `HMAC-SHA1` | `hmac_sha1(key=password, msg=session_key)` | 20 bytes | |
+| `SHA1` | `sha1(password + session_key)` | 20 bytes | |
+| `HMAC-MD5` | `hmac_md5(key=password, msg=session_key)` | 16 bytes | |
+| `MD5` | `md5(password + session_key)` | 16 bytes | |
+| `INVERSE` | Bitwise NOT of each byte | Variable | Required fallback |
 
 The server selects the strongest algorithm from the client's preference list that it also supports. If no match is found, the server falls back to `INVERSE`.
 
@@ -184,14 +185,17 @@ The client can compare the IP portion against the address it connected to as a b
 
 Transport encryption activates after a successful HOPE login when both sides negotiated a cipher. All further Hotline packets (header and body) are encrypted at the byte-stream level.
 
+> **AEAD mode:** When `CHACHA20-POLY1305` is negotiated, the transport uses framed AEAD encryption instead of the stream cipher wire format described below. Key derivation, frame structure, nonce construction and file transfer encryption for AEAD mode are fully specified in [HOPE ChaCha20-Poly1305 Extension](hope-chacha20-poly1305.md). The remainder of this section describes the stream cipher mode used by RC4 and Blowfish.
+
 ### Supported Ciphers
 
 | ID | Name | Mode | Notes |
 |---|---|---|---|
 | 1 | `RC4` / `RC4-128` | Stream | ARC4 stream cipher |
 | 2 | `BLOWFISH` | OFB | Output Feedback mode |
+| 3 | `CHACHA20-POLY1305` | AEAD | ChaCha20-Poly1305 (RFC 8439); see [extension spec](hope-chacha20-poly1305.md) |
 
-Cipher name variants (`RC4`, `RC4-128`, `ARCFOUR`) are normalised to `RC4`. `NONE` disables encryption.
+Cipher name variants (`RC4`, `RC4-128`, `ARCFOUR`) are normalised to `RC4`. `CHACHA20` and `CHACHA20POLY1305` are normalised to `CHACHA20-POLY1305`. `NONE` disables encryption.
 
 ### Transport Key Derivation
 
@@ -203,7 +207,7 @@ decode_key = MAC(key=password_bytes, msg=encode_key)
 ```
 
 Where:
-- `MAC` is the negotiated algorithm (must be MD5, SHA1, HMAC-MD5, or HMAC-SHA1 — not INVERSE)
+- `MAC` is the negotiated algorithm (must be MD5, SHA1, HMAC-MD5, HMAC-SHA1, or HMAC-SHA256 — not INVERSE)
 - `password_bytes` is the plaintext password as UTF-8
 - `password_mac` is the MAC computed during authentication: `mac(password, session_key)`
 
