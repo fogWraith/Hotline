@@ -64,7 +64,7 @@ This is more or less a minor security feature for paranoid operators.
 ## Plugin API
 
 Plugins interact with the server through the global `server` table. The full
-API is documented in the [Plugin Developer Guide](developer-guide.md).
+API is documented in the [Plugin Developer Guide](Developer-Guide.md).
 
 ### Core Functions
 
@@ -130,5 +130,5 @@ to showcase what is possible through the plugin system.
 
 ## Further Reading
 
-- [Plugin Developer Guide](developer-guide.md) — Full API reference with
+- [Plugin Developer Guide](Developer-Guide.md) — Full API reference with
   examples, hook signatures, data types, and best practices.
