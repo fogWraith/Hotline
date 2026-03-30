@@ -1,6 +1,6 @@
 # HOPE ChaCha20-Poly1305 Extension
 
-This document specifies the ChaCha20-Poly1305 AEAD cipher extension for HOPE transport encryption as well as the file transfer encryption. It extends the base [HOPE Secure Login](hope-secure-login.md) specification.
+This document specifies the ChaCha20-Poly1305 AEAD cipher extension for HOPE transport encryption as well as the file transfer encryption. It extends the base [HOPE Secure Login](HOPE-Secure-Login.md) specification.
 
 ## Table of Contents
 
@@ -117,8 +117,8 @@ In AEAD mode, the XOR stream encryption with key rotation is replaced by length-
 
 ```
 +-------------------+-------------------------------+
-| Length (4 bytes)   | Ciphertext + Tag              |
-| big-endian uint32  | (variable + 16 bytes)         |
+| Length (4 bytes)   | Ciphertext + Tag             |
+| big-endian uint32  | (variable + 16 bytes)        |
 +-------------------+-------------------------------+
 ```
 
