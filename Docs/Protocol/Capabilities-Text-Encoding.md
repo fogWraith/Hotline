@@ -2,7 +2,7 @@
 
 This document describes the text encoding extension to the Hotline protocol. It allows clients and servers to negotiate UTF-8 text encoding for all string data, replacing the legacy Mac Roman assumption while remaining backwards compatible with classic Macintosh clients.
 
-For the general capability negotiation mechanism, see [DATA_CAPABILITIES](capabilities.md).
+For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
 ## Table of Contents
 
@@ -59,7 +59,7 @@ Without encoding awareness, the server passes raw bytes between clients. Each cl
 |---|---|---|---|
 | 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | Client supports UTF-8 for all string data |
 
-This bit is defined in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](capabilities.md) for the general negotiation flow.
+This bit is defined in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities.md) for the general negotiation flow.
 
 When both `CAPABILITY_LARGE_FILES` (bit 0) and `CAPABILITY_TEXT_ENCODING` (bit 1) are active, the capability bitmask is `0x0003`.
 
@@ -109,7 +109,7 @@ Legacy clients do not send `DATA_CAPABILITIES`. The server examines the client's
 | `0x00B5` | 181 | Hotline 1.8.x | Server default |
 | `0x00B9` | 185 | Hotline 1.8.5 | Server default |
 
-Without HOPE `app_id` identification (see [HOPE Secure Login](hope-secure-login.md)), the version number alone cannot distinguish between Mac Roman, Shift-JIS, and Latin-1 clients — all classic Mac clients send similar version numbers regardless of system encoding. Version sniffing therefore falls back to the server default for all legacy clients.
+Without HOPE `app_id` identification (see [HOPE Secure Login](HOPE-Secure-Login.md)), the version number alone cannot distinguish between Mac Roman, Shift-JIS, and Latin-1 clients — all classic Mac clients send similar version numbers regardless of system encoding. Version sniffing therefore falls back to the server default for all legacy clients.
 
 Future integration with HOPE `app_id` and `app_string` will enable more precise identification of specific clients and their native encodings.
 
