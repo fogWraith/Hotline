@@ -2,7 +2,7 @@
 
 This document describes the large-file extension to the Hotline protocol. It adds 64-bit sizing to control-plane fields (transactions) and transfer-plane headers (HTXF) while remaining backwards compatible with legacy 32-bit clients.
 
-For the general capability negotiation mechanism, see [DATA_CAPABILITIES](capabilities.md).
+For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
 ## Table of Contents
 
