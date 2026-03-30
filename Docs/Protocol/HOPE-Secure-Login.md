@@ -185,7 +185,7 @@ The client can compare the IP portion against the address it connected to as a b
 
 Transport encryption activates after a successful HOPE login when both sides negotiated a cipher. All further Hotline packets (header and body) are encrypted at the byte-stream level.
 
-> **AEAD mode:** When `CHACHA20-POLY1305` is negotiated, the transport uses framed AEAD encryption instead of the stream cipher wire format described below. Key derivation, frame structure, nonce construction and file transfer encryption for AEAD mode are fully specified in [HOPE ChaCha20-Poly1305 Extension](hope-chacha20-poly1305.md). The remainder of this section describes the stream cipher mode used by RC4 and Blowfish.
+> **AEAD mode:** When `CHACHA20-POLY1305` is negotiated, the transport uses framed AEAD encryption instead of the stream cipher wire format described below. Key derivation, frame structure, nonce construction and file transfer encryption for AEAD mode are fully specified in [HOPE ChaCha20-Poly1305 Extension](HOPE-ChaCha20-Poly1305.md). The remainder of this section describes the stream cipher mode used by RC4 and Blowfish.
 
 ### Supported Ciphers
 
@@ -193,7 +193,7 @@ Transport encryption activates after a successful HOPE login when both sides neg
 |---|---|---|---|
 | 1 | `RC4` / `RC4-128` | Stream | ARC4 stream cipher |
 | 2 | `BLOWFISH` | OFB | Output Feedback mode |
-| 3 | `CHACHA20-POLY1305` | AEAD | ChaCha20-Poly1305 (RFC 8439); see [extension spec](hope-chacha20-poly1305.md) |
+| 3 | `CHACHA20-POLY1305` | AEAD | ChaCha20-Poly1305 (RFC 8439); see [extension spec](HOPE-ChaCha20-Poly1305.md) |
 
 Cipher name variants (`RC4`, `RC4-128`, `ARCFOUR`) are normalised to `RC4`. `CHACHA20` and `CHACHA20POLY1305` are normalised to `CHACHA20-POLY1305`. `NONE` disables encryption.
 
