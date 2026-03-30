@@ -194,7 +194,7 @@ Client A                    Server                     Client B
   |                           |<-- Get Icon (1863) -------|
   |                           |    UID = A                |
   |                           |                           |
-  |                           |--- Reply --------------->|
+  |                           |--- Reply ---------------->|
   |                           |    UID = A                |
   |                           |    GIF data = [image]     |
   |                           |                           |
