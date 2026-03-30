@@ -54,10 +54,10 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 
 | Bit | Mask | Name | Description | Specification |
 |---|---|---|---|---|
-| 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](capabilities-large-file.md) |
-| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](capabilities-text-encoding.md) |
-| 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](capabilities-voice.md) |
-| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments in chat | See [Inline Media Extension](capabilities-inline-media.md) |
+| 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](Capabilities-Large-File.md) |
+| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](Capabilities-Text-Encoding.md) |
+| 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](Capabilities-Voice.md) |
+| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments in chat | See [Inline Media Extension](Capabilities-Inline-Media.md) |
 | 4–63 | — | *Reserved* | Available for future extensions | — |
 
 ---
