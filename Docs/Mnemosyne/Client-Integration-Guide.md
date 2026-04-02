@@ -28,8 +28,9 @@
 
 ## Overview
 
-Mnemosyne is an optional indexing service for the Hotline ecosystem. Hotline servers that opt in periodically sync their content (message board posts, news articles, and file listings) to a Mnemosyne instance, which provides a full-text search API over the aggregated index.  
-Do note that the content can be a constellation of different configurations, such as file listings only, or file listings and news articles, or only news articles etc.
+Mnemosyne is an optional indexing service for the Hotline ecosystem. Hotline servers that opt in periodically sync their content (message board posts, news articles, and file listings) to a Mnemosyne instance, which provides a full-text search API over the aggregated index.
+
+**Do note** that the content can be a constellation of different configurations, such as file listings only, or file listings and news articles, or only news articles etc.
 
 Client developers can integrate Mnemosyne search to let users discover servers and content **before** connecting. This is particularly useful for:
 
