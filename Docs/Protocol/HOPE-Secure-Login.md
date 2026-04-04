@@ -99,6 +99,8 @@ The client sends a `htlcHdrLogin` (107) packet with the following fields:
 | 0x0ECA | Client Compression | Algorithm list | *Optional.* Compression algorithms supported |
 | 0x0E03 | Session Key | Empty (0 bytes) | Requests a session key from the server |
 
+> **Note:** The cipher and compression fields require compile-time support in hx-family clients (`CONFIG_CIPHER` / `CONFIG_COMPRESS`), and a user-selected algorithm at connect time. If neither condition is met, these fields are omitted entirely and the connection proceeds without transport encryption.
+
 **MAC algorithm list encoding:**
 
 ```
@@ -260,11 +262,25 @@ The receiver mirrors this sequence exactly to stay in sync.
 
 ### Compression
 
-| Name | Description |
-|---|---|
-| `GZIP` / `ZLIB` | zlib compression with `Z_SYNC_FLUSH` |
+| Name | Format | Notes |
+|---|---|---|
+| `GZIP` | zlib (RFC 1950) | Compatible with legacy hx-family clients. Uses `deflateInit`/`inflateInit` with `Z_SYNC_FLUSH`. Despite the name, this is **not** gzip (RFC 1952). |
+| `LZ4` | LZ4 frame (spec v1.6) | Fast compression with low CPU overhead. Janus/Klein extension. |
+| `ZSTD` | Zstandard (RFC 8878) | Best compression ratio. Preferred for modern AEAD clients. Janus/Klein extension. |
+| `NONE` | — | Compression disabled. |
 
-Compression is applied **before** encryption on outbound and **after** decryption on inbound. The compressed size replaces both size fields in the 20-byte Hotline header.
+The server and client negotiate the compression algorithm during HOPE identification (Step 1–2) using `DATA_HOPE_CLIENT_COMPRESSION` (0x0ECA) and `DATA_HOPE_SERVER_COMPRESSION` (0x0EC9). The algorithm list uses the same wire encoding as MAC and cipher lists.
+
+When compression is negotiated, it is applied as a **persistent streaming codec** — the compressor and decompressor maintain state across transactions, allowing the dictionary to build over time for better ratios.
+
+**Data pipeline:**
+
+- **Outbound:** plaintext transaction → compress (sync flush) → cipher encrypt → wire
+- **Inbound:** wire → cipher decrypt → decompress → plaintext transaction
+
+When compression is active with a stream cipher (RC4/Blowfish), key rotation is disabled — the cipher operates as a plain XOR stream on compressed bytes. When compression is active with AEAD (ChaCha20-Poly1305), each AEAD frame contains compressed data.
+
+> **Important:** Sending an empty compression algorithm list (count=0) causes shxd-family clients (hx, gtkhx) to crash due to a NULL pointer dereference in `list_n()`. Servers must omit the compression fields entirely when compression is not negotiated.
 
 ---
 
@@ -293,6 +309,7 @@ Known app IDs:
 | `HOPE` | HotSocket |
 | `HLSR` | hlserver |
 | `JNSV` | Janus |
+| `KLNC` | Klein |
 
 Some clients (gtkhx, hx, GLoarbLine) omit `DATA_HOPE_APP_ID` and `DATA_HOPE_APP_STRING` in their HOPE identification entirely.
 
@@ -314,8 +331,8 @@ Client                                          Server
   |     login = 0x00                               |
   |     MAC algorithms = [HMAC-SHA1, SHA1, ...]    |
   |     app_id, app_string                         |
-  |     ciphers = [RC4, BLOWFISH]  (optional)      |
-  |     compression = [GZIP]       (optional)      |
+  |     ciphers = [CHACHA20-POLY1305, RC4]  (opt)  |
+  |     compression = [ZSTD, LZ4, GZIP]   (opt)    |
   |                                                |
   |<--- htlsHdrTask (Identification Reply) --------|
   |     session_key (64 bytes)                     |
