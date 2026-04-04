@@ -81,7 +81,7 @@ Stream ciphers use MAC-derived keys directly, which are only 16–32 bytes depen
 ```
 expanded_key = HKDF-Expand(
     PRK  = HKDF-Extract(salt=session_key, IKM=input_key),
-    info = "hope-aead-key",
+    info = <direction-specific string>,
     L    = 32
 )
 ```
@@ -89,6 +89,7 @@ expanded_key = HKDF-Expand(
 Where:
 - `session_key` is the 64-byte server-generated session key from Step 2
 - `input_key` is the MAC-derived key (encode_key or decode_key)
+- `info` is `"hope-chacha-encode"` for the encode key and `"hope-chacha-decode"` for the decode key
 
 ### AEAD Key Derivation
 
@@ -99,8 +100,8 @@ password_mac  = MAC(key=password_bytes, msg=session_key)
 encode_key    = MAC(key=password_bytes, msg=password_mac)
 decode_key    = MAC(key=password_bytes, msg=encode_key)
 
-encode_key_256 = HKDF-SHA256(ikm=encode_key, salt=session_key, info="hope-aead-key")
-decode_key_256 = HKDF-SHA256(ikm=decode_key, salt=session_key, info="hope-aead-key")
+encode_key_256 = HKDF-SHA256(ikm=encode_key, salt=session_key, info="hope-chacha-encode")
+decode_key_256 = HKDF-SHA256(ikm=decode_key, salt=session_key, info="hope-chacha-decode")
 ```
 
 Where `MAC` is the negotiated MAC algorithm (must be MD5, SHA1, HMAC-MD5, HMAC-SHA1, or HMAC-SHA256 — INVERSE is not supported with AEAD).
@@ -148,7 +149,7 @@ The direction byte ensures that the server and client never produce the same non
 
 ### Maximum Frame Size
 
-Implementations should enforce a maximum ciphertext frame size of 1 MiB (1,048,576 bytes) to prevent memory exhaustion from malformed length prefixes.
+Implementations should enforce a maximum ciphertext frame size of 16 MiB (16,777,216 bytes) to prevent memory exhaustion from malformed length prefixes.
 
 ---
 
