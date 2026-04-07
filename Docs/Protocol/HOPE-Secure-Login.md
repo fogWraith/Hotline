@@ -56,7 +56,7 @@ HOPE defines no new transaction types. All negotiation occurs within:
 
 ### HOPE Object IDs (Transport Encryption)
 
-These fields extend the original HOPE draft with cipher negotiation and transport encryption, as implemented by HotSocket/GLoarbline-family clients and HLServer.
+These fields extend the original HOPE draft with cipher negotiation and transport encryption, as implemented by HotSocket/GLoarbline/hx-family clients and HLServer/Janus/hx-family servers.
 
 | ID (hex) | ID (dec) | Constant | Description |
 |---|---|---|---|
@@ -310,6 +310,7 @@ Known app IDs:
 | `HLSR` | hlserver |
 | `JNSV` | Janus |
 | `KLNC` | Klein |
+| `HRMS` | Hermes |
 
 Some clients (gtkhx, hx, GLoarbLine) omit `DATA_HOPE_APP_ID` and `DATA_HOPE_APP_STRING` in their HOPE identification entirely.
 
