@@ -1,6 +1,6 @@
 # Known Identifiers
 
-This document catalogs the identifiers that the Hotline client and server send during connection establishment. Its purpose is to serve as a public registry so that developers of new clients and servers can select values that do not collide with existing software.
+This document catalogs the identifiers that Hotline client and server implementations send during connection establishment. Its purpose is to serve as a public registry so that developers of new clients and servers can select values that do not collide with existing software.
 
 This document does **not** cover HOPE extension App IDs (`DATA_HOPE_APP_ID` / `DATA_HOPE_APP_STRING`).
 
@@ -48,6 +48,7 @@ Developers of new software should choose a version number that does not conflict
 | 198     | `0x00C6` | Hermes                   | Modern client; native UTF-8               |
 | 199     | `0x00C7` | Klein                    | Modern client; native UTF-8               |
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
+| 48640   | `0xBE00` | Obsession                |                                           |
 | 8867    | `0x22A3` | XCC                      |                                           |
 
 ### Known Server Versions
