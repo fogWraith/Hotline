@@ -48,8 +48,8 @@ Developers of new software should choose a version number that does not conflict
 | 198     | `0x00C6` | Hermes                   | Modern client; native UTF-8               |
 | 199     | `0x00C7` | Klein                    | Modern client; native UTF-8               |
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
-| 48640   | `0xBE00` | Obsession                |                                           |
 | 8867    | `0x22A3` | XCC                      |                                           |
+| 48640   | `0xBE00` | Obsession                |                                           |
 
 ### Known Server Versions
 
