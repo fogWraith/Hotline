@@ -11,6 +11,7 @@
 - [Usage in Login (107)](#usage-in-login-107)
 - [Interaction with Other Negotiation Mechanisms](#interaction-with-other-negotiation-mechanisms)
 - [Implementation Notes](#implementation-notes)
+- [Date Format Selection](#date-format-selection)
 - [Example](#example)
 
 ---
@@ -54,11 +55,12 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 
 | Bit | Mask | Name | Description | Specification |
 |---|---|---|---|---|
-| 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](Capabilities-Large-File.md) |
-| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](Capabilities-Text-Encoding.md) |
-| 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](Capabilities-Voice.md) |
-| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments in chat | See [Inline Media Extension](Capabilities-Inline-Media.md) |
-| 4–63 | — | *Reserved* | Available for future extensions | — |
+| 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](capabilities-large-file.md) |
+| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](capabilities-text-encoding.md) |
+| 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](capabilities-voice.md) |
+| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments in chat | See [Inline Media Extension](capabilities-inline-media.md) |
+| 4 | `0x0010` | `CAPABILITY_CHAT_HISTORY` | Server-side chat history retrieval | See [Chat History Extension](https://github.com/fuzzywalrus/lemoniscate/blob/main/docs/Capabilities-Chat-History.md) |
+| 5–63 | — | *Reserved* | Available for future extensions | — |
 
 ---
 
@@ -102,6 +104,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Text encoding | `DATA_CAPABILITIES` bit 1 + server config fallback |
 | Voice chat | `DATA_CAPABILITIES` bit 2 + server config (`EnableVoice`) |
 | Inline media | `DATA_CAPABILITIES` bit 3 + server config (`MediaGateway` for legacy fallback) |
+| Chat history | `DATA_CAPABILITIES` bit 4 + server config (`Enabled` for history persistence) |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
 | GIF icons | No negotiation — feature is always available if server supports it |
@@ -116,6 +119,45 @@ If the server does not support any of the client's advertised capabilities, `DAT
 - **Bit width:** While currently bits 0–1 are defined, implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
 - **Unknown bits:** Both client and server should ignore bits they do not recognise. Do not reject a connection because of unknown capability bits.
 - **Absence handling:** If `DATA_CAPABILITIES` is not present in the login request, the server should treat the client as having zero capabilities. If not present in the reply, the client should treat the session as standard mode.
+
+---
+
+## Date Format Selection
+
+The Hotline protocol's 8-byte date structure (`year:2 | msecs:2 | secs:4`) has two competing wire encodings:
+
+| Format | Year field | Seconds field | Used by |
+|---|---|---|---|
+| **Mac 1904 epoch** | `1904` | Total seconds since Jan 1, 1904 UTC | Vintage servers, vintage Mac clients |
+| **Modern** | Actual year (e.g. `2026`) | Seconds since Jan 1 of that year, local time | Mobius, Hotline Navigator, most modern clients |
+
+Many clients handle both formats transparently (e.g. hotline-1.0beta28's `Date(year:seconds:)` initializer works with either by accident of date arithmetic). However, some clients interpret the fields literally — if they receive year=1904 but treat the seconds field as relative to that year, the decoded date overflows into nonsensical values.
+
+### Server Behaviour
+
+Servers that support `DATA_CAPABILITIES` use the field's presence as a signal to select the appropriate date encoding **per client**:
+
+| Client sends `DATA_CAPABILITIES`? | Server sends dates in… |
+|---|---|
+| **Yes** (any non-zero value) | Modern format (actual year + secs from Jan 1) |
+| **No** (field absent) | Mac 1904 epoch format (year=1904, total secs since 1904) |
+
+This applies to **all** date fields sent to the client:
+
+- `FieldFileCreateDate` / `FieldFileModifyDate` in Get File Info (200) replies
+- `CreateDate` / `ModifyDate` in `FlatFileInformationFork` during file and folder downloads
+- `Date` in threaded news article listings and article data
+
+The issue has been most prominent in threaded news articles, date fields in Get File Info (200) and file/folder downloads may or may not be required, but better safe than sorry. One could probably get away with only addressing Date in threaded news.
+
+### Client Behaviour
+
+Clients should be prepared to handle both date formats. A robust decoder can distinguish the two by inspecting the year field:
+
+- If `year == 1904`, seconds are total seconds since Jan 1, 1904 UTC.
+- Otherwise, seconds are relative to Jan 1 of the given year.
+
+Clients that send `DATA_CAPABILITIES` during login can expect dates in the modern format.
 
 ---
 
