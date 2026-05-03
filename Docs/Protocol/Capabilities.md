@@ -55,12 +55,13 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 
 | Bit | Mask | Name | Description | Specification |
 |---|---|---|---|---|
-| 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](capabilities-large-file.md) |
-| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](capabilities-text-encoding.md) |
-| 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](capabilities-voice.md) |
-| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments in chat | See [Inline Media Extension](capabilities-inline-media.md) |
-| 4 | `0x0010` | `CAPABILITY_CHAT_HISTORY` | Server-side chat history retrieval | See [Chat History Extension](https://github.com/fuzzywalrus/lemoniscate/blob/main/docs/Capabilities-Chat-History.md) |
-| 5–63 | — | *Reserved* | Available for future extensions | — |
+| 0 | `0x0001` | `CAPABILITY_LARGE_FILES` | 64-bit file sizes and transfer lengths | See [Large File Extension](Capabilities-Large-File.md) |
+| 1 | `0x0002` | `CAPABILITY_TEXT_ENCODING` | UTF-8 text encoding for all string data | See [Text Encoding Extension](Capabilities-Text-Encoding.md) |
+| 2 | `0x0004` | `CAPABILITY_VOICE` | Voice chat via WebRTC SFU | See [Voice Chat Extension](Capabilities-Voice.md) |
+| 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments via server-validated upload/download transactions (handle-based) | See [Inline Media Extension](Capabilities-Inline-Media.md) |
+| 4 | `0x0010` | `CAPABILITY_CHAT_HISTORY` | Server-side chat history retrieval | See [Chat History Extension](Capabilities-Chat-History.md) |
+| 5 | `0x0020` | `CAPABILITY_EXTENDED_PRIV` | Extended 128-bit `FieldUserAccess` (110) bitmap (provisional) | See [Extended Privilege Bitmap Extension](Capabilities-Extended-Priv.md) |
+| 6–63 | — | *Reserved* | Available for future extensions | — |
 
 ---
 
@@ -103,8 +104,9 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Large files | `DATA_CAPABILITIES` bit 0 + server config overrides |
 | Text encoding | `DATA_CAPABILITIES` bit 1 + server config fallback |
 | Voice chat | `DATA_CAPABILITIES` bit 2 + server config (`EnableVoice`) |
-| Inline media | `DATA_CAPABILITIES` bit 3 + server config (`MediaGateway` for legacy fallback) |
+| Inline media | `DATA_CAPABILITIES` bit 3 + server config (`AccessSendMedia` permission; optional `MediaGateway` for public-chat legacy fallback only) |
 | Chat history | `DATA_CAPABILITIES` bit 4 + server config (`Enabled` for history persistence) |
+| Extended privilege bitmap | `DATA_CAPABILITIES` bit 5 + server config (account store widened to 128 bits) |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
 | GIF icons | No negotiation — feature is always available if server supports it |
