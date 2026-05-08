@@ -10,10 +10,12 @@ For the general capability negotiation mechanism, see [Capabilities.md](Capabili
 - [Design Goals](#design-goals)
 - [Terminology](#terminology)
 - [Compatibility and Negotiation](#compatibility-and-negotiation)
+  - [Server Limits Advertisement](#server-limits-advertisement)
 - [New Data Objects](#new-data-objects)
 - [New Transactions](#new-transactions)
   - [Upload Media (TranUploadMedia)](#upload-media-tranuploadmedia)
   - [Download Media (TranDownloadMedia)](#download-media-trandownloadmedia)
+  - [Error Codes](#error-codes)
 - [Chat Messages with Media](#chat-messages-with-media)
   - [Public Chat (105 / 106)](#public-chat-105--106)
   - [Private Messages (108 / 104)](#private-messages-108--104)
@@ -43,6 +45,8 @@ Adds the ability to attach a single image to a chat message (public chat, privat
 
 This separation keeps chat transactions small, gives the server a clean place to validate and re-encode bytes, and naturally enforces authorization (only clients that received the chat message can resolve the handle).
 
+This extension applies **only to chat transactions** (public chat 105/106, private messages 108/104, and private chat rooms 105/106 with `DATA_CHATID`). Posting media to news threads, file comments, message boards, or any other transaction type is out of scope; servers MUST NOT accept the new media fields outside the chat transactions enumerated in this document, and clients MUST NOT send them.
+
 ## Design Goals
 
 - **Safe by default.** Servers MUST validate, canonicalise, and re-encode media before any other client sees it.
@@ -67,6 +71,23 @@ This separation keeps chat transactions small, gives the server a clean place to
 - Servers MUST strip media fields from any relayed transaction whose recipient did not negotiate the capability.
 - Servers that do not implement this extension may reject the new transactions as unknown. Clients MUST handle that case by suppressing the media UI for the session.
 
+### Server Limits Advertisement
+
+When the server confirms `CAPABILITY_INLINE_MEDIA` in the login reply it MUST also include the advisory limit fields below alongside `DATA_CAPABILITIES`. These fields communicate the server's effective configuration so clients can adapt their pre-flight UI (image picker, resize prompt, chunk slicing) to the specific server's policy instead of relying on hard-coded defaults.
+
+| Field ID | Name | Notes |
+|---|---|---|
+| `0x020C` | `DATA_CHAT_MEDIA_MAX_BYTES` | Maximum encoded payload after all chunks are assembled. |
+| `0x020D` | `DATA_CHAT_MEDIA_MAX_DIMENSION` | Maximum permitted width or height in pixels. |
+| `0x020E` | `DATA_CHAT_MEDIA_MAX_PIXELS` | Maximum permitted width × height (decoded pixel count). |
+| `0x020F` | `DATA_CHAT_MEDIA_CHUNK_SIZE` | Recommended chunk size in bytes when slicing chunked uploads. The same value bounds the per-chunk payload size used in `TranDownloadMedia` replies. |
+| `0x0210` | `DATA_CHAT_MEDIA_MAX_FRAMES` | Maximum frame count for animated formats. |
+| `0x0211` | `DATA_CHAT_MEDIA_MAX_DURATION_MS` | Maximum total animation duration in milliseconds. |
+
+These values are advisory — the server still enforces them on every upload — but clients SHOULD treat them as authoritative for client-side validation. Clients MUST tolerate any individual field being absent and fall back to the spec defaults documented in [Resource Limits](#resource-limits).
+
+Servers MUST NOT send these fields when the capability is not confirmed. Servers MUST NOT advertise values larger than they actually accept; advertising tighter values than the live configuration is permitted (for example, to throttle clients ahead of a planned reduction).
+
 ## New Data Objects
 
 | ID (hex) | Name | Type | Notes |
@@ -82,6 +103,15 @@ This separation keeps chat transactions small, gives the server a clean place to
 | `0x0209` | `DATA_CHAT_MEDIA_PART_INDEX` | Unsigned 16-bit | Zero-based chunk index. |
 | `0x020A` | `DATA_CHAT_MEDIA_PART_COUNT` | Unsigned 16-bit | Total chunk count. |
 | `0x020B` | `DATA_CHAT_MEDIA_PART_FINAL` | Unsigned 8-bit | Non-zero on the final chunk. |
+| `0x020C` | `DATA_CHAT_MEDIA_MAX_BYTES` | Unsigned 32-bit | Server-advertised cap on assembled encoded payload size, in bytes. Sent only in the login reply when the capability is confirmed. |
+| `0x020D` | `DATA_CHAT_MEDIA_MAX_DIMENSION` | Unsigned 32-bit | Server-advertised maximum width OR height in pixels. Sent only in the login reply. |
+| `0x020E` | `DATA_CHAT_MEDIA_MAX_PIXELS` | Unsigned 32-bit | Server-advertised maximum width × height. Sent only in the login reply. |
+| `0x020F` | `DATA_CHAT_MEDIA_CHUNK_SIZE` | Unsigned 32-bit | Server-recommended per-chunk byte size for chunked uploads, and per-chunk size used by the server in `TranDownloadMedia` replies. Sent only in the login reply. Clients SHOULD use this value when slicing payloads. |
+| `0x0210` | `DATA_CHAT_MEDIA_MAX_FRAMES` | Unsigned 32-bit | Server-advertised maximum frame count for animated formats. Sent only in the login reply. |
+| `0x0211` | `DATA_CHAT_MEDIA_MAX_DURATION_MS` | Unsigned 32-bit | Server-advertised maximum animation duration in milliseconds. Sent only in the login reply. |
+| `0x0212` | `DATA_CHAT_MEDIA_ERROR_CODE` | Unsigned 16-bit | Optional machine-readable rejection category, sent in error replies to `TranUploadMedia` and `TranDownloadMedia`. See [Error Codes](#error-codes). |
+
+Field IDs `0x0201`–`0x021F` are reserved for this extension. Future revisions of this document may allocate additional IDs within that range; implementers MUST NOT use unallocated IDs in the range for unrelated purposes.
 
 `DATA_CHAT_MEDIA_ID` and `DATA_CHAT_MEDIA_TYPE` are companion fields. In any chat transaction either both MUST be present or both MUST be absent. Receivers MUST reject a transaction that contains exactly one of the two.
 
@@ -115,7 +145,7 @@ This separation keeps chat transactions small, gives the server a clean place to
 | `0x0206` | `DATA_CHAT_MEDIA_HEIGHT` | Canonical height. |
 | `0x0207` | `DATA_CHAT_MEDIA_BYTES` | Canonical byte size. |
 
-**Reply on failure:** standard error transaction (flags = 1, `DATA_ERROR` with a generic, non-enumerating message such as `"Media rejected"`).
+**Reply on failure:** standard error transaction (flags = 1, `DATA_ERROR` with a generic, non-enumerating message such as `"Media rejected"`). Servers MAY additionally include `DATA_CHAT_MEDIA_ERROR_CODE` to convey a coarse machine-readable category; see [Error Codes](#error-codes).
 
 **Chunked upload (when bytes exceed a single field):**
 
@@ -158,7 +188,22 @@ Servers MAY refuse chunked uploads entirely and reject any first chunk that decl
 | `0x020A` | `DATA_CHAT_MEDIA_PART_COUNT` | Total chunk count. |
 | `0x020B` | `DATA_CHAT_MEDIA_PART_FINAL` | Non-zero on the final chunk. |
 
-Servers MUST authorize each download request: the requester MUST have been one of the recipients of the chat transaction that announced the handle, and the handle MUST still be live. Unauthorized or expired requests MUST return a generic error (`"Media not found"`); servers MUST NOT distinguish "expired" from "not authorized" in the error response.
+Servers MUST authorize each download request: the requester MUST have been one of the recipients of the chat transaction that announced the handle, and the handle MUST still be live. Unauthorized or expired requests MUST return a generic error (`"Media not found"`); servers MUST NOT distinguish "expired" from "not authorized" in the error response. When `DATA_CHAT_MEDIA_ERROR_CODE` is included on a download error, both cases MUST map to the same code (`0` generic or `4` auth) so the field cannot be used to enumerate handle existence.
+
+#### Error Codes
+
+The optional `DATA_CHAT_MEDIA_ERROR_CODE` field carries a coarse, machine-readable rejection category. It is intended for client UX (e.g. "resize and retry" vs "unsupported format") and MUST NOT enumerate the precise validation step that failed. The human-readable `DATA_ERROR` text remains the source of truth for display.
+
+| Code | Meaning | Notes |
+|---|---|---|
+| `0` | Generic / unspecified | Default when no other code applies. |
+| `1` | Payload too large | Encoded size, dimensions, pixel count, frame count, or duration exceeded a server cap. |
+| `2` | Unsupported format | Magic-byte sniff failed, container rejected, or canonicalisation impossible. |
+| `3` | Rate limited | Per-account or per-IP rate or volume cap hit. |
+| `4` | Not authorized | Sender lacks `AccessSendMedia`, recipient is not on the handle's authorization set, or handle expired. |
+| `5` | Server busy | Decode budget exhausted, too many concurrent upload sessions, transient resource pressure. |
+
+Clients MUST treat any unknown code as equivalent to `0`. Servers MAY omit the field entirely; clients MUST NOT require its presence.
 
 ## Chat Messages with Media
 
@@ -213,13 +258,13 @@ For every `TranUploadMedia` request the server MUST perform, in order:
 
 1. **Authorization check.** Reject if the sender lacks `AccessSendMedia` (bit 57; see [Authorization](#authorization)).
 2. **Per-account and per-IP quotas.** Reject if the sender has exceeded the configured rate or volume limits.
-3. **Encoded size check.** Reject if total payload exceeds the configured maximum (recommended default: 256 KB) once all chunks are assembled.
+3. **Encoded size check.** Reject if total payload is below a small minimum (recommended: 64 bytes — smaller than any plausible valid image) or exceeds the configured maximum (recommended default: 256 KB) once all chunks are assembled.
 4. **Magic-byte sniff.** Read the leading bytes of the assembled payload and confirm they match one of the server's allowed formats. Reject if no allowed magic matches. The sender's declared MIME type is a hint only and MUST NOT be used to skip this check.
 5. **Trailing-data check.** Confirm there is no significant data after the natural end-of-image marker for the detected format. Reject otherwise.
-6. **Dimension probe.** Decode only the image header and read the declared width and height. Reject if `width × height` exceeds the configured pixel cap (recommended default: 2048 × 2048 = ~4.2 megapixels) or if either dimension is below 1 or above 4096.
+6. **Dimension probe.** Decode only the image header and read the declared width and height. Reject if either dimension is less than 1, if either dimension exceeds 4096, or if `width × height` exceeds the configured pixel cap (recommended default: 2048 × 2048 = ~4.2 megapixels).
 7. **Bounded full decode.** Decode the full image with a memory and time budget. Reject on decoder error, timeout, or budget exhaustion.
 8. **Animated-image checks.** For animated formats, reject if frame count, total decoded bytes, or total animation duration exceed the configured caps.
-9. **Re-encode.** Encode the decoded pixels into a canonical output (recommended: PNG for images with an alpha channel, JPEG otherwise; GIF preserved for animated GIF input). The output MUST contain no metadata: no EXIF, no ICC profile, no XMP, no PNG ancillary text chunks, no GIF comment extensions. The bytes that result from this step are what the server stores and relays.
+9. **Re-encode.** Encode the decoded pixels into a canonical output (recommended: PNG for images with an alpha channel, JPEG otherwise; GIF preserved for animated GIF input). Servers MUST apply the source image's EXIF orientation tag to the pixel buffer **before** re-encoding, so the canonical bytes are upright and orientation-free. The output MUST contain no metadata: no EXIF, no ICC profile, no XMP, no PNG ancillary text chunks, no GIF comment extensions. The bytes that result from this step are what the server stores and relays.
 10. **Issue handle.** Generate a media handle with at least 128 bits of cryptographically random entropy. Store the canonical bytes, the canonical MIME type, dimensions, byte size, and the sender's identity, keyed by the handle.
 
 If any step fails, the server MUST return a generic error transaction. The error message MUST NOT reveal which step failed beyond a coarse category (e.g. `"Media too large"`, `"Unsupported media"`, `"Media rejected"`). The server MUST NOT relay the original bytes to any client under any circumstance.
@@ -280,15 +325,18 @@ Servers MUST enforce, and SHOULD expose as configuration:
 | Maximum encoded payload | 256 KB | After all chunks are assembled; before the validation pipeline runs. |
 | Maximum dimensions | 2048 × 2048 | Reject before full decode. |
 | Maximum decoded pixel count | ~4.2 megapixels | Belt-and-braces with the dimensions check. |
-| Maximum animation frames | 150 | For animated formats. |
-| Maximum animation duration | 15 seconds | For animated formats. |
+| Maximum animation frames | 150 | For animated formats. Advertised as `DATA_CHAT_MEDIA_MAX_FRAMES`. |
+| Maximum animation duration | 15 seconds | For animated formats. Advertised as `DATA_CHAT_MEDIA_MAX_DURATION_MS`. |
 | Per-account upload rate | 1 image per 10 seconds | Reject excess with a generic rate-limit error. |
 | Per-account hourly volume | 30 images / hour | |
 | Per-IP hourly volume | 100 images / hour | |
+| Per-account download rate | 60 downloads / minute | Reject excess `TranDownloadMedia` requests with a generic rate-limit error. Bounds amplification cost when relaying canonical bytes to many clients. |
+| Concurrent upload sessions per account | 2 | Reject the first chunk of any new session beyond this cap; existing sessions are unaffected. Bounds memory held for partial chunks. |
 | Handle lifetime | 24 hours | Handles MUST be discarded after this window. |
 | Decode time budget | 2 seconds | Hard cap; reject on timeout. |
 | Decode memory budget | 64 MB | Reject on exhaustion. |
 | Upload-session idle timeout | 30 seconds | Discard partial chunks if the next chunk does not arrive in time. |
+| Upload-token entropy | ≥ 64 bits | Tokens are session-scoped (not handles); 64 bits of cryptographic entropy is sufficient. |
 
 Servers MAY tighten these defaults. Servers SHOULD NOT relax them without operator awareness.
 
@@ -311,10 +359,10 @@ Servers MAY tighten these defaults. Servers SHOULD NOT relax them without operat
 
 1. Confirm `CAPABILITY_INLINE_MEDIA` is active for the session. If not, suppress the media UI.
 2. Read the source image and SHOULD strip metadata locally (in particular EXIF GPS) as a defence-in-depth measure. The server will strip metadata regardless.
-3. If the encoded size exceeds the server's advertised maximum (or the client's own conservative default), the client SHOULD resize or recompress before uploading.
-4. Send `TranUploadMedia` with the bytes. If the bytes do not fit in a single field, use the chunked-upload convention.
+3. If the encoded size exceeds the server's advertised `DATA_CHAT_MEDIA_MAX_BYTES` (or, if absent, the client's own conservative default), the client SHOULD resize or recompress before uploading. Clients SHOULD apply the same pre-check against `DATA_CHAT_MEDIA_MAX_DIMENSION` and `DATA_CHAT_MEDIA_MAX_PIXELS` to fail fast instead of round-tripping a known-bad upload.
+4. Send `TranUploadMedia` with the bytes. If the bytes do not fit in a single field, use the chunked-upload convention; clients SHOULD use the server-advertised `DATA_CHAT_MEDIA_CHUNK_SIZE` when slicing.
 5. On success, take the returned `DATA_CHAT_MEDIA_ID` and `DATA_CHAT_MEDIA_TYPE` and include them in the chat transaction (`TranChatSend` / `TranSendInstantMsg`) along with the user's text.
-6. On error, surface a generic message to the user. Do not retry automatically more than once.
+6. On error, surface a generic message to the user. When `DATA_CHAT_MEDIA_ERROR_CODE` is present, clients MAY use it to choose a more specific UI affordance (e.g. offer to resize on code `1`, suggest a different file on code `2`, back off on codes `3`/`5`). Do not retry automatically more than once.
 
 Clients MUST NOT cache media handles across sessions. Handles are session-scoped from the client's perspective even if the server permits longer lifetimes.
 
@@ -384,7 +432,7 @@ For convenience, the following are normative MUSTs concentrated in one place:
 
 ## Implementation Notes
 
-- **No new chat transactions.** This extension introduces only the upload and download transactions. Public chat (105/106), private messages (108/104), and private chat rooms (105/106 with `DATA_CHATID`) all continue to use their existing types, with two added companion fields and three server-supplied advisory fields.
+- **No new chat transactions.** This extension introduces only the upload and download transactions. Public chat (105/106), private messages (108/104), and private chat rooms (105/106 with `DATA_CHATID`) all continue to use their existing types, with two added companion fields and three server-supplied advisory fields. Server-advertised limits and the optional error code are carried in the login reply and in error replies respectively.
 - **Field-size discipline.** All fields conform to standard Hotline 16-bit length encoding. Image bytes are exchanged via dedicated transactions that support multi-chunk replies; no field ever exceeds 65,535 bytes.
 - **Capability echo on relay.** The server is the single place where capability checks are applied to outbound chat fan-out. Clients MUST NOT attempt to detect peer capabilities themselves.
 - **Chat logging.** Chat history (see the chat-history extension) MUST treat media as a metadata-only entry by default; canonical bytes MAY be retained separately under operator policy.
