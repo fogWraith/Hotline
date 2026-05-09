@@ -112,13 +112,13 @@ When a v3 server registers with a v1 tracker:
 ## Protocol Overview
 
 ```
-┌──────────────┐     UDP/5499 (DTLS)     ┌──────────────────┐    TCP/5498 (TLS)   ┌──────────────┐
-│              │ ──────────────────────► │                  │ ◄────────────────── │              │
-│  HL Server   │    Registration +       │                  │   Listing Request + │  HL Client   │
-│              │    Metadata             │  Tracker Server  │   Search + Auth     │              │
-│              │ ◄────────────────────── │                  │ ──────────────────► │              │
-│              │    Ack (optional)       │                  │   Server List       │              │
-└──────────────┘                         └──────────────────┘                     └──────────────┘
+┌──────────────┐    UDP/5499 (DTLS)     ┌──────────────────┐    TCP/5498 (TLS)   ┌──────────────┐
+│              │ ──────────────────────►│                  │ ◄────────────────── │              │
+│  HL Server   │   Registration +       │                  │   Listing Request + │  HL Client   │
+│              │   Metadata             │  Tracker Server  │   Search + Auth     │              │
+│              │ ◄──────────────────────│                  │ ──────────────────► │              │
+│              │   Ack (optional)       │                  │   Server List       │              │
+└──────────────┘                        └──────────────────┘                     └──────────────┘
 ```
 
 Key differences from v1:
@@ -321,7 +321,7 @@ The v3 registration datagram extends the v1 format by appending a TLV extension 
 
 ```
 ┌────────────────────────────────────────────────────┐
-│             v1-Compatible Header (12 bytes)        │
+│              v1-Compatible Header (12 bytes)       │
 ├────────────────────────────────────────────────────┤
 │  Version (u16) = 0x0003                            │
 │  Port (u16)                                        │
@@ -329,13 +329,13 @@ The v3 registration datagram extends the v1 format by appending a TLV extension 
 │  Reserved (u16) = 0x0000                           │
 │  PassID (u32)                                      │
 ├────────────────────────────────────────────────────┤
-│             v1-Compatible Strings                  │
+│              v1-Compatible Strings                 │
 ├────────────────────────────────────────────────────┤
 │  Name length (u8) + Name (Pascal string)           │
 │  Description length (u8) + Description (Pascal str)│
 │  Password length (u8) + Password (Pascal string)   │
 ├────────────────────────────────────────────────────┤
-│             v3 Extension Block                     │
+│              v3 Extension Block                    │
 ├────────────────────────────────────────────────────┤
 │  Extension magic (u16) = 0x4833  ("H3")            │
 │  Extension count (u16)                             │
@@ -374,16 +374,33 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0207   | `RULES_URL`        | string | URL to server rules/terms                            |
 | 0x0208   | `BANNER_URL`       | string | URL to server banner image                           |
 | 0x0209   | `ICON_URL`         | string | URL to server icon image                             |
+| 0x020A   | `LINK_DOWN_MBIT`   | u32    | Server's downstream link capacity in mbit/s (ISP-advertised) |
+| 0x020B   | `LINK_UP_MBIT`     | u32    | Server's upstream link capacity in mbit/s (ISP-advertised) |
+| 0x020C   | `TIMEZONE_OFFSET_MIN` | i16 | Operator-declared timezone offset from UTC in minutes (e.g., `-300` = UTC-5, `330` = UTC+5:30) |
+| 0x020D   | `CONTACT_URL`      | string | Operator contact URL (mailto:, https://, matrix:, xmpp:, etc.) |
+| 0x020E   | `SERVER_LAUNCHED`  | u32    | Unix timestamp of when the server was first stood up (stable across restarts; distinct from `UPTIME`) |
+| 0x0210   | `MIN_PROTOCOL_VERSION` | u16 | Operator-declared minimum client Hotline protocol version (e.g., `0x0210`); clients below this are rejected at login |
+| 0x0211   | `PEAK_24H`         | u16    | Peak concurrent users observed in the rolling 24-hour window (omitted during warmup) |
+| 0x0212   | `AVG_24H`          | u16    | Mean concurrent users over the rolling 24-hour window (omitted during warmup)        |
 | 0x0300   | `PROTOCOL_VERSION` | u16    | Hotline protocol version supported (e.g., `0x0197`)  |
 | 0x0301   | `SUPPORTS_HOPE`    | bool   | Server supports HOPE encryption                      |
 | 0x0302   | `SUPPORTS_TLS`     | bool   | Server supports TLS connections                      |
 | 0x0303   | `TLS_PORT`         | u16    | Dedicated TLS port (if different from base port)     |
+| 0x0304   | `SUPPORTS_INLINE_MEDIA` | bool | Server supports the inline-media chat extension   |
+| 0x0305   | `SUPPORTS_VOICE`   | bool   | Server supports the voice chat extension             |
+| 0x0306   | `SUPPORTS_LARGE_FILES` | bool | Server supports 64-bit (>4 GiB) file transfers    |
+| 0x0307   | `SUPPORTS_IPV6`    | bool   | Server is reachable over IPv6 (explicit; complements `ADDRESS_IPV6`) |
+| 0x0309   | `HOPE_CIPHERS`     | string | Comma-separated HOPE cipher canonical names, server-preference order (e.g., `"CHACHA20-POLY1305,RC4,BLOWFISH"`) |
 | 0x0310   | `TAGS`             | string | Comma-separated tags (e.g., `"chat,files,retro"`)   |
 | 0x0450   | `NEWS_COUNT`       | u32    | Number of news articles on the server                |
 | 0x0451   | `MSGBOARD_COUNT`   | u32    | Number of message board posts                        |
 | 0x0452   | `FILES_COUNT`      | u32    | Total number of files hosted                         |
 | 0x0453   | `TOTAL_FILE_SIZE`  | u32    | Total file storage size in bytes                     |
+| 0x0454   | `LAST_NEWS_TIMESTAMP` | u32 | Unix timestamp of newest news article (`0` = never)  |
+| 0x0455   | `LAST_CHAT_TIMESTAMP` | u32 | Unix timestamp of most recent **public-room** chat broadcast; private rooms/DMs/system messages MUST NOT advance this clock |
 | 0x0500   | `PRIVATE_LISTING`  | bool   | Server is unlisted (findable by direct address only) |
+| 0x0501   | `LISTING_CATEGORY` | u8     | Operator-declared listing category: `0`=unspecified (TLV omitted), `1`=general, `2`=development, `3`=archive, `4`=warez |
+| 0x0502   | `LISTING_LANGUAGE_STRICT` | bool | Chat is moderated to the announced `LANGUAGE` (informational; not enforced server-side) |
 | 0x0800   | `REG_TOKEN`        | bytes  | Registration token (from previous ack, if available) |
 | 0x0801   | `HMAC_SHA256`      | bytes  | HMAC-SHA256 signature over the datagram              |
 | 0x0802   | `NONCE`            | bytes  | 8-byte nonce for replay protection                   |
@@ -564,16 +581,16 @@ When the tracker sets `FEAT_CLIENT_AUTH` in the handshake, the client must authe
 | 2      | 2    | Field count | u16    | Number of TLV auth fields     |
 | 4      | var  | TLV fields  | TLV[]  | Login/password fields         |
 
-| Field ID | Name         | Type   | Description          |
+| Field ID | Name         | Type   | Description         |
 |----------|-------------|--------|----------------------|
-| 0x0820   | `AUTH_LOGIN` | string | Username             |
-| 0x0821   | `AUTH_PASS`  | string | Password             |
+| 0x0820   | `AUTH_LOGIN` | string | Username            |
+| 0x0821   | `AUTH_PASS`  | string | Password            |
 
 **Auth response (tracker → client):**
 
 | Offset | Size | Field       | Type  | Description                          |
 |--------|------|-------------|-------|--------------------------------------|
-| 0      | 1    | Status      | u8    | 0x00 = success, 0x01 = denied       |
+| 0      | 1    | Status      | u8    | 0x00 = success, 0x01 = denied        |
 | 1      | 2    | Field count | u16   | Optional TLV fields                  |
 | 3      | var  | TLV fields  | TLV[] | Error message, etc.                  |
 
@@ -617,6 +634,14 @@ These fields are always present in the server record fixed header (not TLV):
 | 0x0207   | `RULES_URL`       | string | URL to server rules/terms of service         |
 | 0x0208   | `BANNER_URL`      | string | URL to server banner image                   |
 | 0x0209   | `ICON_URL`        | string | URL to server icon                           |
+| 0x020A   | `LINK_DOWN_MBIT`  | u32    | Downstream link capacity (mbit/s, ISP-advertised) |
+| 0x020B   | `LINK_UP_MBIT`    | u32    | Upstream link capacity (mbit/s, ISP-advertised) |
+| 0x020C   | `TIMEZONE_OFFSET_MIN` | i16 | Timezone offset from UTC in minutes (signed)     |
+| 0x020D   | `CONTACT_URL`     | string | Operator contact URL                         |
+| 0x020E   | `SERVER_LAUNCHED` | u32    | Unix timestamp of initial server launch      |
+| 0x0210   | `MIN_PROTOCOL_VERSION` | u16 | Operator-declared minimum client protocol version |
+| 0x0211   | `PEAK_24H`        | u16    | Peak concurrent users in the rolling 24h window |
+| 0x0212   | `AVG_24H`         | u16    | Mean concurrent users in the rolling 24h window |
 | 0x0310   | `TAGS`            | string | Comma-separated tags                         |
 
 ### Capability Fields
@@ -627,6 +652,11 @@ These fields are always present in the server record fixed header (not TLV):
 | 0x0301   | `SUPPORTS_HOPE`    | bool | Server supports HOPE encryption           |
 | 0x0302   | `SUPPORTS_TLS`     | bool | Server supports TLS connections           |
 | 0x0303   | `TLS_PORT`         | u16  | Dedicated TLS port if different           |
+| 0x0304   | `SUPPORTS_INLINE_MEDIA` | bool | Server supports the inline-media chat extension |
+| 0x0305   | `SUPPORTS_VOICE`   | bool | Server supports the voice chat extension  |
+| 0x0306   | `SUPPORTS_LARGE_FILES` | bool | Server supports 64-bit (>4 GiB) transfers |
+| 0x0307   | `SUPPORTS_IPV6`    | bool | Server is reachable over IPv6 (explicit)  |
+| 0x0309   | `HOPE_CIPHERS`     | string | Comma-separated HOPE cipher canonical names, server-preference order |
 
 ### Content Index Fields
 
@@ -638,6 +668,8 @@ These fields convey content statistics about the server. They may be included by
 | 0x0451   | `MSGBOARD_COUNT`  | u32  | Number of message board posts              |
 | 0x0452   | `FILES_COUNT`     | u32  | Total number of hosted files               |
 | 0x0453   | `TOTAL_FILE_SIZE` | u32  | Total file storage size in bytes           |
+| 0x0454   | `LAST_NEWS_TIMESTAMP` | u32 | Unix timestamp of newest news article (`0` = never) |
+| 0x0455   | `LAST_CHAT_TIMESTAMP` | u32 | Unix timestamp of most recent **public-room** chat broadcast |
 
 When injected by the tracker, these fields are populated from an external content indexing service and cached with a configurable TTL. When provided by the server in a v3 registration, the server-declared values are used unless the tracker has a more authoritative source.
 
@@ -646,8 +678,46 @@ When injected by the tracker, these fields are populated from an external conten
 | Field ID | Name              | Type | Description                                |
 |----------|-------------------|------|--------------------------------------------|
 | 0x0500   | `PRIVATE_LISTING` | bool | Server is unlisted in public results       |
+| 0x0501   | `LISTING_CATEGORY` | u8   | Operator-declared category (see vocabulary below) |
+| 0x0502   | `LISTING_LANGUAGE_STRICT` | bool | Chat is moderated to the announced `LANGUAGE` (informational) |
 
 Private servers are omitted from listing responses. They can be accessed by clients who know the server's address and port directly.
+
+#### `LISTING_CATEGORY` Vocabulary
+
+| Value | Name          | Description                                                          |
+|-------|---------------|----------------------------------------------------------------------|
+| `0`   | unspecified   | Operator did not declare a category. The TLV MUST be omitted in this case so unset config does not pollute the `general` filter. |
+| `1`   | general       | General-purpose community server.                                    |
+| `2`   | development   | Software development, testing, or staging server.                    |
+| `3`   | archive       | Archival/library server (read-mostly content).                       |
+| `4`   | warez         | Operator self-identifies as a warez/piracy server.                   |
+| `5`   | gaming        | Game servers, multiplayer lobbies, mod hosting.                      |
+| `6`   | media         | Streaming, music, video distribution, podcast archives.              |
+| `7`   | education     | Tutorials, course materials, academic resources.                     |
+| `8`   | research      | Scientific data, simulations, open datasets.                         |
+| `9`   | file-sharing  | General P2P, file hosting, backup services.                          |
+| `10`  | social        | Chat rooms, forums, community discussion boards.                     |
+| `11`  | security      | Penetration testing labs, security research, honeypots.              |
+| `12`  | creative      | Art, design assets, 3D modeling, music production.                   |
+
+Trackers MAY filter, hide, or visually flag entries based on this value. Clients MAY surface it as a filter or a category badge. The vocabulary is closed: implementations MUST treat unknown values as `0` (unspecified).
+
+#### `LISTING_LANGUAGE_STRICT` Semantics
+
+When `true`, the operator asserts that public chat in this server is moderated to the announced `LANGUAGE` (0x0204). This is **informational only**; servers do not enforce language at the protocol layer. Clients MAY surface it as a hint when filtering by language.
+
+#### `LAST_CHAT_TIMESTAMP` Privacy Constraints
+
+Servers emitting `LAST_CHAT_TIMESTAMP` (0x0455) MUST advance the clock **only** when a chat message is broadcast to a public chat room. The clock MUST NOT be advanced by:
+
+- Private chat rooms (any `chatID` other than the public/zero chat).
+- Direct (private) messages between users.
+- System-generated messages (join/leave/server announcements injected by the server itself).
+
+This preserves the privacy guarantee of private rooms and DMs: an outside observer of tracker listings can infer the level of *public* activity but learns nothing about private conversations occurring on the server.
+
+Servers that have never broadcast a public chat message SHOULD omit the TLV (rather than emit `0`).
 
 ### Tracker-Injected Fields
 
@@ -658,10 +728,13 @@ These fields are set by the tracker, not by the registering server. They MUST NO
 | 0x0600   | `IS_PROMOTED`      | bool | Tracker-pinned entry (manually added by operator) |
 | 0x0601   | `FIRST_SEEN`       | u32  | Unix timestamp of first registration       |
 | 0x0602   | `LAST_HEARTBEAT`   | u32  | Unix timestamp of last successful heartbeat |
+| 0x0603   | `VERIFIED_ONLINE`  | bool | Tracker has recently confirmed the server is reachable on its advertised port (active probe within heartbeat window) |
 
 **`IS_PROMOTED`** marks entries that the tracker operator has manually added or pinned (equivalent to v1 "fake servers" and custom list entries). Promoted entries:
 - Are displayed in listings with a flag so clients can distinguish them.
 - Never expire.
+
+**`VERIFIED_ONLINE`** is set when the tracker has performed an active reachability probe (e.g., a Hotline `TRTG`/`HTRK` handshake or TCP connect on the advertised port) within the heartbeat interval and the server responded successfully. Trackers MAY emit this field on listing responses to let clients distinguish servers that are merely registered from servers actively reachable. Trackers that do not implement reachability probing MUST omit this field; clients MUST NOT treat its absence as a negative signal.
 
 ---
 
@@ -1029,25 +1102,38 @@ Tracker → Client:
 | `0x0207` | `RULES_URL`        | string | Descriptive      | Server (reg)   |
 | `0x0208` | `BANNER_URL`       | string | Descriptive      | Server (reg)   |
 | `0x0209` | `ICON_URL`         | string | Descriptive      | Server (reg)   |
+| `0x020A` | `LINK_DOWN_MBIT`   | u32    | Descriptive      | Server (reg)   |
+| `0x020B` | `LINK_UP_MBIT`     | u32    | Descriptive      | Server (reg)   |
+| `0x020C` | `TIMEZONE_OFFSET_MIN` | i16 | Descriptive      | Server (reg)   |
+| `0x020D` | `CONTACT_URL`      | string | Descriptive      | Server (reg)   |
+| `0x020E` | `SERVER_LAUNCHED`  | u32    | Descriptive      | Server (reg)   |
+| `0x0210` | `MIN_PROTOCOL_VERSION` | u16 | Descriptive      | Server (reg)   |
+| `0x0211` | `PEAK_24H`         | u16    | Descriptive      | Server (reg)   |
+| `0x0212` | `AVG_24H`          | u16    | Descriptive      | Server (reg)   |
 | `0x0300` | `PROTOCOL_VERSION` | u16    | Capability       | Server (reg)   |
 | `0x0301` | `SUPPORTS_HOPE`    | bool   | Capability       | Server (reg)   |
 | `0x0302` | `SUPPORTS_TLS`     | bool   | Capability       | Server (reg)   |
 | `0x0303` | `TLS_PORT`         | u16    | Capability       | Server (reg)   |
+| `0x0304` | `SUPPORTS_INLINE_MEDIA` | bool | Capability     | Server (reg)   |
+| `0x0305` | `SUPPORTS_VOICE`   | bool   | Capability       | Server (reg)   |
+| `0x0306` | `SUPPORTS_LARGE_FILES` | bool | Capability     | Server (reg)   |
+| `0x0307` | `SUPPORTS_IPV6`    | bool   | Capability       | Server (reg)   |
+| `0x0309` | `HOPE_CIPHERS`     | string | Capability       | Server (reg)   |
 | `0x0310` | `TAGS`             | string | Capability       | Server (reg)   |
 | `0x0450` | `NEWS_COUNT`       | u32    | Content Index    | Tracker/Server |
 | `0x0451` | `MSGBOARD_COUNT`   | u32    | Content Index    | Tracker/Server |
 | `0x0452` | `FILES_COUNT`      | u32    | Content Index    | Tracker/Server |
 | `0x0453` | `TOTAL_FILE_SIZE`  | u32    | Content Index    | Tracker/Server |
+| `0x0454` | `LAST_NEWS_TIMESTAMP` | u32 | Content Index    | Server (reg)   |
+| `0x0455` | `LAST_CHAT_TIMESTAMP` | u32 | Content Index    | Server (reg)   |
 | `0x0500` | `PRIVATE_LISTING`  | bool   | Privacy          | Server (reg)   |
+| `0x0501` | `LISTING_CATEGORY` | u8     | Privacy          | Server (reg)   |
+| `0x0502` | `LISTING_LANGUAGE_STRICT` | bool | Privacy     | Server (reg)   |
 | `0x0600` | `IS_PROMOTED`      | bool   | Tracker-injected | Tracker only   |
 | `0x0601` | `FIRST_SEEN`       | u32    | Tracker-injected | Tracker only   |
 | `0x0602` | `LAST_HEARTBEAT`   | u32    | Tracker-injected | Tracker only   |
-| `0x0700` | `FED_TRACKER_ID`   | bytes  | Federation       | Tracker (fed)  |
-| `0x0701` | `FED_TRACKER_NAME` | string | Federation       | Tracker (fed)  |
-| `0x0702` | `FED_TRACKER_DESC` | string | Federation       | Tracker (fed)  |
-| `0x0703` | `FED_TRACKER_CONTACT` | string | Federation    | Tracker (fed)  |
-| `0x0704` | `FED_TRACKER_POLICY` | string | Federation     | Tracker (fed)  |
-| `0x0710` | `FED_SIGNATURE`    | bytes  | Federation       | Tracker (fed)  |
+| `0x0603` | `VERIFIED_ONLINE`  | bool   | Tracker-injected | Tracker only   |
+| `0x0700`–`0x07FF` | *(reserved for Federation — see [Tracker-Federation.md](Tracker-Federation.md))* | — | Federation | Tracker (fed) |
 | `0x0800` | `REG_TOKEN`        | bytes  | Security         | Tracker (ack)  |
 | `0x0801` | `HMAC_SHA256`      | bytes  | Security         | Server (reg)   |
 | `0x0802` | `NONCE`            | bytes  | Security         | Server (reg)   |
@@ -1068,4 +1154,4 @@ The following companion specifications extend v3 with optional capabilities. Eac
 | Specification | Document | Description | TLV Range |
 |---------------|----------|-------------|-----------|
 | Content Index | — | Content statistics (news, files, message boards) injected by a content indexing service | 0x0400–0x04FF |
-| Federation | [tracker-federation.md](tracker-federation.md) | HTFD protocol for tracker-to-tracker server list exchange with trust and identity controls | 0x0700–0x07FF |
+| Federation | [Tracker-Federation.md](Tracker-Federation.md) | HTFD protocol for tracker-to-tracker server list exchange with trust and identity controls | 0x0700–0x07FF |
