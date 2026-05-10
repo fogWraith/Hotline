@@ -369,7 +369,7 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0202   | `REGION`           | string | Freeform region/city (e.g., `"California"`)          |
 | 0x0203   | `LANGUAGE`         | string | ISO 639-1 language code (e.g., `"en"`, `"ja"`)      |
 | 0x0204   | `MAX_USERS`        | u16    | Maximum user capacity                                |
-| 0x0205   | `MATURITY`         | u8     | Content rating: 0=general, 1=mature, 2=adult         |
+| 0x0205   | `MATURITY`         | u8     | Content rating: `0`=general, `1`=teen, `2`=mature, `3`=adult         |
 | 0x0206   | `UPTIME`           | u32    | Server uptime in seconds                             |
 | 0x0207   | `RULES_URL`        | string | URL to server rules/terms                            |
 | 0x0208   | `BANNER_URL`       | string | URL to server banner image                           |
@@ -399,7 +399,7 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0454   | `LAST_NEWS_TIMESTAMP` | u32 | Unix timestamp of newest news article (`0` = never)  |
 | 0x0455   | `LAST_CHAT_TIMESTAMP` | u32 | Unix timestamp of most recent **public-room** chat broadcast; private rooms/DMs/system messages MUST NOT advance this clock |
 | 0x0500   | `PRIVATE_LISTING`  | bool   | Server is unlisted (findable by direct address only) |
-| 0x0501   | `LISTING_CATEGORY` | u8     | Operator-declared listing category: `0`=unspecified (TLV omitted), `1`=general, `2`=development, `3`=archive, `4`=warez |
+| 0x0501   | `LISTING_CATEGORY` | u8     | Operator-declared listing category: `0`=unspecified (TLV omitted), `1`=general, `2`=development, `3`=archive, `4`=warez, `5`=gaming, `6`=media, `7`=education, `8`=research, `9`=file-sharing, `10`=social, `11`=security, `12`=creative (see vocabulary section) |
 | 0x0502   | `LISTING_LANGUAGE_STRICT` | bool | Chat is moderated to the announced `LANGUAGE` (informational; not enforced server-side) |
 | 0x0800   | `REG_TOKEN`        | bytes  | Registration token (from previous ack, if available) |
 | 0x0801   | `HMAC_SHA256`      | bytes  | HMAC-SHA256 signature over the datagram              |
@@ -425,7 +425,7 @@ When a v3 tracker receives a valid v3 registration, it MAY send a UDP response b
 |------|---------------|-------------------------------------------------|
 | 0x00 | `ACK_OK`      | Registration accepted                           |
 | 0x01 | `ACK_DENIED`  | Password incorrect or authentication failed     |
-| 0x02 | `ACK_BANNED`  | Source IP is banned                              |
+| 0x02 | `ACK_BANNED`  | Source IP is banned                             |
 | 0x03 | `ACK_QUOTA`   | Per-IP server quota exceeded                    |
 | 0x04 | `ACK_FULL`    | Tracker has reached maximum server capacity     |
 | 0x05 | `ACK_INVALID` | Malformed datagram                              |
@@ -629,7 +629,7 @@ These fields are always present in the server record fixed header (not TLV):
 | 0x0202   | `REGION`          | string | Freeform region or city                      |
 | 0x0203   | `LANGUAGE`        | string | ISO 639-1 language code                      |
 | 0x0204   | `MAX_USERS`       | u16    | Maximum user capacity                        |
-| 0x0205   | `MATURITY`        | u8     | 0=general, 1=mature, 2=adult                 |
+| 0x0205   | `MATURITY`        | u8     | Content rating (see vocabulary)              |
 | 0x0206   | `UPTIME`          | u32    | Server process uptime in seconds             |
 | 0x0207   | `RULES_URL`       | string | URL to server rules/terms of service         |
 | 0x0208   | `BANNER_URL`      | string | URL to server banner image                   |
@@ -643,6 +643,17 @@ These fields are always present in the server record fixed header (not TLV):
 | 0x0211   | `PEAK_24H`        | u16    | Peak concurrent users in the rolling 24h window |
 | 0x0212   | `AVG_24H`         | u16    | Mean concurrent users in the rolling 24h window |
 | 0x0310   | `TAGS`            | string | Comma-separated tags                         |
+
+#### `MATURITY` Vocabulary
+
+| Value | Name    | Description                                                       |
+|-------|---------|-------------------------------------------------------------------|
+| `0`   | general | All ages; no mature content advertised. Default when unspecified. |
+| `1`   | teen    | Mild suggestive themes, occasional strong language.               |
+| `2`   | mature  | Adult themes; not suitable for minors.                            |
+| `3`   | adult   | Explicit adult content.                                           |
+
+The vocabulary is closed: implementations MUST treat unknown values as `0` (general). Trackers and clients MAY filter or visually flag listings based on this value.
 
 ### Capability Fields
 
