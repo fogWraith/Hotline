@@ -1,0 +1,2195 @@
+openapi: 3.0.3
+info:
+  title: Janus API
+  description: REST API for managing the Janus Hotline server
+  version: 2.2.0
+  contact:
+    name: fogWraith
+    url: https://github.com/fogWraith
+servers:
+  - url: http://localhost:8973
+    description: Local server
+security:
+  - ApiKeyAuth: []
+
+paths:
+  # --- Status & Health ---
+  /api/v2/status:
+    get:
+      summary: Server status
+      description: Returns server name, version, uptime, and current user/transfer counts.
+      tags: [Status]
+      responses:
+        '200':
+          description: Server status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /api/v2/health:
+    get:
+      summary: Health check
+      tags: [Status]
+      responses:
+        '200':
+          description: Server is healthy
+
+  /api/v2/metrics:
+    get:
+      summary: Server metrics
+      description: Returns raw server statistics (counters, gauges).
+      tags: [Status]
+      responses:
+        '200':
+          description: Metrics object
+
+  /api/v2/mnemosyne/metrics:
+    get:
+      summary: Mnemosyne subsystem metrics
+      description: |
+        Returns a point-in-time snapshot of the in-core Mnemosyne content
+        sync subsystem.  Returns 404 when the subsystem is disabled via
+        config.yaml.
+      tags: [Status]
+      responses:
+        '200':
+          description: Mnemosyne counter snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events_received:
+                    type: integer
+                    format: int64
+                    description: Total events pushed onto the internal queue.
+                  events_dropped:
+                    type: integer
+                    format: int64
+                    description: Events dropped because the bounded queue was full.
+                  chunks:
+                    type: integer
+                    format: int64
+                    description: Successful chunk POSTs (any content type).
+                  retries:
+                    type: integer
+                    format: int64
+                    description: HTTP retry attempts across all requests.
+                  bytes_sent:
+                    type: integer
+                    format: int64
+                    description: Total request body bytes sent.
+                  last_heartbeat_at:
+                    type: integer
+                    format: int64
+                    description: Unix seconds of last successful heartbeat (0 if none).
+                  last_full_sync_at:
+                    type: integer
+                    format: int64
+                    description: Unix seconds of last successful full sync (0 if none).
+                  last_error_at:
+                    type: integer
+                    format: int64
+                    description: Unix seconds of last HTTP error (0 if none).
+        '404':
+          description: Mnemosyne subsystem is not enabled.
+
+  # --- NewsBridge (NNTP <-> Hotline news gateway) ---
+  /api/v2/newsbridge/status:
+    get:
+      summary: NewsBridge subsystem status
+      description: |
+        Returns a JSON snapshot of NewsBridge's per-server / per-group
+        state: connection state, queue depths, last poll time, and
+        per-group high-water marks. 404 when the subsystem is disabled
+        via `config.yaml`.
+      tags: [NewsBridge]
+      responses:
+        '200':
+          description: NewsBridge status snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: NewsBridge subsystem is not enabled.
+
+  /api/v2/newsbridge/audit:
+    get:
+      summary: NewsBridge audit log
+      description: |
+        Returns recent rows from the NewsBridge audit table (inbound and
+        outbound article activity, errors, retries). 404 when disabled.
+      tags: [NewsBridge]
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            RFC 3339 timestamp or Unix seconds. Default: 24 hours ago.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: Maximum number of rows to return.
+      responses:
+        '200':
+          description: Audit rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Invalid `since` or `limit` parameter.
+        '404':
+          description: NewsBridge subsystem is not enabled.
+
+  /api/v2/newsbridge/groups/{server}/{group}/reset:
+    post:
+      summary: Reset a group's high-water mark
+      description: |
+        Forces a re-import of the named NNTP group on the next poll
+        cycle by clearing its stored cursor. Use this after fixing a
+        bad mapping or recovering from a corrupted upstream feed.
+      tags: [NewsBridge]
+      parameters:
+        - name: server
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Configured NewsBridge server `Name`.
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+          description: NNTP group name (e.g. `local.hotline.general`).
+      responses:
+        '200':
+          description: Group cursor reset.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: reset
+                  server:
+                    type: string
+                  group:
+                    type: string
+        '400':
+          description: Invalid path or unknown server/group.
+        '404':
+          description: NewsBridge subsystem is not enabled.
+        '405':
+          description: Method not allowed (POST only).
+
+  /api/v2/newsbridge/outbound:
+    get:
+      summary: List outbound queue entries
+      description: |
+        Returns rows from the Hotline-to-NNTP outbound queue. Useful
+        for inspecting deliveries and diagnosing failed sends.
+      tags: [NewsBridge]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, sent, failed]
+          description: Filter by delivery status. Default = all.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+      responses:
+        '200':
+          description: Outbound rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Invalid `status` or `limit` parameter.
+        '404':
+          description: NewsBridge subsystem is not enabled.
+
+  /api/v2/newsbridge/outbound/{id}/retry:
+    post:
+      summary: Retry a failed outbound delivery
+      description: |
+        Moves a failed outbound row back to `pending` so it will be
+        picked up on the next poll cycle.
+      tags: [NewsBridge]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Outbound row id from `/newsbridge/outbound`.
+      responses:
+        '200':
+          description: Row queued for retry.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: retry
+                  id:
+                    type: integer
+                    format: int64
+        '400':
+          description: Invalid id or row not in failed state.
+        '404':
+          description: NewsBridge subsystem is not enabled.
+        '405':
+          description: Method not allowed (POST only).
+
+  # --- Users ---
+  /api/v2/users:
+    get:
+      summary: List online users
+      description: Returns all currently connected users with nickname, login, IP, icon, version, and protocol extensions.
+      tags: [Users]
+      responses:
+        '200':
+          description: List of online users
+
+  /api/v2/users/{uid}/session:
+    get:
+      summary: Get user session details
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User session info
+
+  /api/v2/users/{uid}/kick:
+    post:
+      summary: Kick a user
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User kicked
+
+  /api/v2/users/{uid}/temp-ban:
+    post:
+      summary: Temp-ban and disconnect a user
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [duration_minutes]
+              properties:
+                duration_minutes:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: User banned
+
+  /api/v2/users/{uid}/message:
+    post:
+      summary: Send a private message to a user
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Message sent
+
+  /api/v2/users/{uid}/auto-reply:
+    post:
+      summary: Set or clear a user's auto-reply message
+      description: |
+        Updates the `AutoReply` field on the live `ClientConn`. An empty
+        `message` clears any existing auto-reply.
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Auto-reply updated
+
+  /api/v2/users/{uid}/block-download:
+    post:
+      summary: Block or unblock downloads for a user
+      description: |
+        Toggles the per-session `BlockedDownload` flag on the live
+        `ClientConn`. Downloads remain blocked until the flag is cleared
+        or the user disconnects.
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocked]
+              properties:
+                blocked:
+                  type: boolean
+      responses:
+        '200':
+          description: Block state updated
+
+  /api/v2/users/{uid}/invisibility:
+    post:
+      summary: Make a user invisible or visible
+      description: |
+        Toggles the per-session `Invisible` flag on the live `ClientConn`,
+        hiding (or revealing) the user from the user list broadcast.
+      tags: [Users]
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invisible]
+              properties:
+                invisible:
+                  type: boolean
+      responses:
+        '200':
+          description: Invisibility state updated
+
+  # --- Broadcast ---
+  /api/v2/broadcast:
+    post:
+      summary: Broadcast a message to all users
+      tags: [Server]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Message broadcast
+
+  # --- Server Info ---
+  /api/v2/server/agreement:
+    get:
+      summary: Get server agreement text
+      tags: [Server]
+      responses:
+        '200':
+          description: Agreement text
+    put:
+      summary: Update server agreement text
+      tags: [Server]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Agreement updated
+
+  /api/v2/server/banner:
+    get:
+      summary: Get server banner info
+      tags: [Server]
+      responses:
+        '200':
+          description: Banner metadata (has_banner, size, file)
+
+  /api/v2/server/config:
+    get:
+      summary: Get server configuration
+      description: >
+        Returns the current server configuration. Does not include
+        sensitive fields (passwords, API keys, file system paths beyond
+        BannerFile and IgnoreFiles).
+      tags: [Server]
+      responses:
+        '200':
+          description: Server configuration values
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                ok: true
+                data:
+                  name: "My Server"
+                  description: "A Hotline server"
+                  enable_tracker: true
+                  trackers: []
+                  max_downloads: 10
+                  max_downloads_per_client: 3
+                  max_connections_per_ip: 5
+                  banner_file: "banner.jpg"
+                  ignore_files: ["Icon\r", ".DS_Store"]
+                  max_gif_icon_size: 32768
+                  allow_large_files: false
+                  large_file_clients: []
+                  default_text_encoding: "mac_roman"
+                  enable_hope: false
+                  hope_app_id: ""
+                  hope_app_string: ""
+                  new_user_defaults:
+                    DownloadFile: true
+                    DownloadFolder: true
+                    ReadChat: true
+                    SendChat: true
+
+  /api/v2/server/tls:
+    get:
+      summary: Get TLS status
+      tags: [Server]
+      responses:
+        '200':
+          description: TLS configuration info
+
+  /api/v2/server/reload:
+    post:
+      summary: Reload server configuration
+      description: >
+        Hot-reloads server configuration. If a targets array is provided,
+        only those subsystems are reloaded. If omitted, everything is reloaded.
+      tags: [Server]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targets:
+                  type: array
+                  items:
+                    type: string
+                    enum: [agreement, banner, bans, filetypes, msgboard, news, plugins]
+      responses:
+        '200':
+          description: Configuration reloaded
+
+  /api/v2/server/shutdown:
+    post:
+      summary: Gracefully shutdown the server
+      description: Sends a disconnect message to all clients, then shuts down.
+      tags: [Server]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  description: Message sent to all clients before shutdown
+      responses:
+        '200':
+          description: Server shutting down
+
+  # --- Accounts ---
+  /api/v2/accounts:
+    get:
+      summary: List all accounts
+      tags: [Accounts]
+      responses:
+        '200':
+          description: List of accounts
+    post:
+      summary: Create a new account
+      description: >
+        Creates a new account. If the `access` field is omitted or contains
+        no enabled bits, the server applies the `NewUserDefaults` template
+        from config.yaml (if configured). The standard "creator cannot
+        grant more access than themselves" check applies after defaults
+        are filled in.
+      tags: [Accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login:
+                  type: string
+                name:
+                  type: string
+                password:
+                  type: string
+                access:
+                  $ref: '#/components/schemas/AccessFlags'
+                file_root:
+                  type: string
+                  description: Custom FileRoot path for this account (empty = server default)
+                disk_quota:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: Per-account upload quota in bytes (0 = use server default)
+                max_bandwidth:
+                  type: integer
+                  minimum: 0
+                  description: Per-account download bandwidth cap in bytes/sec (0 = inherit server MaxBandwidthPerClient)
+                red_name:
+                  type: boolean
+                  description: Admin appearance (red name) without requiring disconnect_user privilege
+      responses:
+        '201':
+          description: Account created
+
+  /api/v2/accounts/{login}:
+    get:
+      summary: Get account by login
+      tags: [Accounts]
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account details
+    patch:
+      summary: Update an account
+      tags: [Accounts]
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                login:
+                  type: string
+                  description: New login name (renames the account)
+                password:
+                  type: string
+                access:
+                  $ref: '#/components/schemas/AccessFlags'
+                file_root:
+                  type: string
+                  description: Custom FileRoot path for this account (empty = server default)
+                disk_quota:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: Per-account upload quota in bytes (0 = use server default)
+                max_bandwidth:
+                  type: integer
+                  minimum: 0
+                  description: Per-account download bandwidth cap in bytes/sec (0 = inherit server MaxBandwidthPerClient)
+                red_name:
+                  type: boolean
+                  description: Admin appearance (red name) without requiring disconnect_user privilege
+      responses:
+        '200':
+          description: Account updated
+    delete:
+      summary: Delete an account
+      tags: [Accounts]
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account deleted
+
+  # --- Bans ---
+  /api/v2/temp-bans:
+    get:
+      summary: List all bans
+      description: Returns IP bans (with expiry/reason), banned usernames, and banned nicknames.
+      tags: [Bans]
+      responses:
+        '200':
+          description: Ban lists
+    post:
+      summary: Add a ban
+      description: Ban by IP (with optional duration/reason), username, and/or nickname.
+      tags: [Bans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ip:
+                  type: string
+                username:
+                  type: string
+                nickname:
+                  type: string
+                duration_minutes:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Ban added
+
+  /api/v2/temp-bans/ip/{addr}:
+    delete:
+      summary: Unban an IP address
+      tags: [Bans]
+      parameters:
+        - name: addr
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: IP unbanned
+
+  /api/v2/temp-bans/username/{name}:
+    delete:
+      summary: Unban a username
+      tags: [Bans]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Username unbanned
+
+  /api/v2/temp-bans/nickname/{name}:
+    delete:
+      summary: Unban a nickname
+      tags: [Bans]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Nickname unbanned
+
+  # --- Message Board ---
+  /api/v2/msgboard:
+    get:
+      summary: List message board posts
+      tags: [Message Board]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated post list
+    post:
+      summary: Create a message board post
+      tags: [Message Board]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                login:
+                  type: string
+                nick:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '201':
+          description: Post created
+
+  /api/v2/msgboard/{id}:
+    get:
+      summary: Get a single post
+      tags: [Message Board]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Post details
+    patch:
+      summary: Update a post body
+      tags: [Message Board]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Post updated
+    delete:
+      summary: Delete a post
+      tags: [Message Board]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Post deleted
+
+  /api/v2/msgboard/by-ip/{ip}:
+    delete:
+      summary: Delete all posts by IP
+      description: >
+        Deletes all message board posts from the given IP address.
+        Use the `since` query parameter to limit deletion to a time window.
+      tags: [Message Board]
+      parameters:
+        - name: ip
+          in: path
+          required: true
+          schema:
+            type: string
+          description: IP address to match
+        - name: since
+          in: query
+          schema:
+            type: string
+          description: >
+            Time window for deletion. Examples: "1h", "24h", "7d", "30d", "1w", "all".
+            Default is "all" (delete everything from this IP).
+      responses:
+        '200':
+          description: Posts deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                  ip:
+                    type: string
+
+  # --- News Categories ---
+  /api/v2/news/categories:
+    get:
+      summary: List root news categories
+      tags: [News]
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Slash-delimited category path
+      responses:
+        '200':
+          description: List of categories
+    post:
+      summary: Create a news category
+      tags: [News]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                path:
+                  type: array
+                  items:
+                    type: string
+                name:
+                  type: string
+                kind:
+                  type: string
+                  enum: [category, bundle]
+                  default: bundle
+      responses:
+        '201':
+          description: Category created
+
+  /api/v2/news/categories/{path}:
+    get:
+      summary: Get category contents
+      tags: [News]
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Slash-delimited category path
+      responses:
+        '200':
+          description: Category info with sub-categories and article count
+    patch:
+      summary: Rename a category
+      tags: [News]
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Category renamed
+    delete:
+      summary: Delete a category
+      tags: [News]
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category deleted
+
+  # --- News Articles ---
+  /api/v2/news/articles:
+    get:
+      summary: List articles in a category
+      tags: [News]
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Slash-delimited category path
+      responses:
+        '200':
+          description: List of articles
+    post:
+      summary: Post a news article
+      tags: [News]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, path]
+              properties:
+                path:
+                  type: array
+                  items:
+                    type: string
+                title:
+                  type: string
+                body:
+                  type: string
+                poster:
+                  type: string
+                parent_id:
+                  type: integer
+      responses:
+        '201':
+          description: Article posted
+
+  /api/v2/news/articles/{id}:
+    get:
+      summary: Get article by ID
+      tags: [News]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Slash-delimited category path
+      responses:
+        '200':
+          description: Article details
+    patch:
+      summary: Update article title/body
+      tags: [News]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: path
+          in: query
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Article updated
+    delete:
+      summary: Delete an article
+      tags: [News]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: path
+          in: query
+          schema:
+            type: string
+        - name: recursive
+          in: query
+          schema:
+            type: string
+            enum: ["0", "1"]
+          description: |
+            When set to `1`, deletes the article and all its child replies.
+            Default `0` (delete only the specified article).
+      responses:
+        '200':
+          description: Article deleted
+
+  /api/v2/news/articles/by-ip/{ip}:
+    delete:
+      summary: Delete all articles by IP
+      description: >
+        Deletes all news articles across all categories posted from the given IP address.
+        Use the `since` query parameter to limit deletion to a time window.
+      tags: [News]
+      parameters:
+        - name: ip
+          in: path
+          required: true
+          schema:
+            type: string
+          description: IP address to match
+        - name: since
+          in: query
+          schema:
+            type: string
+          description: >
+            Time window for deletion. Examples: "1h", "24h", "7d", "30d", "1w", "all".
+            Default is "all" (delete everything from this IP).
+      responses:
+        '200':
+          description: Articles deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                  ip:
+                    type: string
+
+  # --- Transfers ---
+  /api/v2/transfers:
+    get:
+      summary: List active file transfers
+      description: Returns all active transfers with progress info.
+      tags: [Transfers]
+      responses:
+        '200':
+          description: List of active transfers
+
+  /api/v2/transfers/{ref}:
+    get:
+      summary: Get a file transfer's status
+      description: |
+        Returns a single in-flight transfer including resume offset,
+        wire options, required-access bitmap, and file paths.
+      tags: [Transfers]
+      parameters:
+        - name: ref
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Transfer ref_num in hex
+      responses:
+        '200':
+          description: Transfer detail
+        '404':
+          description: Transfer not found
+    delete:
+      summary: Cancel a file transfer
+      tags: [Transfers]
+      parameters:
+        - name: ref
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Transfer ref_num in hex
+      responses:
+        '200':
+          description: Transfer cancelled
+
+  # --- Private Chats ---
+  /api/v2/chats:
+    get:
+      summary: List active private chats
+      tags: [Chats]
+      responses:
+        '200':
+          description: List of private chat rooms with members
+
+  /api/v2/chats/{id}:
+    patch:
+      summary: Update a private chat's subject
+      description: |
+        Updates the room subject on the in-memory `MemChatManager` for the
+        chat with the given 8-char hex ID (the same form returned by the
+        list endpoint).
+      tags: [Chats]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Chat ID as 8-char hex
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: string
+      responses:
+        '200':
+          description: Subject updated
+        '404':
+          description: Chat not found
+
+  # --- Files ---
+  /api/v2/files:
+    get:
+      summary: Browse server file directory
+      tags: [Files]
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Subdirectory path relative to FileRoot
+      responses:
+        '200':
+          description: Directory listing
+
+  /api/v2/file-stats:
+    get:
+      summary: Get file storage statistics
+      description: Walks the FileRoot and returns total file count, directory count, and byte size.
+      tags: [Files]
+      responses:
+        '200':
+          description: File statistics
+
+  /api/v2/files/recent:
+    get:
+      summary: Recently modified files
+      description: >
+        Returns the most recently modified files from the disk catalog,
+        ordered by modification time descending. Requires the disk catalog
+        to be enabled.
+      tags: [Files]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            maximum: 200
+          description: Maximum number of files to return
+      responses:
+        '200':
+          description: Recently modified files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Disk catalog not enabled
+
+  /api/v2/file-stats/breakdown:
+    get:
+      summary: Detailed storage analytics
+      description: >
+        Returns a comprehensive storage breakdown including totals,
+        per-folder usage, largest files, file type distribution, and
+        most downloaded files. Requires the disk catalog to be enabled.
+      tags: [Files]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            maximum: 200
+          description: Maximum number of items per category
+      responses:
+        '200':
+          description: Storage analytics breakdown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                ok: true
+                data:
+                  total_files: 1234
+                  total_dirs: 56
+                  total_bytes: 5368709120
+                  top_folders:
+                    - name: "Uploads"
+                      total_files: 800
+                      total_dirs: 20
+                      total_bytes: 3221225472
+                  largest_files:
+                    - name: "big_archive.sit"
+                      path: "/Uploads/big_archive.sit"
+                      size: 1073741824
+                      type: "SIT!"
+                      modified: "2026-04-18T12:00:00Z"
+                  type_breakdown:
+                    - type_code: "SIT!"
+                      file_count: 50
+                      total_bytes: 2147483648
+                  most_downloaded:
+                    - name: "popular.sit"
+                      path: "/Uploads/popular.sit"
+                      size: 52428800
+                      download_count: 42
+        '503':
+          description: Disk catalog not enabled
+
+  /api/v2/files/by-ip/{ip}:
+    delete:
+      summary: Delete all files uploaded by IP
+      description: >
+        Walks file metadata in DataRoot and deletes all files uploaded by the
+        given IP address. Both the actual file in FileRoot and its associated
+        metadata and resource fork in DataRoot are removed.
+      tags: [Files]
+      parameters:
+        - name: ip
+          in: path
+          required: true
+          schema:
+            type: string
+          description: IP address to match
+      responses:
+        '200':
+          description: Files deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                  ip:
+                    type: string
+                  paths:
+                    type: array
+                    items:
+                      type: string
+                    description: Relative paths of deleted files
+
+  # --- Chat Logs ---
+  /api/v2/chat-logs:
+    get:
+      summary: List chat log files
+      tags: [Chat Logs]
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [public, private]
+          description: Filter logs by kind
+      responses:
+        '200':
+          description: List of chat log files
+
+  /api/v2/chat-logs/{kind}:
+    get:
+      summary: Read recent chat log events
+      tags: [Chat Logs]
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [public, private]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 200
+          description: Maximum number of events to return
+        - name: tail_bytes
+          in: query
+          schema:
+            type: integer
+            default: 65536
+          description: Number of bytes from the end of the log file to read
+      responses:
+        '200':
+          description: Chat log events
+
+  # --- Chat History ---
+  /api/v2/chat-history:
+    get:
+      summary: Query chat history
+      description: >
+        Returns paginated chat history messages from the in-memory or SQLite
+        chat history store. Requires the HistoryChatLogger backend to be enabled.
+      tags: [Chat History]
+      parameters:
+        - name: channel_id
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Chat channel ID (0 = public chat)
+        - name: before
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Return messages before this message ID (cursor pagination)
+        - name: after
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Return messages after this message ID (cursor pagination)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+          description: Maximum number of messages to return
+      responses:
+        '200':
+          description: Chat history messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              format: int64
+                            timestamp:
+                              type: integer
+                              format: int64
+                            nick:
+                              type: string
+                            message:
+                              type: string
+                            icon_id:
+                              type: integer
+                            action:
+                              type: boolean
+                            server_msg:
+                              type: boolean
+                      total:
+                        type: integer
+                      has_more:
+                        type: boolean
+        '404':
+          description: Chat history not enabled
+
+  /api/v2/chat-history/prune:
+    post:
+      summary: Prune old chat history
+      description: Deletes messages older than the specified retention policy.
+      tags: [Chat History]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_messages:
+                  type: integer
+                  minimum: 1
+                  description: Keep at most this many recent messages
+                max_days:
+                  type: integer
+                  minimum: 1
+                  description: Delete messages older than this many days
+      responses:
+        '200':
+          description: Prune result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: integer
+                        format: int64
+        '404':
+          description: Chat history not enabled
+
+  # --- Voice Rooms ---
+  /api/v2/voice/rooms:
+    get:
+      summary: List active voice rooms
+      description: Returns all active voice chat rooms and their participants.
+      tags: [Voice]
+      responses:
+        '200':
+          description: Voice rooms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      rooms:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            room_id:
+                              type: integer
+                            participants:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  client_id:
+                                    type: integer
+                                  muted:
+                                    type: boolean
+                                  codec:
+                                    type: integer
+                                    description: Opus codec ID negotiated for this participant.
+                      total:
+                        type: integer
+        '404':
+          description: Voice chat not enabled
+
+  # --- Plugins ---
+  /api/v2/plugins:
+    get:
+      summary: List loaded plugins
+      description: Returns the names of all currently loaded Lua plugins.
+      tags: [Plugins]
+      responses:
+        '200':
+          description: Plugin list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      plugins:
+                        type: array
+                        items:
+                          type: string
+                      total:
+                        type: integer
+
+  # --- IRC Bridge ---
+  /api/v2/irc-bridge:
+    get:
+      summary: Get IRC bridge status
+      description: Returns the connection status and configuration of the IRC bridge.
+      tags: [IRC Bridge]
+      responses:
+        '200':
+          description: IRC bridge status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      connected:
+                        type: boolean
+                      registered:
+                        type: boolean
+                      server:
+                        type: string
+                      channel:
+                        type: string
+                      bot_nick:
+                        type: string
+        '404':
+          description: IRC bridge not enabled
+
+  # --- Trackers ---
+  /api/v2/trackers:
+    get:
+      summary: List configured trackers
+      description: Returns tracker configuration and registration status.
+      tags: [Trackers]
+      responses:
+        '200':
+          description: Tracker list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      trackers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            address:
+                              type: string
+                            version:
+                              type: integer
+                            tags:
+                              type: string
+                            country_code:
+                              type: string
+                            last_registration:
+                              type: string
+                              format: date-time
+                              description: Time of the most recent successful registration / send.
+                            next_attempt:
+                              type: string
+                              format: date-time
+                              description: Best-effort estimate of the next scheduled registration.
+                            last_error:
+                              type: string
+                              description: Most recent registration error (empty on success).
+                            heartbeat_secs:
+                              type: integer
+                              description: Per-tracker heartbeat interval negotiated via v3 ack.
+                            banned:
+                              type: boolean
+                              description: True when the tracker returned AckBanned.
+                            has_reg_token:
+                              type: boolean
+                              description: True when a REG_TOKEN has been received from this tracker.
+                            last_ack_status:
+                              type: integer
+                              description: Most recent ack.Status from this tracker (v3 only).
+                      total:
+                        type: integer
+
+  # --- Per-Account Disk Usage ---
+  /api/v2/accounts-usage/{login}:
+    get:
+      summary: Get disk usage for an account
+      description: >
+        Returns file count, directory count, and total bytes for an account's
+        dedicated file root. Requires the DiskCatalog to be enabled.
+      tags: [Accounts]
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account disk usage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      login:
+                        type: string
+                      file_root:
+                        type: string
+                      total_files:
+                        type: integer
+                      total_dirs:
+                        type: integer
+                      total_bytes:
+                        type: integer
+                        format: int64
+                      disk_quota:
+                        type: integer
+                        format: int64
+                      usage_pct:
+                        type: number
+                        format: float
+        '404':
+          description: Account or disk catalog not found
+
+  # --- File Search ---
+  /api/v2/files/search:
+    get:
+      summary: Search files by modification date
+      description: >
+        Returns files modified at or after the specified timestamp.
+        Requires the DiskCatalog to be enabled.
+      tags: [Files]
+      parameters:
+        - name: mod_after
+          in: query
+          required: true
+          schema:
+            type: string
+          description: RFC3339 timestamp or Unix epoch seconds
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            maximum: 1000
+          description: Maximum number of results
+      responses:
+        '200':
+          description: File search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            path:
+                              type: string
+                            name:
+                              type: string
+                            size:
+                              type: integer
+                              format: int64
+                            mod_time:
+                              type: integer
+                              format: int64
+                            type:
+                              type: string
+                      total:
+                        type: integer
+        '404':
+          description: Disk catalog not enabled
+
+  # --- Usage History ---
+  /api/v2/usage-history:
+    get:
+      summary: Rolling 24-hour user-count summary
+      description: |
+        Returns the current concurrent user count plus 24h peak and average
+        derived from the in-process ring buffer. Peak/average remain 0
+        until the warm-up threshold (60 samples / 1 hour) is reached.
+      tags: [Status]
+      responses:
+        '200':
+          description: Usage summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      current_users:
+                        type: integer
+                      sample_count:
+                        type: integer
+                      peak_24h:
+                        type: integer
+                      avg_24h:
+                        type: integer
+                      started_at:
+                        type: string
+                        format: date-time
+
+  /api/v2/usage-history/samples:
+    get:
+      summary: Raw 24-hour user-count ring buffer
+      description: |
+        Returns the underlying 1-minute samples in chronological order
+        (oldest first). The series is at most 1440 entries (24h).
+      tags: [Status]
+      responses:
+        '200':
+          description: Sample series
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      samples:
+                        type: array
+                        items:
+                          type: integer
+                      count:
+                        type: integer
+                      started_at:
+                        type: string
+                        format: date-time
+
+  # --- Diagnostics ---
+  /api/v2/diagnostics/runtime:
+    get:
+      summary: Go runtime diagnostics
+      description: |
+        Returns live `runtime.NumGoroutine`, `runtime.MemStats` highlights,
+        Go version, CPU count, and process uptime. Intended for operator
+        dashboards and on-call debugging.
+      tags: [Status]
+      responses:
+        '200':
+          description: Runtime snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      goroutines:
+                        type: integer
+                      mem_alloc_bytes:
+                        type: integer
+                        format: int64
+                      mem_sys_bytes:
+                        type: integer
+                        format: int64
+                      num_gc:
+                        type: integer
+                        format: int64
+                      uptime_seconds:
+                        type: integer
+                        format: int64
+                      go_version:
+                        type: string
+                      num_cpu:
+                        type: integer
+
+  /api/v2/auto-bans:
+    get:
+      summary: List IPs currently tracked for rate-limit violations
+      description: |
+        Returns the list of IP addresses that have tripped the per-IP
+        connect rate limiter at least once within the current probe
+        window. Each entry shows the rolling violation count and the
+        start of the current window; an IP is auto-banned once `count`
+        reaches the configured threshold (see `ConnectionRateBanThreshold`).
+        Entries are pruned automatically when their window expires.
+      tags: [Status]
+      responses:
+        '200':
+          description: Auto-ban probe snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            ip:
+                              type: string
+                            count:
+                              type: integer
+                            window_started:
+                              type: string
+                              format: date-time
+                      total:
+                        type: integer
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Role-based API key. Configure keys with roles (viewer, operator, admin)
+        in the server config.yaml under APIKeys.
+
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        data:
+          description: Response payload (varies by endpoint)
+    ErrorEnvelope:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+        code:
+          type: string
+
+    ServerConfig:
+      type: object
+      description: Server configuration (safe subset exposed via API)
+      properties:
+        name:
+          type: string
+          description: Server name
+        description:
+          type: string
+          description: Server description
+        enable_tracker:
+          type: boolean
+          description: Whether tracker registration is enabled
+        trackers:
+          type: array
+          items:
+            type: object
+          description: Configured tracker entries
+        max_downloads:
+          type: integer
+          description: Global simultaneous download limit
+        max_downloads_per_client:
+          type: integer
+          description: Per-client download limit
+        max_connections_per_ip:
+          type: integer
+          description: Maximum concurrent connections per IP address
+        banner_file:
+          type: string
+          description: Banner image file name
+        ignore_files:
+          type: array
+          items:
+            type: string
+          description: File name patterns to hide from directory listings
+        max_gif_icon_size:
+          type: integer
+          description: Maximum allowed GIF icon size in bytes
+        allow_large_files:
+          type: boolean
+          description: Whether 64-bit file size support is enabled
+        large_file_clients:
+          type: array
+          items:
+            type: string
+          description: Client identifiers that support large files
+        default_text_encoding:
+          type: string
+          description: Default text encoding for client communication
+        enable_hope:
+          type: boolean
+          description: Whether HOPE secure login is enabled
+        hope_app_id:
+          type: string
+          description: HOPE application identifier
+        hope_app_string:
+          type: string
+          description: HOPE application string
+
+    AccessFlags:
+      type: object
+      description: >
+        Boolean access privilege flags. Each key corresponds to a privilege bit
+        in the Hotline access bitmap. See the protocol docs for the full bitmap.
+      properties:
+        download_file:
+          type: boolean
+          description: "Bit 2: Can download files"
+        download_folder:
+          type: boolean
+          description: "Bit 39: Can download folders"
+        upload_file:
+          type: boolean
+          description: "Bit 1: Can upload files"
+        upload_folder:
+          type: boolean
+          description: "Bit 38: Can upload folders"
+        delete_file:
+          type: boolean
+          description: "Bit 0: Can delete files"
+        rename_file:
+          type: boolean
+          description: "Bit 3: Can rename files"
+        move_file:
+          type: boolean
+          description: "Bit 4: Can move files"
+        create_folder:
+          type: boolean
+          description: "Bit 5: Can create folders"
+        delete_folder:
+          type: boolean
+          description: "Bit 6: Can delete folders"
+        rename_folder:
+          type: boolean
+          description: "Bit 7: Can rename folders"
+        move_folder:
+          type: boolean
+          description: "Bit 8: Can move folders"
+        read_chat:
+          type: boolean
+          description: "Bit 9: Can read chat"
+        send_chat:
+          type: boolean
+          description: "Bit 10: Can send chat"
+        open_chat:
+          type: boolean
+          description: "Bit 11: Can create private chat rooms"
+        close_chat:
+          type: boolean
+          description: "Bit 12: Can close private chat rooms"
+        show_in_list:
+          type: boolean
+          description: "Bit 13: Visible in the user list"
+        create_user:
+          type: boolean
+          description: "Bit 14: Can create accounts"
+        delete_user:
+          type: boolean
+          description: "Bit 15: Can delete accounts"
+        open_user:
+          type: boolean
+          description: "Bit 16: Can view account details"
+        modify_user:
+          type: boolean
+          description: "Bit 17: Can modify accounts"
+        change_own_pass:
+          type: boolean
+          description: "Bit 18: Can change own password"
+        send_priv_msg:
+          type: boolean
+          description: "Bit 19: Phantom bit — documented in 1.9 spec but never enforced by real Hotline servers"
+        news_read_art:
+          type: boolean
+          description: "Bit 20: Can read news articles"
+        news_post_art:
+          type: boolean
+          description: "Bit 21: Can post news articles"
+        disconnect_user:
+          type: boolean
+          description: "Bit 22: Can disconnect (kick) users"
+        cannot_be_disconnected:
+          type: boolean
+          description: "Bit 23: Cannot be disconnected by other users"
+        get_client_info:
+          type: boolean
+          description: "Bit 24: Can view client info (Get Info)"
+        upload_anywhere:
+          type: boolean
+          description: "Bit 25: Can upload to any folder"
+        any_name:
+          type: boolean
+          description: "Bit 26: Can use any nickname"
+        no_agreement:
+          type: boolean
+          description: "Bit 27: Skips the server agreement on login"
+        set_file_comment:
+          type: boolean
+          description: "Bit 28: Can set file comments"
+        set_folder_comment:
+          type: boolean
+          description: "Bit 29: Can set folder comments"
+        view_drop_boxes:
+          type: boolean
+          description: "Bit 30: Can view drop box folder contents"
+        make_alias:
+          type: boolean
+          description: "Bit 31: Can create file aliases"
+        broadcast:
+          type: boolean
+          description: "Bit 32: Can send server broadcast messages"
+        news_delete_art:
+          type: boolean
+          description: "Bit 33: Can delete news articles"
+        news_create_cat:
+          type: boolean
+          description: "Bit 34: Can create news categories"
+        news_delete_cat:
+          type: boolean
+          description: "Bit 35: Can delete news categories"
+        news_create_fldr:
+          type: boolean
+          description: "Bit 36: Can create news bundles (folders)"
+        news_delete_fldr:
+          type: boolean
+          description: "Bit 37: Can delete news bundles (folders)"
+        send_message:
+          type: boolean
+          description: "Bit 40: Can send private messages"
+        set_user_red:
+          type: boolean
+          description: "Bit 41: Can flag users as red (GLoarbLine extended)"
+        set_user_away:
+          type: boolean
+          description: "Bit 42: Can set users as away (GLoarbLine extended)"
+        change_other_nick:
+          type: boolean
+          description: "Bit 43: Can change other users' nicknames (GLoarbLine extended)"
+        change_other_icon:
+          type: boolean
+          description: "Bit 44: Can change other users' icons (GLoarbLine extended)"
+        speak_before_exempt:
+          type: boolean
+          description: "Bit 45: Exempt from speak-before-enter requirement (GLoarbLine extended)"
+        allow_refuse_chat:
+          type: boolean
+          description: "Bit 46: Can refuse private chat invitations (GLoarbLine extended)"
+        block_download:
+          type: boolean
+          description: "Bit 47: Downloads are blocked for this user (GLoarbLine extended)"
+        set_user_visible:
+          type: boolean
+          description: "Bit 48: Can set user visibility (GLoarbLine extended)"
+        view_invisible:
+          type: boolean
+          description: "Bit 49: Can see invisible users (GLoarbLine extended)"
+        flood_exempt:
+          type: boolean
+          description: "Bit 50: Exempt from flood protection (GLoarbLine extended)"
+        view_own_drop_box:
+          type: boolean
+          description: "Bit 51: Can view own drop box contents (GLoarbLine extended)"
+        queue_exempt:
+          type: boolean
+          description: "Bit 52: Exempt from download queue (GLoarbLine extended)"
+        admin_inspector:
+          type: boolean
+          description: "Bit 53: Can use admin inspector (GLoarbLine extended)"
+        post_before_exempt:
+          type: boolean
+          description: "Bit 54: Exempt from post-before-enter requirement (GLoarbLine extended)"
+        voice_chat:
+          type: boolean
+          description: "Bit 55: Can join voice chat rooms"
+        read_chat_history:
+          type: boolean
+          description: "Bit 56: Can request chat history replay"
+        send_media:
+          type: boolean
+          description: "Bit 57: Can attach inline images in chat (inline media extension)"
+          
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: API key lacks required role
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
