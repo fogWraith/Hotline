@@ -1,0 +1,1010 @@
+openapi: 3.1.0
+info:
+  title: Argus Tracker API
+  description: |
+    REST API for the Argus Hotline Tracker. Provides read access to registered
+    server listings and admin access to bans, accounts, federation, and server
+    management.
+
+    All authenticated endpoints accept an API key via the `X-API-Key` header
+    or the `api_key` query parameter. Keys are scoped as either `read`
+    (server listing access) or `admin` (full management access). Admin keys
+    implicitly include read permissions.
+
+    Every response is wrapped in an envelope object with either a `data` field
+    (on success) or an `error` field (on failure).
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - apiKeyHeader: []
+  - apiKeyQuery: []
+
+tags:
+  - name: Health
+    description: Service health check
+  - name: Servers
+    description: Registered Hotline server listings
+  - name: Tracker
+    description: Tracker metadata and statistics
+  - name: Bans
+    description: IP / CIDR ban management
+  - name: Accounts
+    description: Tracker account management
+  - name: Federation
+    description: Tracker federation status
+
+paths:
+  # ── Health ──────────────────────────────────────────────────────────────
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: Returns service health. No authentication required.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                    required: [status]
+
+  # ── Servers ─────────────────────────────────────────────────────────────
+  /api/v1/servers:
+    get:
+      operationId: listServers
+      summary: List registered servers
+      description: |
+        Returns a paginated list of servers currently registered with the
+        tracker. Supports text search across server names and descriptions.
+
+        If promoted servers are configured, they always appear at the beginning
+        of the list in their configured order, regardless of search or
+        pagination. Promoted entries carry `is_promoted: "true"` in their
+        metadata object.
+      tags: [Servers]
+      parameters:
+        - $ref: "#/components/parameters/searchQuery"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Paginated server list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      servers:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Server"
+                      total:
+                        type: integer
+                        description: Total number of servers matching the query
+                        example: 42
+                      page:
+                        type: integer
+                        description: Current page number (zero-indexed)
+                        example: 0
+                      limit:
+                        type: integer
+                        description: Page size
+                        example: 100
+                    required: [servers, total, page, limit]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/servers/{addr}:
+    get:
+      operationId: getServer
+      summary: Get a specific server
+      description: Returns details for a single registered server by its address.
+      tags: [Servers]
+      parameters:
+        - $ref: "#/components/parameters/serverAddr"
+      responses:
+        "200":
+          description: Server details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Server"
+        "400":
+          description: Invalid address format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "invalid address format, use ip:port"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "server not found"
+
+    delete:
+      operationId: deleteServer
+      summary: Remove a server listing
+      description: Immediately removes a server from the tracker registry. Requires admin scope.
+      tags: [Servers]
+      parameters:
+        - $ref: "#/components/parameters/serverAddr"
+      responses:
+        "200":
+          description: Server removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      removed:
+                        type: string
+                        description: The address that was removed
+                        example: "10.0.0.1:5500"
+                    required: [removed]
+        "400":
+          description: Invalid address format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "invalid address format, use ip:port"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "server not found"
+
+  /api/v1/servers/{addr}/info:
+    get:
+      operationId: getServerInfo
+      summary: Get cached Hotline Info Port descriptor
+      description: |
+        Returns the cached Hotline Info Port (HLIP v1) descriptor for a single
+        server. The descriptor contains capability metadata, transport support,
+        limits, and banner information discovered from the server's info port
+        listener (by convention `dataPort - 1`, default `5499`).
+
+        Requires that info-port probing is enabled in the Argus configuration
+        and that at least one successful probe has completed for the target
+        server. Probes run on a background ticker and results are cached.
+      tags: [Servers]
+      parameters:
+        - $ref: "#/components/parameters/serverAddr"
+      responses:
+        "200":
+          description: Info Port descriptor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Descriptor"
+        "400":
+          description: Invalid address format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "invalid address format, use ip:port"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Server not found, probing disabled, or no info cached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                serverNotFound:
+                  summary: Server address not registered
+                  value:
+                    error: "server not found"
+                infoProbingDisabled:
+                  summary: Info port probing not enabled
+                  value:
+                    error: "info port probing not enabled"
+                noInfoCached:
+                  summary: Probe has not yet succeeded for this server
+                  value:
+                    error: "no info descriptor cached for this server"
+
+  # ── Tracker ─────────────────────────────────────────────────────────────
+  /api/v1/tracker/info:
+    get:
+      operationId: getTrackerInfo
+      summary: Tracker information
+      description: Returns tracker software version, supported protocol versions, and federation status.
+      tags: [Tracker]
+      responses:
+        "200":
+          description: Tracker info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      version:
+                        type: string
+                        description: Argus software version
+                        example: "1.2.3"
+                      protocol_versions:
+                        type: array
+                        items:
+                          type: string
+                        description: Supported tracker protocol versions
+                        example: ["v1", "v2", "v3"]
+                      federation_enabled:
+                        type: boolean
+                        description: Whether federation is active
+                        example: true
+                      federation_id:
+                        type: string
+                        description: Hex-encoded federation tracker ID (present only when federation is enabled)
+                        example: "a1b2c3d4e5f6..."
+                    required: [version, protocol_versions, federation_enabled]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/tracker/stats:
+    get:
+      operationId: getTrackerStats
+      summary: Tracker statistics
+      description: Returns current server counts, ban count, and tracker uptime.
+      tags: [Tracker]
+      responses:
+        "200":
+          description: Tracker statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      local_servers:
+                        type: integer
+                        description: Number of directly registered servers
+                        example: 5
+                      federated_servers:
+                        type: integer
+                        description: Number of servers received via federation
+                        example: 12
+                      total_servers:
+                        type: integer
+                        description: Sum of local and federated servers
+                        example: 17
+                      bans:
+                        type: integer
+                        description: Number of active ban entries
+                        example: 3
+                      uptime_seconds:
+                        type: integer
+                        description: Tracker uptime in seconds
+                        example: 86400
+                    required:
+                      - local_servers
+                      - federated_servers
+                      - total_servers
+                      - bans
+                      - uptime_seconds
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Bans ────────────────────────────────────────────────────────────────
+  /api/v1/bans:
+    get:
+      operationId: listBans
+      summary: List ban entries
+      description: Returns all active IP and CIDR ban entries. Requires admin scope.
+      tags: [Bans]
+      responses:
+        "200":
+          description: Ban list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      bans:
+                        type: array
+                        items:
+                          type: string
+                        description: IP addresses or CIDR ranges
+                        example: ["1.2.3.4", "10.0.0.0/8"]
+                      total:
+                        type: integer
+                        description: Number of ban entries
+                        example: 2
+                    required: [bans, total]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      operationId: addBan
+      summary: Add a ban entry
+      description: |
+        Adds an IP address or CIDR range to the ban list. Banned IPs are
+        immediately rejected for both server registration (UDP) and client
+        listing (TCP). The ban list is persisted to disk. Requires admin scope.
+      tags: [Bans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entry:
+                  type: string
+                  description: IP address or CIDR range to ban
+                  example: "1.2.3.4"
+              required: [entry]
+      responses:
+        "200":
+          description: Ban added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      added:
+                        type: string
+                        description: The ban entry that was added
+                        example: "1.2.3.4"
+                    required: [added]
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidJson:
+                  summary: Malformed JSON body
+                  value:
+                    error: "invalid JSON body"
+                missingEntry:
+                  summary: Empty entry field
+                  value:
+                    error: "entry is required"
+                invalidCidr:
+                  summary: Invalid CIDR notation
+                  value:
+                    error: "invalid CIDR \"bad\": invalid CIDR address: bad"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/bans/{entry}:
+    delete:
+      operationId: removeBan
+      summary: Remove a ban entry
+      description: Removes an IP address or CIDR range from the ban list. Requires admin scope.
+      tags: [Bans]
+      parameters:
+        - name: entry
+          in: path
+          required: true
+          description: IP address or CIDR range to remove
+          schema:
+            type: string
+          example: "1.2.3.4"
+      responses:
+        "200":
+          description: Ban removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      removed:
+                        type: string
+                        description: The ban entry that was removed
+                        example: "1.2.3.4"
+                    required: [removed]
+        "400":
+          description: Missing entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "entry is required"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Ban entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: "ban entry not found"
+
+  # ── Accounts ────────────────────────────────────────────────────────────
+  /api/v1/accounts:
+    get:
+      operationId: listAccounts
+      summary: List tracker accounts
+      description: Returns all configured tracker accounts used for v2 authenticated registration. Requires admin scope.
+      tags: [Accounts]
+      responses:
+        "200":
+          description: Account list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accounts:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Account"
+                      total:
+                        type: integer
+                        description: Number of accounts
+                        example: 2
+                    required: [accounts, total]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Federation ──────────────────────────────────────────────────────────
+  /api/v1/federation/peers:
+    get:
+      operationId: listFederationPeers
+      summary: List federation peers
+      description: Returns the list of connected federation peer trackers. Requires admin scope.
+      tags: [Federation]
+      responses:
+        "200":
+          description: Federation peer list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        description: Whether federation is enabled
+                        example: true
+                      peers:
+                        type: array
+                        items:
+                          type: string
+                        description: Peer tracker addresses
+                        example: ["peer1.example.com:5498", "peer2.example.com:5498"]
+                    required: [enabled, peers]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/federation/identity:
+    get:
+      operationId: getFederationIdentity
+      summary: Federation identity
+      description: Returns this tracker's federation identity (Ed25519 public key). Requires admin scope.
+      tags: [Federation]
+      responses:
+        "200":
+          description: Federation identity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        description: Whether federation is enabled
+                        example: true
+                      tracker_id:
+                        type: string
+                        description: Hex-encoded Ed25519 public key (present only when federation is enabled)
+                        example: "a1b2c3d4e5f6..."
+                    required: [enabled]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+# ── Components ──────────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key passed via request header
+    apiKeyQuery:
+      type: apiKey
+      in: query
+      name: api_key
+      description: API key passed as a query parameter
+
+  parameters:
+    searchQuery:
+      name: q
+      in: query
+      required: false
+      description: Text search filter (matches against server name and description)
+      schema:
+        type: string
+      example: "retro"
+
+    page:
+      name: page
+      in: query
+      required: false
+      description: Page number (zero-indexed)
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+
+    limit:
+      name: limit
+      in: query
+      required: false
+      description: Number of items per page (max 1000)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+      example: 100
+
+    serverAddr:
+      name: addr
+      in: path
+      required: true
+      description: "Server address in `ip:port` format"
+      schema:
+        type: string
+      example: "10.0.0.1:5500"
+
+  schemas:
+    Server:
+      type: object
+      description: A Hotline server registered with the tracker
+      properties:
+        address:
+          type: string
+          description: IPv4 address of the server
+          example: "10.0.0.1"
+        port:
+          type: integer
+          format: uint16
+          description: Hotline TCP port
+          example: 5500
+        users:
+          type: integer
+          format: uint16
+          description: Number of connected users
+          example: 3
+        name:
+          type: string
+          description: Server display name
+          example: "My Hotline Server"
+        description:
+          type: string
+          description: Server description
+          example: "A friendly retro server"
+        version:
+          type: integer
+          format: uint16
+          description: Registration protocol version (1, 2, or 3)
+          example: 3
+        hostname:
+          type: string
+          description: DNS hostname (v3 only, omitted if not set)
+          example: "hotline.example.com"
+        ipv6:
+          type: string
+          description: IPv6 address (v3 only, omitted if not set)
+          example: "2001:db8::1"
+        federated:
+          type: boolean
+          description: Whether this server was received via federation
+          example: false
+        hop_count:
+          type: integer
+          format: uint8
+          description: Federation hop count (0 for local servers)
+          example: 0
+        last_seen:
+          type: string
+          format: date-time
+          description: Timestamp of the last registration heartbeat (RFC 3339)
+          example: "2026-03-29T12:34:56Z"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            v3 TLV metadata fields as key-value pairs. Keys are human-readable
+            field names derived from TLV IDs. Boolean fields are encoded as
+            `"true"` or `"false"`. Integer fields (ports, counts, durations)
+            are encoded as decimal strings. Unknown TLV field IDs appear as
+            hex keys (e.g. `"0x04ff"`).
+
+            Known keys:
+            - `address_ipv6` — IPv6 address
+            - `hostname` — DNS hostname
+            - `server_software` — Server software name and version
+            - `country_code` — ISO 3166-1 alpha-2 country code
+            - `region` — Geographic region or state
+            - `language` — ISO 639-1 language code
+            - `max_users` — Maximum concurrent users (uint16)
+            - `maturity` — Content maturity rating: 0=general, 1=teen, 2=mature, 3=adult (uint8)
+            - `uptime` — Server uptime in seconds (uint32)
+            - `tags` — Comma-separated tag list
+            - `link_down_mbit` — Advertised downstream link capacity in Mbit/s (uint32)
+            - `link_up_mbit` — Advertised upstream link capacity in Mbit/s (uint32)
+            - `timezone_offset_min` — Operator timezone offset from UTC in minutes (int16)
+            - `contact_url` — Operator contact URL (string)
+            - `server_launched` — Unix epoch (seconds) when the server first came online (uint32)
+            - `min_protocol_version` — Operator-declared minimum client Hotline protocol version (uint16)
+            - `peak_24h` — Peak concurrent users in the rolling 24-hour window (uint16)
+            - `avg_24h` — Mean concurrent users in the rolling 24-hour window (uint16)
+            - `supports_hope` — HOPE encryption support (boolean)
+            - `supports_tls` — TLS transport support (boolean)
+            - `tls_port` — TLS listener port (uint16)
+            - `supports_inline_media` — Inline-media protocol extension supported (boolean)
+            - `supports_voice` — Voice protocol extension supported (boolean)
+            - `supports_large_files` — Large-file protocol extension supported (boolean)
+            - `supports_ipv6` — Operator advertises an IPv6 endpoint (boolean)
+            - `hope_ciphers` — Comma-separated HOPE cipher canonical names, server-preference order (string)
+            - `banner_url` — URL to a server banner image
+            - `icon_url` — URL to a server icon
+            - `rules_url` — URL to server rules page
+            - `protocol_version` — Server's protocol version (uint16)
+            - `private_listing` — Hidden from public listing (boolean)
+            - `listing_category` — Operator-declared category: 1=general, 2=development, 3=archive, 4=warez, 5=gaming, 6=media, 7=education, 8=research, 9=file-sharing, 10=social, 11=security, 12=creative (uint8; 0/unspecified omitted)
+            - `listing_language_strict` — Chat is moderated to the announced language; informational only (boolean)
+            - `is_promoted` — Tracker-injected promoted entry (boolean)
+            - `verified_online` — Tracker-verified reachable (boolean)
+            - `first_seen` — First registration timestamp
+            - `last_heartbeat` — Last heartbeat timestamp
+
+            Content enrichment fields (Mnemosyne integration):
+            - `news_count` — Indexed news articles (uint16)
+            - `msgboard_count` — Indexed message board posts (uint16)
+            - `files_count` — Indexed files (uint16)
+            - `total_file_size` — Aggregate file size in bytes (uint32)
+            - `last_news_timestamp` — Unix epoch (seconds) of newest news article (uint32)
+            - `last_chat_timestamp` — Unix epoch (seconds) of most recent **public-room** chat broadcast; private rooms/DMs/system messages MUST NOT advance the clock (uint32)
+          example:
+            server_software: "Janus/1.9.9"
+            hostname: "hotline.example.com"
+            country_code: "SE"
+            supports_hope: "true"
+            supports_tls: "true"
+            tls_port: "5600"
+            tags: "retro,chat,dev"
+            max_users: "50"
+            is_promoted: "true"
+        info:
+          allOf:
+            - $ref: "#/components/schemas/Descriptor"
+          description: |
+            Cached Hotline Info Port descriptor for this server. Present only
+            when info-port probing is enabled in Argus and a probe has
+            succeeded for the address. Omitted otherwise.
+      required:
+        - address
+        - port
+        - users
+        - name
+        - description
+        - version
+        - last_seen
+
+    Descriptor:
+      type: object
+      description: |
+        Hotline Info Port (HLIP v1) descriptor: server capability metadata
+        advertised by a Hotline server on its info-port listener. Mirrors the
+        JSON schema defined in `docs/protocol/hotline-info-port.md`.
+
+        Per the spec, absent keys mean "not supported / not set". Boolean
+        feature flags are omitted when false.
+      properties:
+        infoVersion:
+          type: integer
+          format: uint16
+          description: HLIP wire protocol version (always 1 for v1)
+          example: 1
+        etag:
+          type: string
+          description: Opaque ETag for descriptor caching (omitted if not set)
+          example: "a1b2c3d4"
+        software:
+          $ref: "#/components/schemas/InfoSoftware"
+        server:
+          $ref: "#/components/schemas/InfoServer"
+        dataPort:
+          type: integer
+          description: Hotline data port
+          example: 5500
+        tlsPort:
+          type: integer
+          description: TLS listener port (omitted if TLS not supported)
+          example: 5600
+        transport:
+          $ref: "#/components/schemas/InfoTransport"
+        capabilities:
+          $ref: "#/components/schemas/InfoCapabilities"
+        banner:
+          $ref: "#/components/schemas/InfoBanner"
+        agreement:
+          $ref: "#/components/schemas/InfoAgreement"
+        limits:
+          $ref: "#/components/schemas/InfoLimits"
+        users:
+          $ref: "#/components/schemas/InfoUsers"
+      required: [infoVersion, dataPort, transport]
+
+    InfoSoftware:
+      type: object
+      description: Server software identification
+      properties:
+        name:
+          type: string
+          example: "Janus"
+        version:
+          type: string
+          description: Software version (omitted if not advertised)
+          example: "1.9.9"
+      required: [name]
+
+    InfoServer:
+      type: object
+      description: Optional descriptive metadata about the server itself
+      properties:
+        name:
+          type: string
+          description: Display name (omitted if not advertised)
+          example: "My Hotline Server"
+        description:
+          type: string
+          description: Server description (omitted if not advertised)
+          example: "A friendly retro server"
+        hostname:
+          type: string
+          description: DNS hostname (omitted if not advertised)
+          example: "hotline.example.com"
+
+    InfoTransport:
+      type: object
+      description: Transport-layer capability matrix
+      properties:
+        hope:
+          $ref: "#/components/schemas/InfoTransportFeature"
+        tls:
+          $ref: "#/components/schemas/InfoTransportFeature"
+        plaintext:
+          $ref: "#/components/schemas/InfoTransportFeature"
+        compression:
+          $ref: "#/components/schemas/InfoTransportFeature"
+      required: [hope, tls, plaintext, compression]
+
+    InfoTransportFeature:
+      type: object
+      description: |
+        Transport feature flags. All fields are omitted when false (the
+        zero/unsupported case). For `plaintext`, only `accepted` is
+        meaningful; for `hope`/`tls`/`compression`, `supported` and
+        optionally `required` apply.
+      properties:
+        supported:
+          type: boolean
+          description: Feature is available on this server
+          example: true
+        required:
+          type: boolean
+          description: Feature is mandatory for connections
+        accepted:
+          type: boolean
+          description: Plaintext connections are accepted (plaintext only)
+
+    InfoCapabilities:
+      type: object
+      description: Optional Hotline protocol extension capabilities. Flags omitted when false.
+      properties:
+        largeFiles:
+          type: boolean
+          description: Supports >4 GiB file transfers
+        inlineMedia:
+          type: boolean
+          description: Supports inline-media chat protocol extension
+        voice:
+          type: boolean
+          description: Supports voice chat extension
+        chatHistory:
+          type: boolean
+          description: Supports persistent chat-history queries
+        coloredNicks:
+          type: boolean
+          description: Supports colored user nicknames
+
+    InfoBanner:
+      type: object
+      description: Server banner metadata
+      properties:
+        mode:
+          type: string
+          description: Banner delivery mode
+          enum: [none, url, encoded]
+          example: "url"
+        clickURL:
+          type: string
+          description: URL to open when the banner is clicked (omitted if not set)
+          example: "https://example.com/"
+      required: [mode]
+
+    InfoAgreement:
+      type: object
+      description: User agreement metadata
+      properties:
+        sizeBytes:
+          type: integer
+          description: Size of the agreement text in bytes
+          example: 2048
+      required: [sizeBytes]
+
+    InfoLimits:
+      type: object
+      description: Server resource limits. Fields omitted when unlimited / unset.
+      properties:
+        maxClients:
+          type: integer
+          description: Maximum concurrent client connections
+          example: 100
+        maxConnectionsPerIP:
+          type: integer
+          description: Maximum concurrent connections from a single IP
+          example: 5
+
+    InfoUsers:
+      type: object
+      description: Current connected user state
+      properties:
+        connected:
+          type: integer
+          description: Number of currently connected users
+          example: 12
+      required: [connected]
+
+    Account:
+      type: object
+      description: A tracker account for v2 authenticated registration
+      properties:
+        login:
+          type: string
+          description: Account login name
+          example: "admin"
+        roles:
+          type: array
+          items:
+            type: string
+          description: Assigned roles (e.g. admin, list, register)
+          example: ["admin", "list", "register"]
+      required: [login, roles]
+
+    ErrorEnvelope:
+      type: object
+      description: Error response envelope
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "server not found"
+      required: [error]
+
+  responses:
+    Unauthorized:
+      description: Missing API key
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            error: "missing API key"
+            
+    Forbidden:
+      description: Invalid API key or insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          examples:
+            invalidKey:
+              summary: Invalid API key
+              value:
+                error: "invalid API key"
+            insufficientScope:
+              summary: Admin access required
+              value:
+                error: "admin access required"
