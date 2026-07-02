@@ -283,13 +283,15 @@ The server's SDP offer MUST contain:
 - `a=group:BUNDLE` — all media sections MUST be bundled over a single transport (RFC 8843)
 - `a=rtcp-mux` — RTCP MUST be multiplexed on the same port as RTP (RFC 5761)
 - `a=setup:actpass` on the offer, `a=setup:active` on the answer — DTLS role negotiation (RFC 8842)
-- `a=sendonly` or `a=recvonly` direction attribute on each media section
+- A direction attribute on each media section: `a=sendonly` or `a=recvonly`, or `a=inactive` on the section of a participant who has left (see [Track-to-User Mapping](#track-to-user-mapping))
 
 The `m=audio` line uses port `9`, which is the standard placeholder port in bundled WebRTC SDP (RFC 8843 §9.3). Port `9` has no transport-layer significance — actual media transport uses the ICE candidate addresses. Implementations MUST NOT attempt to connect to port 9.
 
 #### Annotated SDP Offer Example
 
 The following is a complete SDP offer the server would send to User 5 joining a room where users 12 and 23 are already in voice. Annotations (lines starting with `#`) are not part of the SDP.
+
+Note that direction attributes are always written from the perspective of the party that authored the description. In the server's offer, sections carrying other users' audio are `a=sendonly` (the server sends) and the client's microphone section is `a=recvonly` (the server receives); the client's answer mirrors each direction.
 
 ```
 # Session-level attributes
@@ -300,36 +302,36 @@ t=0 0
 a=group:BUNDLE user-12 user-23 send
 a=msid-semantic: WMS
 
-# Receive track for user 12
+# Audio from user 12 (server sends, client receives)
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 c=IN IP4 0.0.0.0
 a=mid:user-12
 a=rtpmap:0 PCMU/8000
-a=recvonly
+a=sendonly
 a=rtcp-mux
 a=setup:actpass
 a=ice-ufrag:srvr
 a=ice-pwd:servericepasswordvalue1234
 a=fingerprint:sha-256 AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99
 
-# Receive track for user 23
+# Audio from user 23 (server sends, client receives)
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 c=IN IP4 0.0.0.0
 a=mid:user-23
 a=rtpmap:0 PCMU/8000
-a=recvonly
+a=sendonly
 a=rtcp-mux
 a=setup:actpass
 a=ice-ufrag:srvr
 a=ice-pwd:servericepasswordvalue1234
 a=fingerprint:sha-256 AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99
 
-# Send track for the joining client (user 5)
+# Microphone section for the joining client (client sends, server receives)
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 c=IN IP4 0.0.0.0
 a=mid:send
 a=rtpmap:0 PCMU/8000
-a=sendonly
+a=recvonly
 a=rtcp-mux
 a=setup:actpass
 a=ice-ufrag:srvr
@@ -462,7 +464,8 @@ If a client disconnects without sending Leave Voice Room, the server MUST clean 
 
 Sent by the server when it needs to initiate or renegotiate the WebRTC session. This occurs:
 - In the Join Voice Room reply (initial offer)
-- When room conditions change and renegotiation is needed (e.g. codec change)
+- When the room's participant list changes and renegotiation is needed (a user joins, leaves, or rejoins voice)
+- Immediately after a Voice SDP Answer (603), if participant changes accumulated while that offer was outstanding (see [Renegotiation Flow](#renegotiation-flow))
 
 | Field | ID | Type | Notes |
 |---|---|---|---|
@@ -579,24 +582,26 @@ When a new participant joins, the server renegotiates existing peer connections 
 
 Clients need to know which receive track corresponds to which user (e.g. to display "User X is speaking" or to allow per-user volume control). The server communicates this mapping through **SDP `a=mid` attributes**.
 
-The server assigns each media section a `mid` value in the format `user-{UID}`, where `{UID}` is the decimal user ID. For example, a room with users 5, 12, and 23 would produce an SDP offer (from the perspective of user 5) with:
+The server assigns each media section a `mid` value in the format `user-{UID}`, where `{UID}` is the decimal user ID. For example, a room with users 5, 12, and 23 would produce a server SDP offer sent to user 5 with:
 
 ```
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 a=mid:user-12
-a=recvonly
+a=sendonly
 ...
 
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 a=mid:user-23
-a=recvonly
+a=sendonly
 ...
 
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 a=mid:send
-a=sendonly
+a=recvonly
 ...
 ```
+
+(Directions are from the server's — the offerer's — perspective: `a=sendonly` on sections whose audio the server forwards to the client, `a=recvonly` on the section carrying the client's microphone.)
 
 | `mid` value | Meaning |
 |---|---|
@@ -607,15 +612,17 @@ a=sendonly
 
 Clients parse the `mid` labels to associate incoming audio tracks with users. The user IDs correspond to the standard Hotline user IDs visible in the chat room user list.
 
-When a participant leaves, the server sends a renegotiation offer (602) that disables the media section for that user's `mid` by setting its port to `0` (e.g. `m=audio 0 UDP/TLS/RTP/SAVPF 0`). This follows SDP recycling conventions per [RFC 8829 §5.2.2](https://datatracker.ietf.org/doc/html/rfc8829#section-5.2.2). The `m=` line remains in the SDP to preserve media section indexing — implementations MUST NOT delete `m=` lines from subsequent offers, as this would misalign `sdpMLineIndex` values. Future renegotiations MAY reuse a disabled slot (port `0`) for a new participant by assigning a new `mid` and restoring the port to `9`.
+When a participant leaves, the server sends a renegotiation offer (602) in which that user's media section is marked `a=inactive` (standard offer/answer direction semantics, [RFC 3264 §8.4](https://datatracker.ietf.org/doc/html/rfc3264#section-8.4)); the port remains `9`. The `m=` line remains in the SDP to preserve media section indexing — implementations MUST NOT delete `m=` lines from subsequent offers, as this would misalign `sdpMLineIndex` values.
 
-When a media section slot is reused, the server MUST assign a new `mid` value (e.g. `user-42` replacing the disabled `user-23`). Clients MUST treat the `mid` in each SDP offer as the authoritative mapping and MUST NOT cache mid-to-user associations across renegotiations. If a `mid` references a user ID not present in the most recent Voice Room Status (605) participant list, the client SHOULD accept the track but MAY treat it as inactive until the user appears in a subsequent status update.
+A `mid` is never reassigned to a different user within a session: `user-{UID}` always carries the audio of user `{UID}`. If a user leaves and later rejoins the same room (with the same user ID), the server reactivates the existing inactive section — the same `mid` returns to `a=sendonly` in the renegotiation offer rather than a duplicate section being added. Clients MUST treat the `mid` and direction in each SDP offer as the authoritative mapping: a section is live only while its offered direction is `a=sendonly`. If a `mid` references a user ID not present in the most recent Voice Room Status (605) participant list, the client SHOULD accept the track but MAY treat it as inactive until the user appears in a subsequent status update.
 
 ### Renegotiation Flow
 
-Renegotiation occurs when the participant list changes. The server MUST serialise renegotiations — if users B and C join simultaneously, the server completes the full offer/answer cycle for B before beginning renegotiation for C. Sending a new SDP offer while a previous offer is awaiting an answer results in undefined behaviour in most WebRTC stacks and MUST be avoided.
+Renegotiation occurs when the participant list changes. The server MUST serialise renegotiations per peer — it MUST NOT send a new SDP offer to a client while a previous offer to that client is still awaiting an answer, as this results in undefined behaviour in most WebRTC stacks.
 
-If a client receives a new SDP offer (602) while it has not yet answered a previous offer, the client MUST discard the previous unanswered offer and process only the newest one. In practice, well-behaved servers will not trigger this condition due to the serialisation requirement above, but clients SHOULD handle it defensively.
+Serialisation is achieved by deferral: if the participant list changes while an offer to a client is outstanding, the server applies the track changes internally but withholds the new offer. When the client's answer (603) arrives, the server immediately issues a single follow-up offer (602) consolidating every change that accumulated in the meantime. Consequently, a client may receive a new offer directly after its answer is processed — clients MUST be prepared to run consecutive offer/answer cycles back to back, answering each offer in turn.
+
+If a client nevertheless receives a new SDP offer (602) while it has not yet answered a previous offer, the client MUST discard the previous unanswered offer and process only the newest one. In practice, well-behaved servers will not trigger this condition due to the serialisation requirement above, but clients SHOULD handle it defensively.
 
 The following sequence shows the concrete message flow when User B joins a room where User A is already in voice:
 
@@ -659,7 +666,7 @@ When User B leaves (or disconnects):
      │                          │                          │
      │  ◄── Voice SDP Offer     │  ──► Leave Reply (601)   │
      │      (602) {updated SDP  │                          │
-     │      mid:user-B port=0}  │                          │
+     │      mid:user-B inactive}│                          │
      │                          │                          │
      │  ──► Voice SDP Answer    │                          │
      │      (603) {SDP answer}  │                          │
