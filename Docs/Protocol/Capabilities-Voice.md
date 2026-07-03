@@ -375,7 +375,8 @@ a=ice-ufrag:clnt
 a=ice-pwd:clienticepasswordvalue5678
 a=fingerprint:sha-256 11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00
 
-# Accept send track
+# Accept send track — the a=ssrc line declaring the microphone stream is REQUIRED
+# (see Send SSRC Declaration below)
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 c=IN IP4 0.0.0.0
 a=mid:send
@@ -386,9 +387,22 @@ a=setup:active
 a=ice-ufrag:clnt
 a=ice-pwd:clienticepasswordvalue5678
 a=fingerprint:sha-256 11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00
+a=ssrc:2226456186 cname:janusclientmic01
 ```
 
-Key differences from the offer: `a=setup:active` (the answerer takes the DTLS client role), and the client's own ICE credentials and DTLS fingerprint replace the server's.
+Key differences from the offer: `a=setup:active` (the answerer takes the DTLS client role), the client's own ICE credentials and DTLS fingerprint replace the server's, and the send section declares the SSRC of the client's microphone stream.
+
+#### Send SSRC Declaration
+
+The client's answer MUST declare the SSRC of its microphone stream in the `send` media section with an `a=ssrc` attribute ([RFC 5576](https://datatracker.ietf.org/doc/html/rfc5576)):
+
+```
+a=ssrc:<ssrc> cname:<cname>
+```
+
+`<ssrc>` is the 32-bit synchronisation source identifier the client will use in its outbound RTP packets, as an unsigned decimal integer. It MUST match the SSRC field of the RTP packets the client actually sends. `<cname>` is the RTCP canonical name (RFC 3550 §6.5.1); any stable, randomly generated string is acceptable. Standard WebRTC stacks (libwebrtc, browsers, pion) emit this attribute automatically when a sending track is attached; implementations that hand-write SDP must take care not to omit it.
+
+Rationale: the server is always the offerer, and this specification requires no RTP header extensions, so the `a=ssrc` declaration in the answer is the only mechanism by which the server can attribute inbound RTP packets to the client's microphone track. A conforming server tolerates answers that omit the declaration by falling back to payload-type matching, but that fallback causes an additional unlabelled media section to appear in the server's subsequent renegotiation offers (which clients must ignore — see [Track-to-User Mapping](#track-to-user-mapping)). Clients MUST NOT rely on the fallback.
 
 #### SDP Size Considerations
 
@@ -616,6 +630,8 @@ When a participant leaves, the server sends a renegotiation offer (602) in which
 
 A `mid` is never reassigned to a different user within a session: `user-{UID}` always carries the audio of user `{UID}`. If a user leaves and later rejoins the same room (with the same user ID), the server reactivates the existing inactive section — the same `mid` returns to `a=sendonly` in the renegotiation offer rather than a duplicate section being added. Clients MUST treat the `mid` and direction in each SDP offer as the authoritative mapping: a section is live only while its offered direction is `a=sendonly`. If a `mid` references a user ID not present in the most recent Voice Room Status (605) participant list, the client SHOULD accept the track but MAY treat it as inactive until the user appears in a subsequent status update.
 
+Clients MUST tolerate media sections whose `mid` is neither `send` nor `user-{UID}`. Such sections can appear in renegotiation offers — for example, a server-side compatibility fallback creates one when a client's answer omits its [send SSRC declaration](#send-ssrc-declaration) — and future revisions of this specification may define additional labels. A client encountering an unrecognized `mid` MUST NOT map it to a user or play audio from it, MUST NOT reject the offer because of it, and MUST still mirror the section in its answer as required by RFC 3264 (answering it with the direction complement or `a=inactive` is acceptable).
+
 ### Renegotiation Flow
 
 Renegotiation occurs when the participant list changes. The server MUST serialise renegotiations per peer — it MUST NOT send a new SDP offer to a client while a previous offer to that client is still awaiting an answer, as this results in undefined behaviour in most WebRTC stacks.
@@ -814,7 +830,7 @@ PCMU does not support DTX, so silent participants still consume full bandwidth. 
 
 - **SFU lifecycle:** The server creates a WebRTC peer connection per voice participant. When the participant leaves or disconnects, the peer connection is closed and resources freed.
 - **Track management:** When a participant joins, add a receive track for them on every existing participant's peer connection (renegotiation). When they leave, remove the track.
-- **Mute enforcement:** When a client's mute flag is set, the server MUST discard their incoming RTP packets rather than forwarding them. Do not rely on the client to stop sending. The server identifies the source of each RTP stream by the PeerConnection it arrives on — each participant has exactly one PeerConnection, so no SSRC-to-user mapping is required. The server simply checks the mute state of the user associated with the receiving PeerConnection before forwarding each packet.
+- **Mute enforcement:** When a client's mute flag is set, the server MUST discard their incoming RTP packets rather than forwarding them. Do not rely on the client to stop sending. The server identifies the source of each RTP stream by the PeerConnection it arrives on — each participant has exactly one PeerConnection, so no SSRC-to-user mapping is required for attributing packets to users. (This does not relax the [send SSRC declaration](#send-ssrc-declaration) requirement: within a PeerConnection, the server's WebRTC stack still needs the answer's `a=ssrc` line to route inbound packets to the microphone track at all.) The server simply checks the mute state of the user associated with the receiving PeerConnection before forwarding each packet.
 - **Room cleanup:** When the last voice participant leaves a room, tear down all SFU state for that room.
 - **Resource limits:** Enforce `VoiceMaxPerRoom`. Reject Join Voice Room with an error if the limit is reached.
 - **Access control:** The server MUST check that the client has permission to be in the chat room before allowing voice join. If a user is kicked from a chat room, their voice session MUST also be terminated.
