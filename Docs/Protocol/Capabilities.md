@@ -118,7 +118,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 ## Implementation Notes
 
 - **Server-side overrides:** The server may grant capabilities beyond what the client advertises. For example, a server may enable large-file mode for known clients (via a whitelist) even if they did not set `CAPABILITY_LARGE_FILES`. Similarly, a global toggle can enable a capability for all clients.
-- **Bit width:** While currently bits 0–1 are defined, implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
+- **Bit width:** While currently bits 0–8 are defined, implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
 - **Unknown bits:** Both client and server should ignore bits they do not recognise. Do not reject a connection because of unknown capability bits.
 - **Absence handling:** If `DATA_CAPABILITIES` is not present in the login request, the server should treat the client as having zero capabilities. If not present in the reply, the client should treat the session as standard mode.
 
