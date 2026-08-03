@@ -47,7 +47,10 @@ Developers of new software should choose a version number that does not conflict
 | 197     | `0x00C5` | GLoarbLine 1.9.7         |                                           |
 | 198     | `0x00C6` | Hermes                   | Modern client; native UTF-8               |
 | 199     | `0x00C7` | Klein                    | Modern client; native UTF-8               |
+| 200     | `0x00C8` | HotStuff                 |                                           |
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
+| 300     | `0x012C` | Iris                     | Classic Instant Messenger                 |
+| 301     | `0x012D` | Nyx                      | Modern Instant Messenger                  |
 | 8867    | `0x22A3` | XCC                      |                                           |
 | 48640   | `0xBE00` | Obsession                |                                           |
 
@@ -66,4 +69,4 @@ Developers of new software should choose a version number that does not conflict
 | 191     | `0x00BF` | Terra 1.2b1             | Returned in login reply                   |
 | 196     | `0x00C4` | FreeShare Server 1.0.2  | Returned in login reply                   |
 | 197     | `0x00C5` | GLoarbLine Server 1.9.7 | Returned in login reply                   |
-| 200     | `0x00C8` | Janus Server 2.0.1      | Returned in login reply                   |
+| 200     | `0x00C8` | Janus Server 2.0.10     | Returned in login reply                   |
