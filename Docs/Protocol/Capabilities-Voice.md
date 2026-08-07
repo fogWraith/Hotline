@@ -46,6 +46,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [RTP and RTCP](#rtp-and-rtcp)
 - [Room Model](#room-model)
 - [Access Privileges](#access-privileges)
+  - [Room Membership](#room-membership)
 - [Bandwidth Considerations](#bandwidth-considerations)
 - [Client Behaviour](#client-behaviour)
 - [Server Behaviour](#server-behaviour)
@@ -789,8 +790,23 @@ Hotline uses a fine-grained access privilege bitmask (see the base protocol's Ac
 
 Bit 55 is the first available bit after the GLoarbLine extended privileges (bits 41–54). See the base protocol's Access Privileges section for the full bit map.
 
+### Room Membership
+
+A voice room is addressed by a bare `DATA_CHATID` and carries no membership of its own, so **the privilege bit alone is not an authorization model**. A server that checks only `accessVoiceChat` will let any voice-capable client join any room whose ID it can name or guess. Servers MUST additionally enforce:
+
+| Room | Who may join |
+|---|---|
+| Public chat (`DATA_CHATID` = `0`) | Any client holding `accessVoiceChat` |
+| A private chat's room | That chat's current members |
+| A messenger call's room | Only the parties to that call — see [Instant Messaging](Capabilities-Messaging.md#call-invite-818) |
+
+The last row matters even for servers that do not implement the messaging extension, because it constrains the ID space: a call's room ID and a private chat's ID are drawn from the same 32-bit space, so **room identifiers MUST be allocated by the server, from a cryptographically secure random source, and checked against every room already in use**. A predictable or client-chosen identifier lets a client name a room it was never invited to.
+
+This is not hypothetical. A classic Hotline client with voice support has no concept of the messaging extension at all, and without these rules could join a private call between two messenger users simply by naming its identifier.
+
 **Behaviour:**
 - If `accessVoiceChat` is **not set**, the server rejects Join Voice Room (600) with an error: `"You are not allowed to join voice chat."`
+- The privilege says a user may join voice rooms; it does **not** say *which*. See [Room Membership](#room-membership).
 - The `CAPABILITY_VOICE` bit is still echoed in the login reply regardless of the user's privilege — the capability indicates server support, not user permission. This allows clients to display voice UI in a disabled state with a tooltip ("Voice chat requires permission") rather than hiding it entirely.
 - Administrators and operators should have `accessVoiceChat` set by default.
 - Servers that do not implement access privilege checking for voice may treat the bit as always set (allowing all users).
