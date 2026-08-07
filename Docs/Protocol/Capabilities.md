@@ -61,7 +61,10 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | 3 | `0x0008` | `CAPABILITY_INLINE_MEDIA` | Inline image attachments via server-validated upload/download transactions (handle-based) | See [Inline Media Extension](Capabilities-Inline-Media.md) |
 | 4 | `0x0010` | `CAPABILITY_CHAT_HISTORY` | Server-side chat history retrieval | See [Chat History Extension](Capabilities-Chat-History.md) |
 | 5 | `0x0020` | `CAPABILITY_EXTENDED_PRIV` | Extended 128-bit `FieldUserAccess` (110) bitmap (provisional) | See [Extended Privilege Bitmap Extension](Capabilities-Extended-Priv.md) |
-| 6–63 | — | *Reserved* | Available for future extensions | — |
+| 6 | `0x0040` | `CAPABILITY_MESSAGING` | Instant messaging layer: roster, presence, IM, offline delivery, discovery, file transfer, call signaling (provisional) | See [Instant Messaging Extension](Capabilities-Messaging.md) |
+| 7 | `0x0080` | `CAPABILITY_DIRECT_TRANSFER` | Optional peer-to-peer (hole-punched) file transfer for messaging; absence uses the server relay (provisional) | See [Instant Messaging Extension](Capabilities-Messaging.md) |
+| 8 | `0x0100` | `CAPABILITY_MESSENGER_SESSION` | Declares a pure instant-messenger session (provisional). Only meaningful alongside bit 6; a server MUST NOT confirm bit 8 unless it also confirms bit 6. When confirmed, the session is hidden from the classic Hotline world: excluded from Get User Name List (300) replies, and its join/leave/away announcements (Notify Change/Delete User 301/302) are suppressed. Rationale: a pure messenger never participates in public chat or classic PM, so listing it only confuses regular users — the session appears to join but cannot be interacted with. It remains fully visible through the messaging layer (roster, presence, discovery). | See [Instant Messaging Extension](Capabilities-Messaging.md) |
+| 9–63 | — | *Reserved* | Available for future extensions | — |
 
 ---
 
@@ -107,6 +110,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Inline media | `DATA_CAPABILITIES` bit 3 + server config (`AccessSendMedia` permission; optional `MediaGateway` for public-chat legacy fallback only) |
 | Chat history | `DATA_CAPABILITIES` bit 4 + server config (`Enabled` for history persistence) |
 | Extended privilege bitmap | `DATA_CAPABILITIES` bit 5 + server config (account store widened to 128 bits) |
+| Instant messaging | `DATA_CAPABILITIES` bit 6 (+ optional bit 7 for direct transfer) + server config (`Messaging.Enabled`) + `AccessMessaging` (bit 58) permission |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
 | GIF icons | No negotiation — feature is always available if server supports it |
