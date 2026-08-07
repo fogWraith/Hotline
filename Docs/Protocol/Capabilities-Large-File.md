@@ -30,8 +30,10 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [Flattened File Object Fork Headers](#flattened-file-object-fork-headers)
   - [Large-File Transfer Mode](#large-file-transfer-mode)
   - [File Resume (RFLT)](#file-resume-rflt)
+    - [Resume Digest](#resume-digest)
   - [Folder Transfer Wire Format](#folder-transfer-wire-format)
 - [Implementation Notes](#implementation-notes)
+  - [Unauthorised `HTXF_FLAG_LARGE_FILE`](#unauthorised-htxf_flag_large_file)
 - [Notes](#notes)
 - [Example: Login with Large-File Negotiation](#example-login-with-large-file-negotiation)
 - [Example: Download File with 64-bit Fields](#example-download-file-with-64-bit-fields)
@@ -99,6 +101,7 @@ Total size: 20 + N bytes.
 | `0x01F2` | `DATA_OFFSET64` | 64 | Offset into file (downloads/resume). Paired with legacy `DATA_OFFSET`. |
 | `0x01F3` | `DATA_XFERSIZE64` | 64 | Transfer length (remaining bytes). Paired with legacy `DATA_XFERSIZE`. |
 | `0x01F4` | `DATA_FOLDER_ITEM_COUNT64` | 64 | Folder item counts. Paired with legacy `DATA_FOLDER_ITEM_COUNT` (16-bit). While a 64-bit width is far larger than any realistic item count, this matches the convention used by the other companion fields for consistency. |
+| `0x01FA` | `DATA_PARTIAL_DIGEST` | 320 | Resume digest of a partial upload: an 8-byte window length followed by a 32-byte SHA-256. Sent in the Upload File (203) reply, and echoed by the client in the `HTXF_FLAG_RESUME` handshake extension. See [Resume Digest](#resume-digest). Not `0x01F5`, which would have continued this block — the large-file allocation ends at `0x01F4` and the voice extension holds `0x01F5`–`0x01F9`. |
 
 Send both legacy and 64-bit forms when large-file mode is active; legacy fields remain mandatory for compatibility.
 
@@ -124,6 +127,7 @@ Send both legacy and 64-bit forms when large-file mode is active; legacy fields 
 
 - Request: clients SHOULD send `DATA_XFERSIZE64` with the full upload size. The legacy `DATA_XFERSIZE` MUST be clamped to `0xFFFFFFFF` when the true size exceeds 32 bits. Servers use the 64-bit value when available.
 - Reply: servers include the refnum (32-bit) and, when resuming a partially transferred file, include both the legacy `DATA_OFFSET` (clamped) and `DATA_OFFSET64` fields, plus `DATA_XFERSIZE` and `DATA_XFERSIZE64` echoing the expected transfer size.
+- Reply: in large-file mode, servers SHOULD also include `DATA_PARTIAL_DIGEST` so the client can confirm the partial belongs to the file it is about to resume. A server that cannot produce one omits the field, and the client then sends the whole file. See [Resume Flow (Upload)](#resume-flow-upload).
 - Transfer side-channel MUST set the HTXF large-file flag when large-file mode is active.
 
 ### Get File Info (206)
@@ -171,7 +175,7 @@ File transfers use a dedicated TCP connection, separate from the control connect
 
 ### Handshake Flags and Length
 
-The HTXF handshake is a 16-byte (or 24-byte) header sent at the start of each transfer connection:
+The HTXF handshake is a 16-byte base header sent at the start of each transfer connection, optionally followed by fixed-size extension blocks:
 
 | Offset | Size | Description |
 |---|---|---|
@@ -179,7 +183,16 @@ The HTXF handshake is a 16-byte (or 24-byte) header sent at the start of each tr
 | 4–7 | 4 | Transfer reference number (from control plane) |
 | 8–11 | 4 | Transfer length (legacy 32-bit) |
 | 12–15 | 4 | Flags |
-| 16–23 | 8 | *Optional* — 64-bit transfer length (only when `HTXF_FLAG_SIZE64` is set) |
+| 16 | 8 | *Optional* — 64-bit transfer length (only when `HTXF_FLAG_SIZE64` is set) |
+| next | 40 | *Optional* — resume digest (only when `HTXF_FLAG_RESUME` is set); see [Resume Digest](#resume-digest) |
+
+Extension blocks appear in flag-bit order, so the handshake is 16, 24, 56 or 64 bytes. Each is present if and only if its flag is set: there is no other way to detect one, and a server cannot recover from a client that sets a flag and omits the block, or omits the flag and sends one.
+
+Blocks are fixed-size for that reason. A future digest algorithm needs a new flag bit rather than a variable-length block, which an implementation that did not recognise it could not skip.
+
+Extension blocks are addressed to the peer that reads the handshake, and are **not** part of the payload. Where a server splices two peers together rather than storing the file — the user-to-user relay of the [messaging extension](Capabilities-Messaging.md#handshake-flags-on-the-relay) — it MUST consume every block the flags declare and forward only what follows. A block left on the stream is delivered to the far peer as file content.
+
+Blocks are also sent **in the clear**, ahead of any transport encryption negotiated for the payload. An implementation that reads them after wrapping the connection decodes framed payload as though it were the block.
 
 **Flags:**
 
@@ -187,10 +200,14 @@ The HTXF handshake is a 16-byte (or 24-byte) header sent at the start of each tr
 |---|---|---|---|
 | 0 | `0x00000001` | `HTXF_FLAG_LARGE_FILE` | Indicates large-file mode is active for this transfer |
 | 1 | `0x00000002` | `HTXF_FLAG_SIZE64` | An 8-byte length follows the 16-byte header |
+| 2 | `0x00000004` | `HTXF_FLAG_RESUME` | This large-file upload continues the partial the server described, rather than replacing it |
 
 - Clients set `HTXF_FLAG_LARGE_FILE` when large-file mode is negotiated. Servers mirror the flag into transfer state.
 - `HTXF_FLAG_SIZE64` appends an optional 8-byte unsigned big-endian length immediately after the 16-byte header. Only send this flag/field when large-file mode is authorised. Legacy clients ignore the flag and read only the first 16 bytes.
-- **Flag relationship:** `HTXF_FLAG_SIZE64` is only valid when `HTXF_FLAG_LARGE_FILE` is also set; there is no separate toggle. Allowing a client for large files authorises both flags. However, a client MAY set `HTXF_FLAG_LARGE_FILE` without `HTXF_FLAG_SIZE64` for small-file transfers where a 32-bit length suffices — the server determines the transfer direction from its stored transfer state, not from the presence of the 64-bit field.
+- **`HTXF_FLAG_RESUME`** applies only to a large-file upload, and only after the server has quoted a resume offset in its Upload File (203) reply. It MUST be accompanied by `HTXF_FLAG_LARGE_FILE`, and appends a 40-byte [resume digest](#resume-digest) to the handshake. A server MUST reject it on any other transfer type, and MUST reject it on a transfer for which it issued no offset. See [Resume Flow (Upload)](#resume-flow-upload).
+- **Authorisation:** A client MUST NOT set any of these flags unless the server confirmed `CAPABILITY_LARGE_FILES` in the login reply. Advertising the capability is not the same as being granted it, and a client MUST NOT infer the grant from having asked for it. A server MUST reject a transfer whose handshake sets any of them when the peer is not authorised, and MUST NOT attempt to interpret the payload that follows. See [Error handling](#implementation-notes).
+- **Why every flag is gated:** the flags do not request a capability, they *declare how the bytes that follow are framed*. An unauthorised `HTXF_FLAG_SIZE64` desynchronises the stream immediately, because the server either consumes eight payload bytes as a length or reads a length that was never sent. `HTXF_FLAG_LARGE_FILE` and `HTXF_FLAG_RESUME` are more dangerous precisely because they do not: the server accepts a well-formed transfer, stores the wrong bytes, and reports success. The first decides whether the payload is wrapped; the second decides whether it starts at byte zero. Getting either wrong yields a file of plausible size that is corrupt inside. See [Unauthorised `HTXF_FLAG_LARGE_FILE`](#unauthorised-htxf_flag_large_file).
+- **Flag relationship:** `HTXF_FLAG_LARGE_FILE` is the base flag; both `HTXF_FLAG_SIZE64` and `HTXF_FLAG_RESUME` are only valid when it is also set, and authorising a client for large files authorises all three. A client MAY set `HTXF_FLAG_LARGE_FILE` alone — without `HTXF_FLAG_SIZE64` for transfers where a 32-bit length suffices, and without `HTXF_FLAG_RESUME` whenever it is sending a whole file. The server determines the transfer direction from its stored transfer state, not from which flags are present.
 - When the total transfer length exceeds `0xFFFFFFFF`, set the legacy length field (bytes 8–11) to **zero** and carry the full length in the optional 64-bit field and in the control-plane `DATA_*64` objects. This prevents unintended clamping of the transfer.
 
 ### Flattened File Object (FFO)
@@ -286,7 +303,7 @@ In large-file mode (`HTXF_FLAG_LARGE_FILE` set), uploads send **raw file data on
 
 No file metadata (INFO fork) is transmitted for large-file uploads. The server constructs metadata from the filesystem (type, creator, timestamps) or uses defaults.
 
-File resume is NOT supported for large-file uploads. If a partial upload exists, implementations SHOULD overwrite it.
+Large-file uploads MAY be resumed, using `HTXF_FLAG_RESUME` and a [resume digest](#resume-digest) rather than RFLT — see [Resume Flow (Upload)](#resume-flow-upload). A server MUST replace any existing partial when the flag is absent: without it the client is sending the whole file, and appending to what a previous attempt left behind produces a file of plausible size with the wrong bytes in the middle.
 
 #### Legacy Uploads
 
@@ -295,6 +312,8 @@ Without `HTXF_FLAG_LARGE_FILE`, uploads use the traditional FFO-wrapped format: 
 ### File Resume (RFLT)
 
 File resume uses the RFLT (Resume FiLe Transfer) structure, sent in `DATA_FILE_RESUME_DATA` (`0x00CB`). It tells the server which fork offsets the client already has.
+
+RFLT covers every resume except one: a resumed large-file *upload*, which has no forks for RFLT to describe and uses `HTXF_FLAG_RESUME` with a single offset and a digest instead. See [Resume Flow (Upload)](#resume-flow-upload).
 
 #### RFLT Header (42 bytes)
 
@@ -327,7 +346,50 @@ File resume uses the RFLT (Resume FiLe Transfer) structure, sent in `DATA_FILE_R
 
 Resume for legacy uploads follows a similar pattern: the server replies to Upload File (203) with `DATA_FILE_RESUME_DATA` containing the RFLT for the partial file, and the client adjusts its FFO output accordingly.
 
-Large-file uploads (raw data mode) do NOT support resume.
+Large-file uploads resume through `HTXF_FLAG_RESUME` instead. RFLT does not fit them: it carries an offset per fork, and a large-file upload has no forks — it is one contiguous stream, so a single offset describes it completely. RFLT also carries no way for the two ends to check that they agree about the bytes already transferred, which a raw stream needs more than a flattened one: there is no INFO fork naming the file, so nothing but the path distinguishes one upload from another.
+
+The flow is:
+
+1. **Client** sends Upload File (203) with `DATA_FILE_TRANSFER_OPTIONS` = `2`. Note that `DATA_XFERSIZE` is not sent on a resume request.
+2. **Server** looks for a partial. If one exists it replies with `DATA_FILE_RESUME_DATA` (RFLT, for legacy compatibility) and, in large-file mode, `DATA_OFFSET64` carrying the partial's exact length and `DATA_PARTIAL_DIGEST` carrying the [resume digest](#resume-digest) of what it holds. It MUST remember the offset it quoted, at full width — the RFLT copy clamps above 4 GiB and cannot be used for step 5.
+3. **Client** computes the same digest over its own copy of the file, up to the quoted offset, and compares.
+   - **Equal:** the two ends hold the same bytes; the client MAY resume.
+   - **Different, or `DATA_PARTIAL_DIGEST` absent:** the client MUST NOT resume, and sends the whole file instead. This is an ordinary outcome, not an error — the local file has changed since the failed attempt — and nothing needs to be reported to the user beyond the upload taking longer.
+4. **Client** opens the HTXF connection:
+   - **To resume:** set `HTXF_FLAG_RESUME` alongside `HTXF_FLAG_LARGE_FILE`, append the 40-byte digest it just verified as the handshake's resume block, set the handshake length to the **remaining** bytes (total minus the quoted offset), and send the file from that offset onward.
+   - **To send the whole file:** omit `HTXF_FLAG_RESUME` and proceed as a normal large-file upload. The server discards the partial.
+5. **Server** verifies before writing a byte. It MUST confirm the partial still exists, is still exactly as long as the offset it quoted in step 2, and that the digest the client echoed matches one the server recomputes **now** from the partial. If any check fails, the transfer MUST be refused and the partial MUST be left untouched, so that the client can retry without the flag.
+6. **Server** appends the payload to the partial and completes the upload.
+
+**Why the flag is required.** Steps 3 and 4 are the reason this cannot be settled on the control plane. The server learns in step 1 that the client is *interested* in resuming, but the client's actual decision is made after it sees the offset and the digest, and reaches the server only when the transfer connection opens. A server that infers resume from the step 1 request will append a complete file to a stale fragment whenever the client changes its mind.
+
+**Why the digest is checked twice.** The client's check in step 3 is what makes the mechanism usable: it lets an honest client discover the mismatch before uploading anything, and fall back silently. The server's check in step 5 is what makes it trustworthy: a client that skips step 3, through a bug or an oversight, is refused rather than allowed to corrupt a file. Neither check alone is sufficient, and neither defends against a client that deliberately lies — such a client can send wrong bytes for the remainder just as easily, and does not need a resume to do it.
+
+**Why the server recomputes rather than reusing.** A partial's length matching the quoted offset does not mean its content is untouched; something may have rewritten it in place. Recomputing at step 5 costs one window and removes the assumption.
+
+#### Resume Digest
+
+`DATA_PARTIAL_DIGEST` and the `HTXF_FLAG_RESUME` handshake block carry the same 40-byte structure:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 8 | Window length, big-endian |
+| 8 | 32 | SHA-256 |
+
+The digest is computed over the **last `min(offset, 65536)` bytes** of the partial, with the offset prepended to the hash input as an 8-byte big-endian integer:
+
+```
+window  = min(offset, 65536)
+digest  = SHA-256( be64(offset) || partial[offset-window : offset] )
+```
+
+The offset is hashed in so a digest is only ever valid at the length it was produced at; two partials sharing a trailing window at different lengths do not collide, and a digest cannot be replayed from an earlier, shorter attempt.
+
+Servers MAY use a window larger than 65536 and MUST state it in the window-length field; clients MUST hash the window length they are given rather than assuming the default.
+
+**This is a strong check, not a proof.** It samples a window rather than the whole prefix, for two reasons. The digest has to be produced inside the Upload File reply, on the control connection that also carries chat and the user list, so hashing gigabytes there would stall the session. Computing it during the original upload and persisting it instead would put a second artifact beside every partial, to be cleaned up wherever partials are removed, and would need a crash-consistency story for a stored length that outlives its bytes.
+
+Two files that differ at all will differ within 64 KiB of an arbitrary offset with overwhelming probability. What the window misses is a file identical in that window and different earlier — which describes an append-only file, where resuming is the correct thing to do anyway.
 
 ### Folder Transfer Wire Format
 
@@ -403,13 +465,28 @@ For each file or directory the client wishes to upload:
 
 - Treat all integer fields as unsigned; clamp legacy 32-bit fields instead of wrapping when conveying >4 GiB values.
 - **Clamping vs. zeroing:** control-plane legacy fields (`DATA_FILESIZE`, `DATA_XFERSIZE`, etc.) should be **clamped** to `0xFFFFFFFF`. The HTXF handshake legacy length field (bytes 8–11) should be set to **zero** when the transfer size exceeds 32 bits. The distinction matters: clamped control-plane values let legacy clients display approximate sizes, while a zeroed HTXF length prevents a legacy peer from attempting a partial read and treating it as complete.
-- Validate HTXF flags before attempting to read the optional 64-bit length. Servers MUST reject `HTXF_FLAG_SIZE64` when the peer is not authorised for large-file mode.
+- Validate HTXF flags before attempting to read the optional 64-bit length. Servers MUST reject any of `HTXF_FLAG_LARGE_FILE`, `HTXF_FLAG_SIZE64` or `HTXF_FLAG_RESUME` when the peer is not authorised for large-file mode.
 - In legacy mode, omit oversized entries from directory listings and use the 32-bit ceiling for reported sizes and counts to avoid advertising un-fetchable items.
 - Always send both legacy and 64-bit companion fields in large-file mode so mixed peers can continue operating; fall back to legacy values when a 64-bit counterpart is absent.
 - `DATA_FILESIZE64` in Get File Name List (200) is a **separate transaction field** appended to the response field list after each `DATA_FILE` field — it is not embedded inside the `DATA_FILE` binary blob. Clients parse it by reading the field list sequentially: each `DATA_FILESIZE64` corresponds to the most recently parsed `DATA_FILE`.
-- Resume: the 64-bit offset (`DATA_OFFSET64`) determines the byte position to resume from. The 64-bit transfer length in the HTXF handshake reflects the **remaining** bytes to transfer (total size minus offset), not the full file size.
-- **Error handling:** Servers MUST return an error reply (Flags = 1 in the transaction header) if a client requests a large-file operation but is not authorised for large-file mode. For HTXF, the server MUST close the transfer connection if `HTXF_FLAG_SIZE64` is set by an unauthorised peer. Implementations SHOULD log the rejection for diagnostics.
+- Resume: the 64-bit offset (`DATA_OFFSET64`) determines the byte position to resume from. The 64-bit transfer length in the HTXF handshake reflects the **remaining** bytes to transfer (total size minus offset), not the full file size. This holds for a resumed large-file upload too: a server sizing the copy from the total waits for bytes the client already sent and will never send again.
+- **Error handling:** Servers MUST return an error reply (Flags = 1 in the transaction header) if a client requests a large-file operation but is not authorised for large-file mode. For HTXF, the server MUST close the transfer connection if any of `HTXF_FLAG_LARGE_FILE`, `HTXF_FLAG_SIZE64` or `HTXF_FLAG_RESUME` is set by an unauthorised peer. A server MUST NOT silently ignore an unauthorised flag and fall back to legacy framing: the flag describes the payload, so ignoring it means parsing the stream one way while the peer wrote it another. Implementations SHOULD log the rejection at warning level, naming the offending flag and the file, so that the client author has something actionable.
+
 - **`DATA_CAPABILITIES` width:** The `DATA_CAPABILITIES` field is typically 2 bytes (16 bits), expandable to 8. Only bit 0 (`CAPABILITY_LARGE_FILES`) is defined by *this* extension; other bits are allocated by other extensions and a peer will routinely advertise several at once (see [DATA_CAPABILITIES](Capabilities.md) for the registry). Implementations MUST mask for bit 0 rather than comparing the whole field, and MUST ignore bits they do not recognise rather than rejecting the field.
+
+### Unauthorised `HTXF_FLAG_LARGE_FILE`
+
+This case has its own section because the consequence of getting it wrong is not a failed transfer — it is a corrupt file that every party reports as healthy.
+
+The two transfer directions are framed differently (see [Large-File Transfer Mode](#large-file-transfer-mode)): a large-file *download* keeps the FFO wrapper and merely widens the fork headers, while a large-file *upload* has no wrapper at all. An implementation that builds the download side first and assumes the upload side mirrors it will set `HTXF_FLAG_LARGE_FILE` and still send a complete FFO.
+
+A server that honours the flag from an unauthorised peer then writes that FFO to disk as file content. The `FILP` header, the INFO fork and the fork headers become the leading bytes of the stored file, and the tail is truncated by however many bytes the wrapper occupied — the server stops at the announced length. For a file named `nyx-windows-amd64.exe` the wrapper is 151 bytes: 24 for the FFO header, 16 for the INFO fork header, 95 for the INFO fork itself (74 fixed + 21 for the name, with no comment), and 16 for the DATA fork header.
+
+The resulting file is close enough to the expected size to survive a glance, and is corrupt from byte zero. It uploads without error, lists correctly, and downloads without error — the server wraps the corrupt bytes in a valid FFO and delivers them faithfully, so even a stock Hotline 1.2.3 accepts the transfer. Nothing in either peer's logs distinguishes it from a healthy round trip. The first symptom is a user reporting that a downloaded file will not open.
+
+To identify a file damaged this way, read its first four bytes. `46 49 4C 50` (`FILP`) in place of the file's own signature is conclusive. The original content begins at the end of the wrapper and is short by that many bytes at the tail, so the file is recoverable only if the sender still has it.
+
+Rejecting the unauthorised flag converts this into a refused transfer at the handshake, before a single payload byte is read.
 
 ## Notes
 
