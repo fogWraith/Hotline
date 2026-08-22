@@ -51,6 +51,7 @@ Developers of new software should choose a version number that does not conflict
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
 | 300     | `0x012C` | Iris                     | Classic Instant Messenger                 |
 | 301     | `0x012D` | Nyx                      | Modern Instant Messenger                  |
+| 321     | `0x0144` | Liteline                 | Vintage client                            |
 | 8867    | `0x22A3` | XCC                      |                                           |
 | 48640   | `0xBE00` | Obsession                |                                           |
 
