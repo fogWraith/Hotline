@@ -52,6 +52,7 @@ Developers of new software should choose a version number that does not conflict
 | 300     | `0x012C` | Iris                     | Classic Instant Messenger                 |
 | 301     | `0x012D` | Nyx                      | Modern Instant Messenger                  |
 | 321     | `0x0144` | Liteline                 | Vintage client                            |
+| 6112    | `0x17E0` | Invigoration             | Multi-protocol client                     |
 | 8867    | `0x22A3` | XCC                      |                                           |
 | 48640   | `0xBE00` | Obsession                |                                           |
 
