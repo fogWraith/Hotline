@@ -275,6 +275,7 @@ Multiple TLV fields are concatenated. The end of the TLV block is determined by 
 | u8         | 1 byte                                      |
 | u16        | 2 bytes, big-endian                         |
 | u32        | 4 bytes, big-endian                         |
+| u64        | 8 bytes, big-endian                         |
 | string     | Raw UTF-8 bytes (length from TLV header)    |
 | bytes      | Raw binary (length from TLV header)         |
 | bool       | 1 byte: `0x00` = false, `0x01` = true       |
@@ -305,7 +306,7 @@ Unknown field IDs MUST be silently ignored by parsers. This ensures forward comp
 | Range         | Companion Spec                                       | Purpose                          |
 |---------------|------------------------------------------------------|----------------------------------|
 | 0x0400–0x04FF | Content Index                                        | Content statistics and counts    |
-| 0x0700–0x07FF | [Federation](tracker-federation.md)                  | Federation identity and control  |
+| 0x0700–0x07FF | [Federation](Tracker-Federation.md)                  | Federation identity and control  |
 
 ---
 
@@ -395,7 +396,7 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0450   | `NEWS_COUNT`       | u32    | Number of news articles on the server                |
 | 0x0451   | `MSGBOARD_COUNT`   | u32    | Number of message board posts                        |
 | 0x0452   | `FILES_COUNT`      | u32    | Total number of files hosted                         |
-| 0x0453   | `TOTAL_FILE_SIZE`  | u32    | Total file storage size in bytes                     |
+| 0x0453   | `TOTAL_FILE_SIZE`  | u64    | Total file storage size in bytes                     |
 | 0x0454   | `LAST_NEWS_TIMESTAMP` | u32 | Unix timestamp of newest news article (`0` = never)  |
 | 0x0455   | `LAST_CHAT_TIMESTAMP` | u32 | Unix timestamp of most recent **public-room** chat broadcast; private rooms/DMs/system messages MUST NOT advance this clock |
 | 0x0500   | `PRIVATE_LISTING`  | bool   | Server is unlisted (findable by direct address only) |
@@ -502,13 +503,17 @@ The client sends:
 
 | Field ID | Name          | Type   | Description                                      |
 |----------|---------------|--------|--------------------------------------------------|
-| 0x1001   | `SEARCH_TEXT` | string | Case-insensitive substring match against server name and description |
+| 0x1001   | `SEARCH_TEXT` | string | Case-insensitive substring match against server name, description, hostname and address |
 | 0x1010   | `PAGE_OFFSET` | u16    | Pagination: skip this many records               |
 | 0x1011   | `PAGE_LIMIT`  | u16    | Pagination: return at most this many records     |
 
 A request with `Field count = 0` is equivalent to a v1 listing request — the tracker returns all servers.
 
-When `SEARCH_TEXT` is provided, the tracker returns only servers whose name or description contains the search string (case-insensitive substring match). Client-side filtering is adequate for more complex queries at typical tracker scales (fewer than a few hundred servers).
+When `SEARCH_TEXT` is provided, the tracker returns only servers matching the search string as a case-insensitive substring. Trackers MUST match against all four of: the server **name**, its **description**, its **hostname** (`HOSTNAME`, when present) and its **published address** as rendered for display.
+
+The address fields are included because "which servers are on example.com" is an ordinary thing to want and there is no other way to ask it — every one of these values is already visible in the listing the client is filtering, so matching them discloses nothing new. They are a `MUST` rather than a `MAY` so that a client can rely on the behaviour: an optional search field is one a client cannot offer a user, since it would work against some trackers and silently return nothing against others.
+
+Client-side filtering is adequate for more complex queries at typical tracker scales (fewer than a few hundred servers).
 
 ### Server Record Format
 
@@ -678,9 +683,16 @@ These fields convey content statistics about the server. They may be included by
 | 0x0450   | `NEWS_COUNT`      | u32  | Number of news articles                    |
 | 0x0451   | `MSGBOARD_COUNT`  | u32  | Number of message board posts              |
 | 0x0452   | `FILES_COUNT`     | u32  | Total number of hosted files               |
-| 0x0453   | `TOTAL_FILE_SIZE` | u32  | Total file storage size in bytes           |
+| 0x0453   | `TOTAL_FILE_SIZE` | u64  | Total file storage size in bytes (see note below) |
 | 0x0454   | `LAST_NEWS_TIMESTAMP` | u32 | Unix timestamp of newest news article (`0` = never) |
 | 0x0455   | `LAST_CHAT_TIMESTAMP` | u32 | Unix timestamp of most recent **public-room** chat broadcast |
+
+Implementations MUST send 8 bytes, big-endian, **in bytes**. A reader
+encountering a 4-byte value is talking to an implementation that predates this
+correction.
+
+The three count fields (`0x0450`–`0x0452`) remain `u32`. Four billion articles,
+posts or files is a bound very few is going to reach.
 
 When injected by the tracker, these fields are populated from an external content indexing service and cached with a configurable TTL. When provided by the server in a v3 registration, the server-declared values are used unless the tracker has a more authoritative source.
 
@@ -1134,7 +1146,7 @@ Tracker → Client:
 | `0x0450` | `NEWS_COUNT`       | u32    | Content Index    | Tracker/Server |
 | `0x0451` | `MSGBOARD_COUNT`   | u32    | Content Index    | Tracker/Server |
 | `0x0452` | `FILES_COUNT`      | u32    | Content Index    | Tracker/Server |
-| `0x0453` | `TOTAL_FILE_SIZE`  | u32    | Content Index    | Tracker/Server |
+| `0x0453` | `TOTAL_FILE_SIZE`  | u64    | Content Index    | Tracker/Server |
 | `0x0454` | `LAST_NEWS_TIMESTAMP` | u32 | Content Index    | Server (reg)   |
 | `0x0455` | `LAST_CHAT_TIMESTAMP` | u32 | Content Index    | Server (reg)   |
 | `0x0500` | `PRIVATE_LISTING`  | bool   | Privacy          | Server (reg)   |
@@ -1165,4 +1177,5 @@ The following companion specifications extend v3 with optional capabilities. Eac
 | Specification | Document | Description | TLV Range |
 |---------------|----------|-------------|-----------|
 | Content Index | — | Content statistics (news, files, message boards) injected by a content indexing service | 0x0400–0x04FF |
-| Federation | [Tracker-Federation.md](Tracker-Federation.md) | HTFD protocol for tracker-to-tracker server list exchange with trust and identity controls | 0x0700–0x07FF |
+| Federation | [tracker-federation.md](Tracker-Federation.md) | HTFD protocol for tracker-to-tracker server list exchange with trust and identity controls | 0x0700–0x07FF |
+| HTTP/REST API | [tracker-http-api.md](Tracker-HTTP-API.md) | JSON API for programmatic read-only access to tracker data | — |
