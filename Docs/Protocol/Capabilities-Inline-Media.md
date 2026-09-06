@@ -84,7 +84,7 @@ When the server confirms `CAPABILITY_INLINE_MEDIA` in the login reply it MUST al
 | `0x0210` | `DATA_CHAT_MEDIA_MAX_FRAMES` | Maximum frame count for animated formats. |
 | `0x0211` | `DATA_CHAT_MEDIA_MAX_DURATION_MS` | Maximum total animation duration in milliseconds. |
 
-These values are advisory — the server still enforces them on every upload — but clients SHOULD treat them as authoritative for client-side validation. Clients MUST tolerate any individual field being absent and fall back to the spec defaults documented in [Resource Limits](#resource-limits).
+These values are advisory - the server still enforces them on every upload - but clients SHOULD treat them as authoritative for client-side validation. Clients MUST tolerate any individual field being absent and fall back to the spec defaults documented in [Resource Limits](#resource-limits).
 
 Servers MUST NOT send these fields when the capability is not confirmed. Servers MUST NOT advertise values larger than they actually accept; advertising tighter values than the live configuration is permitted (for example, to throttle clients ahead of a planned reduction).
 
@@ -258,7 +258,7 @@ For every `TranUploadMedia` request the server MUST perform, in order:
 
 1. **Authorization check.** Reject if the sender lacks `AccessSendMedia` (bit 57; see [Authorization](#authorization)).
 2. **Per-account and per-IP quotas.** Reject if the sender has exceeded the configured rate or volume limits.
-3. **Encoded size check.** Reject if total payload is below a small minimum (recommended: 64 bytes — smaller than any plausible valid image) or exceeds the configured maximum (recommended default: 256 KB) once all chunks are assembled.
+3. **Encoded size check.** Reject if total payload is below a small minimum (recommended: 64 bytes - smaller than any plausible valid image) or exceeds the configured maximum (recommended default: 256 KB) once all chunks are assembled.
 4. **Magic-byte sniff.** Read the leading bytes of the assembled payload and confirm they match one of the server's allowed formats. Reject if no allowed magic matches. The sender's declared MIME type is a hint only and MUST NOT be used to skip this check.
 5. **Trailing-data check.** Confirm there is no significant data after the natural end-of-image marker for the detected format. Reject otherwise.
 6. **Dimension probe.** Decode only the image header and read the declared width and height. Reject if either dimension is less than 1, if either dimension exceeds 4096, or if `width × height` exceeds the configured pixel cap (recommended default: 2048 × 2048 = ~4.2 megapixels).
@@ -435,7 +435,7 @@ For convenience, the following are normative MUSTs concentrated in one place:
 - **No new chat transactions.** This extension introduces only the upload and download transactions. Public chat (105/106), private messages (108/104), and private chat rooms (105/106 with `DATA_CHATID`) all continue to use their existing types, with two added companion fields and three server-supplied advisory fields. Server-advertised limits and the optional error code are carried in the login reply and in error replies respectively.
 - **Field-size discipline.** All fields conform to standard Hotline 16-bit length encoding. Image bytes are exchanged via dedicated transactions that support multi-chunk replies; no field ever exceeds 65,535 bytes.
 - **Capability echo on relay.** The server is the single place where capability checks are applied to outbound chat fan-out. Clients MUST NOT attempt to detect peer capabilities themselves.
-- **Chat logging.** Chat history (see the chat-history extension) MUST treat media as a metadata-only entry by default; canonical bytes MAY be retained separately under operator policy.
+- **Chat logging.** Chat history (see the chat-history extension) MUST treat media as a metadata-only entry by default; canonical bytes MAY be retained separately under operator policy. The metadata travels as history-entry mini-TLV sub-fields `0x0010`–`0x0014`, allocated to this extension - see [Allocated sub-field types](Capabilities-Chat-Cistory.md#allocated-sub-field-types).
 - **Mixed audiences in private rooms.** When a private chat room contains capable and legacy members, the server constructs two relay variants: capable members receive the media fields; legacy members receive the text only. Gateway substitution is NOT used in this case.
 - **Capability bit.** This extension uses bit 3 (`0x0008`) of `DATA_CAPABILITIES`. Servers that do not implement this extension MUST NOT confirm the bit, even if a client advertises it.
 
