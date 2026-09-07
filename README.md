@@ -8,6 +8,6 @@ The general layout will be changed down the road, though for now it will have to
 
 ### Hotline Protocol Extensions
 
-### Extras ( Janus Plugin System, Mnemosyne Content Indexing Service )
+### Extras ( Janus Plugin System, Mnemosyne Content Indexing Service, Instant Messaging )
 
 This document is a work in progress, and should be considered a draft.
