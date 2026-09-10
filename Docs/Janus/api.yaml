@@ -1,8 +1,55 @@
 openapi: 3.0.3
 info:
   title: Janus API
-  description: REST API for managing the Janus Hotline server
-  version: 2.2.0
+  description: |
+    REST API for managing the Janus Hotline server.
+
+    ## Response envelope
+
+    Every response — success and failure alike — is a JSON envelope.
+    A success carries the endpoint's payload under `data`:
+
+    ```json
+    { "ok": true, "data": { ... } }
+    ```
+
+    A failure carries a human-readable message and a stable machine code:
+
+    ```json
+    { "ok": false, "error": "account not found", "code": "NOT_FOUND" }
+    ```
+
+    Codes in use: `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
+    `METHOD_NOT_ALLOWED`, `CONFLICT`, `NOT_VOLUME_BACKED`, `ALREADY_MOUNTED`,
+    `ALREADY_EXISTS`, `UNKNOWN_FILE_ROOT`, `UNAVAILABLE`, `INTERNAL`.
+
+    Where a `200` response below has no schema, the body is still this
+    envelope with the described fields inside `data`.
+
+    The one exception is a request to a path this document does not list:
+    that is refused by the HTTP router before any handler runs, and comes
+    back as a plain-text `404`, not an envelope.
+
+    ## Roles
+
+    Every operation carries an `x-required-role` of `viewer`, `operator`, or
+    `admin`. The roles are a hierarchy — an `admin` key satisfies an
+    `operator` requirement, and an `operator` key satisfies a `viewer` one.
+    A key below the required role gets `403`; an unrecognised or absent key
+    gets `401`.
+
+    Note that a role is per *operation*, not per path: listing the message
+    board is `viewer` while reading one post is `operator`, and listing
+    transfers is `viewer` while reading one is `admin`. Read the annotation
+    on the operation you intend to call.
+
+    ## Method handling
+
+    Every endpoint answers a method it does not implement with `405` and
+    code `METHOD_NOT_ALLOWED`. These are omitted from the per-operation
+    response lists except where a path is shared by several methods with
+    different roles.
+  version: 2.4.1
   contact:
     name: fogWraith
     url: https://github.com/fogWraith
@@ -16,8 +63,10 @@ paths:
   # --- Status & Health ---
   /api/v2/status:
     get:
+      operationId: getStatus
       summary: Server status
-      description: Returns server name, version, uptime, and current user/transfer counts.
+      x-required-role: viewer
+      description: Returns server name, description, version, uptime, and current online user count.
       tags: [Status]
       responses:
         '200':
@@ -25,28 +74,115 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      version:
+                        type: string
+                        description: Janus build version.
+                      uptime_secs:
+                        type: integer
+                      online:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/health:
     get:
+      operationId: getHealth
       summary: Health check
+      x-required-role: viewer
+      description: >
+        Always answers `status: "ok"` when the API is serving; it is a
+        liveness check, not a check of any subsystem. Note that it is not
+        anonymous — it needs a viewer key like everything else.
       tags: [Status]
       responses:
         '200':
           description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      uptime_secs:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/metrics:
     get:
+      operationId: getMetrics
       summary: Server metrics
-      description: Returns raw server statistics (counters, gauges).
+      x-required-role: viewer
+      description: >
+        Returns the server's raw counters and gauges. These come straight
+        from the internal stats table, so — unlike every other endpoint —
+        the keys are PascalCase.
       tags: [Status]
       responses:
         '200':
           description: Metrics object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      CurrentlyConnected:
+                        type: integer
+                      DownloadsInProgress:
+                        type: integer
+                      UploadsInProgress:
+                        type: integer
+                      WaitingDownloads:
+                        type: integer
+                      ConnectionPeak:
+                        type: integer
+                      ConnectionCounter:
+                        type: integer
+                      DownloadCounter:
+                        type: integer
+                      UploadCounter:
+                        type: integer
+                      Since:
+                        type: string
+                        format: date-time
+                        description: When the server started.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/mnemosyne/metrics:
     get:
+      operationId: getMnemosyneMetrics
       summary: Mnemosyne subsystem metrics
+      x-required-role: viewer
       description: |
         Returns a point-in-time snapshot of the in-core Mnemosyne content
         sync subsystem.  Returns 404 when the subsystem is disabled via
@@ -60,45 +196,56 @@ paths:
               schema:
                 type: object
                 properties:
-                  events_received:
-                    type: integer
-                    format: int64
-                    description: Total events pushed onto the internal queue.
-                  events_dropped:
-                    type: integer
-                    format: int64
-                    description: Events dropped because the bounded queue was full.
-                  chunks:
-                    type: integer
-                    format: int64
-                    description: Successful chunk POSTs (any content type).
-                  retries:
-                    type: integer
-                    format: int64
-                    description: HTTP retry attempts across all requests.
-                  bytes_sent:
-                    type: integer
-                    format: int64
-                    description: Total request body bytes sent.
-                  last_heartbeat_at:
-                    type: integer
-                    format: int64
-                    description: Unix seconds of last successful heartbeat (0 if none).
-                  last_full_sync_at:
-                    type: integer
-                    format: int64
-                    description: Unix seconds of last successful full sync (0 if none).
-                  last_error_at:
-                    type: integer
-                    format: int64
-                    description: Unix seconds of last HTTP error (0 if none).
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      events_received:
+                        type: integer
+                        format: int64
+                        description: Total events pushed onto the internal queue.
+                      events_dropped:
+                        type: integer
+                        format: int64
+                        description: Events dropped because the bounded queue was full.
+                      chunks:
+                        type: integer
+                        format: int64
+                        description: Successful chunk POSTs (any content type).
+                      retries:
+                        type: integer
+                        format: int64
+                        description: HTTP retry attempts across all requests.
+                      bytes_sent:
+                        type: integer
+                        format: int64
+                        description: Total request body bytes sent.
+                      last_heartbeat_at:
+                        type: integer
+                        format: int64
+                        description: Unix seconds of last successful heartbeat (0 if none).
+                      last_full_sync_at:
+                        type: integer
+                        format: int64
+                        description: Unix seconds of last successful full sync (0 if none).
+                      last_error_at:
+                        type: integer
+                        format: int64
+                        description: Unix seconds of last HTTP error (0 if none).
         '404':
           description: Mnemosyne subsystem is not enabled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- NewsBridge (NNTP <-> Hotline news gateway) ---
   /api/v2/newsbridge/status:
     get:
+      operationId: getNewsBridgeStatus
       summary: NewsBridge subsystem status
+      x-required-role: viewer
       description: |
         Returns a JSON snapshot of NewsBridge's per-server / per-group
         state: connection state, queue depths, last poll time, and
@@ -112,12 +259,24 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    description: Per-server / per-group state snapshot.
         '404':
           description: NewsBridge subsystem is not enabled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/newsbridge/audit:
     get:
+      operationId: listNewsBridgeAudit
       summary: NewsBridge audit log
+      x-required-role: operator
       description: |
         Returns recent rows from the NewsBridge audit table (inbound and
         outbound article activity, errors, retries). 404 when disabled.
@@ -144,17 +303,28 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
         '400':
           description: Invalid `since` or `limit` parameter.
         '404':
           description: NewsBridge subsystem is not enabled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/newsbridge/groups/{server}/{group}/reset:
     post:
+      operationId: resetNewsBridgeGroup
       summary: Reset a group's high-water mark
+      x-required-role: admin
       description: |
         Forces a re-import of the named NNTP group on the next poll
         cycle by clearing its stored cursor. Use this after fixing a
@@ -181,23 +351,34 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: reset
-                  server:
-                    type: string
-                  group:
-                    type: string
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: reset
+                      server:
+                        type: string
+                      group:
+                        type: string
         '400':
           description: Invalid path or unknown server/group.
         '404':
           description: NewsBridge subsystem is not enabled.
         '405':
           description: Method not allowed (POST only).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/newsbridge/outbound:
     get:
+      operationId: listNewsBridgeOutbound
       summary: List outbound queue entries
+      x-required-role: operator
       description: |
         Returns rows from the Hotline-to-NNTP outbound queue. Useful
         for inspecting deliveries and diagnosing failed sends.
@@ -223,17 +404,28 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
         '400':
           description: Invalid `status` or `limit` parameter.
         '404':
           description: NewsBridge subsystem is not enabled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/newsbridge/outbound/{id}/retry:
     post:
+      operationId: retryNewsBridgeOutbound
       summary: Retry a failed outbound delivery
+      x-required-role: operator
       description: |
         Moves a failed outbound row back to `pending` so it will be
         picked up on the next poll cycle.
@@ -254,32 +446,74 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: retry
-                  id:
-                    type: integer
-                    format: int64
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: retry
+                      id:
+                        type: integer
+                        format: int64
         '400':
           description: Invalid id or row not in failed state.
         '404':
           description: NewsBridge subsystem is not enabled.
         '405':
           description: Method not allowed (POST only).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Users ---
   /api/v2/users:
     get:
+      operationId: listUsers
       summary: List online users
-      description: Returns all currently connected users with nickname, login, IP, icon, version, and protocol extensions.
+      x-required-role: viewer
+      description: >
+        Returns all currently connected sessions with nickname, login, IP,
+        icon, version, and negotiated protocol extensions. Invisible users
+        are included — this is an operator view, not the user list a client
+        sees.
       tags: [Users]
       responses:
         '200':
           description: List of online users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/session:
     get:
+      operationId: getUserSession
       summary: Get user session details
+      x-required-role: operator
+      description: >
+        The same fields as the list endpoint plus `capabilities` (the two
+        capability bytes rendered as binary) and `dupe_msg_count`. Unlike
+        the list, the booleans `has_gif_icon`, `invisible` and
+        `blocked_download` are always present here.
       tags: [Users]
       parameters:
         - name: uid
@@ -290,10 +524,39 @@ paths:
       responses:
         '200':
           description: User session info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/User'
+                      - type: object
+                        properties:
+                          capabilities:
+                            type: string
+                            description: >
+                              The two capability bytes as binary, e.g.
+                              "10110000 00000001".
+                          dupe_msg_count:
+                            type: integer
+        '400':
+          description: Invalid user ID
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/kick:
     post:
+      operationId: kickUser
       summary: Kick a user
+      x-required-role: operator
       tags: [Users]
       parameters:
         - name: uid
@@ -304,10 +567,20 @@ paths:
       responses:
         '200':
           description: User kicked
+        '400':
+          description: Invalid user ID
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/temp-ban:
     post:
+      operationId: tempBanUser
       summary: Temp-ban and disconnect a user
+      x-required-role: operator
       tags: [Users]
       parameters:
         - name: uid
@@ -329,10 +602,20 @@ paths:
       responses:
         '200':
           description: User banned
+        '400':
+          description: Invalid user ID, or a body with duration_minutes must be a positive integer
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/message:
     post:
+      operationId: sendUserMessage
       summary: Send a private message to a user
+      x-required-role: operator
       tags: [Users]
       parameters:
         - name: uid
@@ -353,10 +636,20 @@ paths:
       responses:
         '200':
           description: Message sent
+        '400':
+          description: Invalid user ID, or a body with empty or missing message
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/auto-reply:
     post:
+      operationId: setUserAutoReply
       summary: Set or clear a user's auto-reply message
+      x-required-role: operator
       description: |
         Updates the `AutoReply` field on the live `ClientConn`. An empty
         `message` clears any existing auto-reply.
@@ -379,10 +672,20 @@ paths:
       responses:
         '200':
           description: Auto-reply updated
+        '400':
+          description: Invalid user ID
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/block-download:
     post:
+      operationId: setUserBlockDownload
       summary: Block or unblock downloads for a user
+      x-required-role: operator
       description: |
         Toggles the per-session `BlockedDownload` flag on the live
         `ClientConn`. Downloads remain blocked until the flag is cleared
@@ -407,10 +710,20 @@ paths:
       responses:
         '200':
           description: Block state updated
+        '400':
+          description: Invalid user ID
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/users/{uid}/invisibility:
     post:
+      operationId: setUserInvisibility
       summary: Make a user invisible or visible
+      x-required-role: operator
       description: |
         Toggles the per-session `Invisible` flag on the live `ClientConn`,
         hiding (or revealing) the user from the user list broadcast.
@@ -434,11 +747,21 @@ paths:
       responses:
         '200':
           description: Invisibility state updated
+        '400':
+          description: Invalid user ID
+        '404':
+          description: No session with that ID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Broadcast ---
   /api/v2/broadcast:
     post:
+      operationId: broadcastMessage
       summary: Broadcast a message to all users
+      x-required-role: admin
       tags: [Server]
       requestBody:
         required: true
@@ -453,17 +776,64 @@ paths:
       responses:
         '200':
           description: Message broadcast
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      msg:
+                        type: string
+                      recipients:
+                        type: integer
+                        description: Sessions connected when the message went out.
+        '400':
+          description: Malformed body, or an empty message
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Server Info ---
   /api/v2/server/agreement:
     get:
+      operationId: getAgreement
       summary: Get server agreement text
+      x-required-role: viewer
+      description: >
+        A server with no agreement configured answers 200 with an empty
+        `agreement` string rather than 404.
       tags: [Server]
       responses:
         '200':
           description: Agreement text
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      agreement:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     put:
+      operationId: updateAgreement
       summary: Update server agreement text
+      x-required-role: admin
+      description: >
+        Replaces the agreement and writes it to disk. Sending an empty
+        `text` clears the agreement.
       tags: [Server]
       requestBody:
         required: true
@@ -478,18 +848,52 @@ paths:
       responses:
         '200':
           description: Agreement updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/server/banner:
     get:
+      operationId: getBanner
       summary: Get server banner info
+      x-required-role: viewer
+      description: >
+        Reports whether a banner is loaded and how large it is. `file` is
+        present only when a banner is loaded. The banner image itself is
+        not served here.
       tags: [Server]
       responses:
         '200':
-          description: Banner metadata (has_banner, size, file)
+          description: Banner metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      has_banner:
+                        type: boolean
+                      size:
+                        type: integer
+                        description: Banner size in bytes.
+                      file:
+                        type: string
+                        description: Configured BannerFile name.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/server/config:
     get:
+      operationId: getServerConfig
       summary: Get server configuration
+      x-required-role: viewer
       description: >
         Returns the current server configuration. Does not include
         sensitive fields (passwords, API keys, file system paths beyond
@@ -501,7 +905,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ServerConfig'
               example:
                 ok: true
                 data:
@@ -526,18 +935,51 @@ paths:
                     DownloadFolder: true
                     ReadChat: true
                     SendChat: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/server/tls:
     get:
+      operationId: getTLSStatus
       summary: Get TLS status
+      x-required-role: viewer
+      description: >
+        Reports whether the server is listening for TLS Hotline
+        connections. `port` and `file_transfer_port` are present only when
+        TLS is enabled; the file transfer port is always the TLS port plus
+        one.
       tags: [Server]
       responses:
         '200':
           description: TLS configuration info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      port:
+                        type: integer
+                      file_transfer_port:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/server/reload:
     post:
+      operationId: reloadServer
       summary: Reload server configuration
+      x-required-role: admin
       description: >
         Hot-reloads server configuration. If a targets array is provided,
         only those subsystems are reloaded. If omitted, everything is reloaded.
@@ -556,11 +998,37 @@ paths:
       responses:
         '200':
           description: Configuration reloaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      msg:
+                        type: string
+                        description: >
+                          "config reloaded", or "reloaded: a, b" naming the
+                          targets that were reloaded.
+        '400':
+          description: Malformed body, or an unrecognised reload target
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/server/shutdown:
     post:
+      operationId: shutdownServer
       summary: Gracefully shutdown the server
-      description: Sends a disconnect message to all clients, then shuts down.
+      x-required-role: admin
+      description: >
+        Sends a disconnect message to all clients, then shuts down. The
+        response is written before the shutdown begins, so a 200 here means
+        the shutdown was accepted, not that it has finished.
       tags: [Server]
       requestBody:
         required: true
@@ -576,23 +1044,34 @@ paths:
       responses:
         '200':
           description: Server shutting down
+        '400':
+          description: Malformed body, or an empty message
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
-  # --- Accounts ---
-  /api/v2/accounts:
-    get:
-      summary: List all accounts
-      tags: [Accounts]
-      responses:
-        '200':
-          description: List of accounts
+  # --- Authentication ---
+  /api/v2/auth/verify:
     post:
-      summary: Create a new account
+      operationId: verifyCredentials
+      summary: Verify account credentials
+      x-required-role: admin
       description: >
-        Creates a new account. If the `access` field is omitted or contains
-        no enabled bits, the server applies the `NewUserDefaults` template
-        from config.yaml (if configured). The standard "creator cannot
-        grant more access than themselves" check applies after defaults
-        are filled in.
+        Checks a login/password pair against the account database without
+        creating a session. Intended for a trusted front end (such as the
+        Agora web site) that needs to authenticate a visitor as their Hotline
+        account.
+
+
+        A wrong password is not an error: the response is 200 with
+        `valid: false` and no account details. Account details are returned
+        only on a successful verification. Unknown logins and wrong passwords
+        are indistinguishable, including in response time.
+
+
+        The password is supplied in the clear (send this over TLS or a trusted
+        network only).
       tags: [Accounts]
       requestBody:
         required: true
@@ -604,10 +1083,103 @@ paths:
               properties:
                 login:
                   type: string
+                password:
+                  type: string
+                  description: Clear-text password (may be empty for passwordless accounts)
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    description: >
+                      When `valid` is false this is the single field
+                      `{ "valid": false }`. When true it is the full
+                      Account object with `valid: true` added.
+                    allOf:
+                      - $ref: '#/components/schemas/Account'
+                      - type: object
+                        properties:
+                          valid:
+                            type: boolean
+                            description: >
+                              True when the password matches the account.
+        '400':
+          description: Malformed body or missing login
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # --- Accounts ---
+  /api/v2/accounts:
+    get:
+      operationId: listAccounts
+      summary: List all accounts
+      x-required-role: admin
+      tags: [Accounts]
+      responses:
+        '200':
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Account'
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAccount
+      summary: Create a new account
+      x-required-role: admin
+      description: |
+        Creates a new account. If the `access` field is omitted or contains
+        no enabled bits, the server applies the `NewUserDefaults` template
+        from config.yaml (if configured).
+
+        Unlike account creation over the Hotline protocol, there is no
+        "creator cannot grant more access than themselves" ceiling here: an
+        admin key can grant any privilege bit, because an API key is not an
+        account and has no bitmap of its own to be measured against.
+        Unrecognised keys in `access` are ignored rather than rejected.
+      tags: [Accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login]
+              properties:
+                login:
+                  type: string
                 name:
                   type: string
                 password:
                   type: string
+                  description: >
+                    Clear-text account password (may be empty for passwordless
+                    accounts). Stored the same way a password set through a
+                    Hotline client is, so the account can log in with it. Must
+                    satisfy the server's configured password policy.
                 access:
                   $ref: '#/components/schemas/AccessFlags'
                 file_root:
@@ -628,10 +1200,30 @@ paths:
       responses:
         '201':
           description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '400':
+          description: >
+            Missing login, or a password failing the server's password policy
+        '409':
+          description: An account with this login already exists
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/accounts/{login}:
     get:
+      operationId: getAccount
       summary: Get account by login
+      x-required-role: admin
       tags: [Accounts]
       parameters:
         - name: login
@@ -642,8 +1234,34 @@ paths:
       responses:
         '200':
           description: Account details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '404':
+          description: Account not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     patch:
+      operationId: updateAccount
       summary: Update an account
+      x-required-role: admin
+      description: |
+        Every field is optional; only the fields present are changed. The one
+        exception is `access`, which is a whole-bitmap replacement rather
+        than a merge — sending it with a subset of bits revokes every bit
+        not listed. Unrecognised bit names are ignored.
+
+        Renaming the login or revoking the `messaging` bit also updates the
+        messaging friend graph, and a changed `max_bandwidth` is applied to
+        that account's live sessions without a reconnect.
       tags: [Accounts]
       parameters:
         - name: login
@@ -664,6 +1282,10 @@ paths:
                   description: New login name (renames the account)
                 password:
                   type: string
+                  description: >
+                    Clear-text replacement password. Omit or send an empty
+                    string to leave the current password unchanged. Must
+                    satisfy the server's configured password policy.
                 access:
                   $ref: '#/components/schemas/AccessFlags'
                 file_root:
@@ -684,8 +1306,27 @@ paths:
       responses:
         '200':
           description: Account updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Account'
+        '400':
+          description: Malformed body, or a password failing the password policy
+        '404':
+          description: Account not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
+      operationId: deleteAccount
       summary: Delete an account
+      x-required-role: admin
       tags: [Accounts]
       parameters:
         - name: login
@@ -696,19 +1337,41 @@ paths:
       responses:
         '200':
           description: Account deleted
+        '404':
+          description: Account not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Bans ---
   /api/v2/temp-bans:
     get:
+      operationId: listBans
       summary: List all bans
+      x-required-role: admin
       description: Returns IP bans (with expiry/reason), banned usernames, and banned nicknames.
       tags: [Bans]
       responses:
         '200':
           description: Ban lists
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
+      operationId: createBan
       summary: Add a ban
-      description: Ban by IP (with optional duration/reason), username, and/or nickname.
+      x-required-role: admin
+      description: |
+        Ban by IP (with optional duration/reason), username, and/or
+        nickname. At least one of `ip`, `username`, or `nickname` must be
+        supplied; supplying several applies several bans in one call, and
+        the response echoes back whichever were applied.
+
+        `duration_minutes` applies only to the IP ban. Omitting it (or
+        sending 0) makes the IP ban permanent. Username and nickname bans
+        never expire.
       tags: [Bans]
       requestBody:
         required: true
@@ -730,10 +1393,18 @@ paths:
       responses:
         '201':
           description: Ban added
+        '400':
+          description: None of `ip`, `username`, or `nickname` was supplied
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/temp-bans/ip/{addr}:
     delete:
+      operationId: unbanIP
       summary: Unban an IP address
+      x-required-role: admin
       tags: [Bans]
       parameters:
         - name: addr
@@ -744,10 +1415,18 @@ paths:
       responses:
         '200':
           description: IP unbanned
+        '404':
+          description: The address is not in the ban list
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/temp-bans/username/{name}:
     delete:
+      operationId: unbanUsername
       summary: Unban a username
+      x-required-role: admin
       tags: [Bans]
       parameters:
         - name: name
@@ -758,10 +1437,16 @@ paths:
       responses:
         '200':
           description: Username unbanned
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/temp-bans/nickname/{name}:
     delete:
+      operationId: unbanNickname
       summary: Unban a nickname
+      x-required-role: admin
       tags: [Bans]
       parameters:
         - name: name
@@ -772,11 +1457,17 @@ paths:
       responses:
         '200':
           description: Nickname unbanned
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Message Board ---
   /api/v2/msgboard:
     get:
+      operationId: listMsgboardPosts
       summary: List message board posts
+      x-required-role: viewer
       tags: [Message Board]
       parameters:
         - name: limit
@@ -785,16 +1476,26 @@ paths:
             type: integer
             default: 50
             maximum: 200
+          description: >
+            A limit outside 1-200 is not clamped — it is ignored, and the
+            default of 50 is used.
         - name: offset
           in: query
           schema:
             type: integer
             default: 0
+          description: A negative offset is ignored, and 0 is used.
       responses:
         '200':
           description: Paginated post list
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
+      operationId: createMsgboardPost
       summary: Create a message board post
+      x-required-role: operator
       tags: [Message Board]
       requestBody:
         required: true
@@ -813,10 +1514,16 @@ paths:
       responses:
         '201':
           description: Post created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/msgboard/{id}:
     get:
+      operationId: getMsgboardPost
       summary: Get a single post
+      x-required-role: operator
       tags: [Message Board]
       parameters:
         - name: id
@@ -827,8 +1534,18 @@ paths:
       responses:
         '200':
           description: Post details
+        '400':
+          description: Invalid post ID
+        '404':
+          description: Post not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     patch:
+      operationId: updateMsgboardPost
       summary: Update a post body
+      x-required-role: operator
       tags: [Message Board]
       parameters:
         - name: id
@@ -849,8 +1566,18 @@ paths:
       responses:
         '200':
           description: Post updated
+        '400':
+          description: Invalid post ID, or an empty body
+        '404':
+          description: Post not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
+      operationId: deleteMsgboardPost
       summary: Delete a post
+      x-required-role: operator
       tags: [Message Board]
       parameters:
         - name: id
@@ -861,10 +1588,20 @@ paths:
       responses:
         '200':
           description: Post deleted
+        '400':
+          description: Invalid post ID
+        '404':
+          description: Post not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/msgboard/by-ip/{ip}:
     delete:
+      operationId: deleteMsgboardPostsByIP
       summary: Delete all posts by IP
+      x-required-role: admin
       description: >
         Deletes all message board posts from the given IP address.
         Use the `since` query parameter to limit deletion to a time window.
@@ -881,8 +1618,10 @@ paths:
           schema:
             type: string
           description: >
-            Time window for deletion. Examples: "1h", "24h", "7d", "30d", "1w", "all".
-            Default is "all" (delete everything from this IP).
+            Time window for deletion. Accepts any Go duration string
+            (e.g. "30m", "1h", "24h") plus day/week shorthand ("7d",
+            "30d", "1w") or "all". Default is "all" (delete everything
+            from this IP).
       responses:
         '200':
           description: Posts deleted
@@ -891,27 +1630,55 @@ paths:
               schema:
                 type: object
                 properties:
-                  deleted:
-                    type: integer
-                  ip:
-                    type: string
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: integer
+                      ip:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- News Categories ---
   /api/v2/news/categories:
     get:
-      summary: List root news categories
+      operationId: listNewsCategories
+      summary: List news categories
+      x-required-role: viewer
+      description: >
+        Lists the categories directly under `path`, or under the news root
+        when `path` is omitted.
       tags: [News]
       parameters:
         - name: path
           in: query
           schema:
             type: string
-          description: Slash-delimited category path
+          description: Slash-delimited category path (omit for the root)
+        - name: tree
+          in: query
+          schema:
+            type: string
+            enum: ["0", "1"]
+          description: >
+            When set to `1`, returns the full recursive category tree
+            rooted at `path` instead of a flat listing.
       responses:
         '200':
           description: List of categories
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
+      operationId: createNewsCategory
       summary: Create a news category
+      x-required-role: admin
       tags: [News]
       requestBody:
         required: true
@@ -934,10 +1701,16 @@ paths:
       responses:
         '201':
           description: Category created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/news/categories/{path}:
     get:
+      operationId: getNewsCategory
       summary: Get category contents
+      x-required-role: viewer
       tags: [News]
       parameters:
         - name: path
@@ -949,8 +1722,16 @@ paths:
       responses:
         '200':
           description: Category info with sub-categories and article count
+        '404':
+          description: Category not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     patch:
+      operationId: renameNewsCategory
       summary: Rename a category
+      x-required-role: admin
       tags: [News]
       parameters:
         - name: path
@@ -971,8 +1752,14 @@ paths:
       responses:
         '200':
           description: Category renamed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
+      operationId: deleteNewsCategory
       summary: Delete a category
+      x-required-role: admin
       tags: [News]
       parameters:
         - name: path
@@ -983,11 +1770,21 @@ paths:
       responses:
         '200':
           description: Category deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- News Articles ---
   /api/v2/news/articles:
     get:
+      operationId: listNewsArticles
       summary: List articles in a category
+      x-required-role: viewer
+      description: >
+        Without pagination/filter parameters, returns all articles in the
+        category. Supplying any of `limit`, `before`, `parent_id`, or
+        `thread_only` switches to the paged variant.
       tags: [News]
       parameters:
         - name: path
@@ -995,11 +1792,38 @@ paths:
           schema:
             type: string
           description: Slash-delimited category path
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Maximum number of articles to return (0 = unbounded)
+        - name: before
+          in: query
+          schema:
+            type: integer
+          description: Return articles with IDs lower than this ID (cursor pagination)
+        - name: parent_id
+          in: query
+          schema:
+            type: integer
+          description: Return only direct replies to this article ID
+        - name: thread_only
+          in: query
+          schema:
+            type: string
+            enum: ["0", "1", "true", "false"]
+          description: When `1` or `true`, return only top-level articles (no replies)
       responses:
         '200':
           description: List of articles
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
+      operationId: createNewsArticle
       summary: Post a news article
+      x-required-role: operator
       tags: [News]
       requestBody:
         required: true
@@ -1007,12 +1831,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title, path]
+              required: [title]
               properties:
                 path:
                   type: array
                   items:
                     type: string
+                  description: >
+                    Category path components. Omit for the news root.
                 title:
                   type: string
                 body:
@@ -1021,13 +1847,22 @@ paths:
                   type: string
                 parent_id:
                   type: integer
+                  description: >
+                    Post as a reply to this article ID. Omit or send 0 to
+                    start a new thread.
       responses:
         '201':
           description: Article posted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/news/articles/{id}:
     get:
+      operationId: getNewsArticle
       summary: Get article by ID
+      x-required-role: operator
       tags: [News]
       parameters:
         - name: id
@@ -1043,8 +1878,18 @@ paths:
       responses:
         '200':
           description: Article details
+        '400':
+          description: Invalid article ID
+        '404':
+          description: Article not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     patch:
+      operationId: updateNewsArticle
       summary: Update article title/body
+      x-required-role: operator
       tags: [News]
       parameters:
         - name: id
@@ -1069,8 +1914,18 @@ paths:
       responses:
         '200':
           description: Article updated
+        '400':
+          description: Invalid article ID, or neither `title` nor `body` supplied
+        '404':
+          description: Article not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
+      operationId: deleteNewsArticle
       summary: Delete an article
+      x-required-role: operator
       tags: [News]
       parameters:
         - name: id
@@ -1093,13 +1948,68 @@ paths:
       responses:
         '200':
           description: Article deleted
+        '400':
+          description: Invalid article ID
+        '404':
+          description: Article not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v2/news/articles/{id}/replies:
+    get:
+      operationId: listNewsArticleReplies
+      summary: List replies to an article
+      x-required-role: operator
+      description: Returns the direct child replies of the given article.
+      tags: [News]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Slash-delimited category path
+      responses:
+        '200':
+          description: Reply list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                ok: true
+                data:
+                  parent_id: 42
+                  replies: []
+                  total: 0
+                  path: ["General"]
+        '404':
+          description: Article or category not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/news/articles/by-ip/{ip}:
     delete:
+      operationId: deleteNewsArticlesByIP
       summary: Delete all articles by IP
+      x-required-role: admin
       description: >
-        Deletes all news articles across all categories posted from the given IP address.
-        Use the `since` query parameter to limit deletion to a time window.
+        Deletes all news articles across all categories posted from the
+        given IP address. Use the `since` query parameter to limit deletion
+        to a time window.
+
+
+        This path shares a prefix with `/api/v2/news/articles/{id}`, and the
+        server routes on longest prefix — so `by-ip` is reserved here and is
+        never read as an article ID.
       tags: [News]
       parameters:
         - name: ip
@@ -1113,8 +2023,10 @@ paths:
           schema:
             type: string
           description: >
-            Time window for deletion. Examples: "1h", "24h", "7d", "30d", "1w", "all".
-            Default is "all" (delete everything from this IP).
+            Time window for deletion. Accepts any Go duration string
+            (e.g. "30m", "1h", "24h") plus day/week shorthand ("7d",
+            "30d", "1w") or "all". Default is "all" (delete everything
+            from this IP).
       responses:
         '200':
           description: Articles deleted
@@ -1123,24 +2035,41 @@ paths:
               schema:
                 type: object
                 properties:
-                  deleted:
-                    type: integer
-                  ip:
-                    type: string
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: integer
+                      ip:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Transfers ---
   /api/v2/transfers:
     get:
+      operationId: listTransfers
       summary: List active file transfers
+      x-required-role: viewer
       description: Returns all active transfers with progress info.
       tags: [Transfers]
       responses:
         '200':
           description: List of active transfers
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/transfers/{ref}:
     get:
+      operationId: getTransfer
       summary: Get a file transfer's status
+      x-required-role: admin
       description: |
         Returns a single in-flight transfer including resume offset,
         wire options, required-access bitmap, and file paths.
@@ -1151,14 +2080,22 @@ paths:
           required: true
           schema:
             type: string
-          description: Transfer ref_num in hex
+          description: >
+            Transfer ref_num as 8-char hex — the same form the list
+            endpoint returns.
       responses:
         '200':
           description: Transfer detail
         '404':
           description: Transfer not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     delete:
+      operationId: cancelTransfer
       summary: Cancel a file transfer
+      x-required-role: admin
       tags: [Transfers]
       parameters:
         - name: ref
@@ -1166,23 +2103,39 @@ paths:
           required: true
           schema:
             type: string
-          description: Transfer ref_num in hex
+          description: >
+            Transfer ref_num as 8-char hex — the same form the list
+            endpoint returns.
       responses:
         '200':
           description: Transfer cancelled
+        '404':
+          description: Transfer not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Private Chats ---
   /api/v2/chats:
     get:
+      operationId: listChats
       summary: List active private chats
+      x-required-role: viewer
       tags: [Chats]
       responses:
         '200':
           description: List of private chat rooms with members
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/chats/{id}:
     patch:
+      operationId: updateChatSubject
       summary: Update a private chat's subject
+      x-required-role: operator
       description: |
         Updates the room subject on the in-memory `MemChatManager` for the
         chat with the given 8-char hex ID (the same form returned by the
@@ -1209,11 +2162,17 @@ paths:
           description: Subject updated
         '404':
           description: Chat not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Files ---
   /api/v2/files:
     get:
+      operationId: listFiles
       summary: Browse server file directory
+      x-required-role: viewer
       tags: [Files]
       parameters:
         - name: path
@@ -1224,23 +2183,38 @@ paths:
       responses:
         '200':
           description: Directory listing
+        '400':
+          description: Path outside file root
+        '404':
+          description: Directory not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/file-stats:
     get:
+      operationId: getFileStats
       summary: Get file storage statistics
+      x-required-role: viewer
       description: Walks the FileRoot and returns total file count, directory count, and byte size.
       tags: [Files]
       responses:
         '200':
           description: File statistics
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/files/recent:
     get:
+      operationId: listRecentFiles
       summary: Recently modified files
+      x-required-role: viewer
       description: >
         Returns the most recently modified files from the disk catalog,
-        ordered by modification time descending. Requires the disk catalog
-        to be enabled.
+        ordered by modification time descending.
       tags: [Files]
       parameters:
         - name: limit
@@ -1249,7 +2223,9 @@ paths:
             type: integer
             default: 25
             maximum: 200
-          description: Maximum number of files to return
+          description: >
+            Maximum number of files to return. A value outside 1-200 is not
+            clamped — it is ignored, and the default of 25 is used.
       responses:
         '200':
           description: Recently modified files
@@ -1257,16 +2233,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
-        '503':
-          description: Disk catalog not enabled
+        '500':
+          description: Failed to query the disk catalog
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/file-stats/breakdown:
     get:
+      operationId: getFileStatsBreakdown
       summary: Detailed storage analytics
+      x-required-role: viewer
       description: >
         Returns a comprehensive storage breakdown including totals,
         per-folder usage, largest files, file type distribution, and
-        most downloaded files. Requires the disk catalog to be enabled.
+        most downloaded files, served from the disk catalog. Individual
+        catalog query failures are ignored; the affected sections are
+        returned empty or zeroed.
       tags: [Files]
       parameters:
         - name: limit
@@ -1275,7 +2259,9 @@ paths:
             type: integer
             default: 25
             maximum: 200
-          description: Maximum number of items per category
+          description: >
+            Maximum number of items per category. A value outside 1-200 is
+            not clamped — it is ignored, and the default of 25 is used.
       responses:
         '200':
           description: Storage analytics breakdown
@@ -1309,16 +2295,67 @@ paths:
                       path: "/Uploads/popular.sit"
                       size: 52428800
                       download_count: 42
-        '503':
-          description: Disk catalog not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v2/disk-usage:
+    get:
+      operationId: getDiskUsage
+      summary: Get disk usage for a path
+      x-required-role: viewer
+      description: >
+        Returns file count, directory count, and total bytes for a path
+        prefix under FileRoot, served from the disk catalog. When `path`
+        is omitted the statistics cover the entire file root.
+      tags: [Files]
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Subdirectory path relative to FileRoot (default = entire file root)
+      responses:
+        '200':
+          description: Disk usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                ok: true
+                data:
+                  path: "/Uploads"
+                  total_files: 800
+                  total_dirs: 20
+                  total_bytes: 3221225472
+        '400':
+          description: Path outside file root
+        '500':
+          description: Failed to query the disk catalog
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/files/by-ip/{ip}:
     delete:
+      operationId: deleteFilesByIP
       summary: Delete all files uploaded by IP
+      x-required-role: admin
       description: >
-        Walks file metadata in DataRoot and deletes all files uploaded by the
-        given IP address. Both the actual file in FileRoot and its associated
-        metadata and resource fork in DataRoot are removed.
+        Deletes every file uploaded from the given IP address. The files are
+        found in Janus's own provenance index, not by walking metadata sidecars,
+        and each is deleted through the store serving its own file root — so
+        this works on a host-directory file area, an HFS+ volume, or a server
+        that mixes them.
+
+
+        Partial failure is reported as success with a count: some files may be
+        undeletable, and an operator who asked for twelve needs to know that
+        eleven went. A file's provenance record is dropped only after the file
+        itself is gone, so a second call retries whatever failed.
       tags: [Files]
       parameters:
         - name: ip
@@ -1335,20 +2372,203 @@ paths:
               schema:
                 type: object
                 properties:
-                  deleted:
-                    type: integer
-                  ip:
-                    type: string
-                  paths:
-                    type: array
-                    items:
-                      type: string
-                    description: Relative paths of deleted files
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        type: integer
+                      ip:
+                        type: string
+                      paths:
+                        type: array
+                        items:
+                          type: string
+                        description: >
+                          Paths of the deleted files, relative to the file root
+                          each lived in. The root itself is not reported, so
+                          files of the same relative path in two different
+                          roots appear as identical entries.
+        '400':
+          description: No IP address was given in the path
+        '500':
+          description: Nothing could be deleted
+        '503':
+          description: This server does not record who uploaded files
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # --- Volumes ---
+  /api/v2/volumes:
+    get:
+      operationId: listVolumes
+      summary: List volume-backed file areas
+      x-required-role: admin
+      description: >
+        Reports every file root backed by an HFS+ volume image, whether or not
+        it mounted.
+
+
+        An unmounted root is the most important entry on this list. Such a root
+        serves nothing and does **not** fall back to the host filesystem, so
+        omitting it would make a broken file area look like one nobody
+        configured.
+
+
+        A fixed-size volume runs out in three different ways and each is
+        reported separately, because they call for different responses. There
+        may be no room at all, which needs deletions. There may be room but not
+        in one piece, which is recoverable by migrating to a new volume without
+        deleting anything — Hotline announces a transfer's size up front
+        precisely so a file can be placed whole. Or there may be room for the
+        bytes and no room in the catalog to record the file, which has been
+        observed with hundreds of megabytes still free.
+
+
+        Administrator only: the response exposes the server's filesystem layout.
+      tags: [Volumes]
+      responses:
+        '200':
+          description: Volume status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      volumes:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VolumeStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: This server's file area is a host directory, not a volume
+    post:
+      operationId: createVolume
+      summary: Create a volume image for a file area
+      x-required-role: admin
+      description: >
+        Creates a new, empty HFS+ volume image for a file root. The image is
+        written beside the root, at `<file_root>.hfs` — never inside it, since a
+        root that is a *file* would break every tool that expects to be able to
+        look inside a file area.
+
+
+        **There is no resize.** A volume's size is fixed at creation. Growing one
+        in place means extending the allocation file, relocating the alternate
+        volume header, and rewriting both the partition map and the HFS wrapper,
+        every one of which is a way to destroy a file area. "Resizing" therefore
+        means creating a second, larger volume and migrating into it — which is
+        not a cheap operation, and is deliberately not presented as one. The
+        original stays intact until the operator is satisfied, and it is the only
+        version of this that is safe to interrupt.
+
+
+        An existing image is never overwritten, and a file root that is already
+        mounted is refused: its image is open, exclusively locked, and being
+        written to. Replacing a live file area means stopping the server.
+
+
+        `file_root` must be this server's file root or one assigned to an
+        account. Without that restriction this endpoint would write a
+        multi-gigabyte file anywhere the process can reach, somewhere the server
+        would never serve — so nobody would notice until the disk filled.
+
+
+        The new volume is **not** mounted by the running server; volumes are
+        mounted at startup. Restart to bring it into use.
+
+
+        Administrator only.
+      tags: [Volumes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_root]
+              properties:
+                file_root:
+                  type: string
+                  description: >
+                    The file area this volume serves. Must be the server's file
+                    root or one assigned to an account.
+                size_bytes:
+                  type: integer
+                  format: int64
+                  description: >
+                    Fixed size of the volume. Omit to resolve it the way the
+                    server would: the account's DiskQuota, then the server's,
+                    then Storage.HFSPlus.DefaultVolumeSize, then 500 MiB.
+                name:
+                  type: string
+                  description: >
+                    Volume name as the Finder shows it. Defaults to the file
+                    root's own directory name.
+                bare:
+                  type: boolean
+                  description: >
+                    Write a raw volume with no partition map. The default is a
+                    full disk image, which is what period hardware and emulators
+                    expect.
+                no_drivers:
+                  type: boolean
+                  description: >
+                    Omit the Apple disk drivers. **Mac OS 9 will not mount a disk
+                    without them**, so this is almost never what you want; it
+                    exists for images that will only ever be read by macOS,
+                    hdiutil, an emulator that attaches a file directly, or Janus
+                    itself.
+      responses:
+        '201':
+          description: Volume created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      file_root:
+                        type: string
+                      image_path:
+                        type: string
+                      size_bytes:
+                        type: integer
+                        format: int64
+                      name:
+                        type: string
+                      note:
+                        type: string
+        '400':
+          description: Missing file_root, or a path that is not a configured file root
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: An image already exists, or the file root is already mounted
 
   # --- Chat Logs ---
   /api/v2/chat-logs:
     get:
+      operationId: listChatLogs
       summary: List chat log files
+      x-required-role: admin
       tags: [Chat Logs]
       parameters:
         - name: kind
@@ -1360,10 +2580,18 @@ paths:
       responses:
         '200':
           description: List of chat log files
+        '503':
+          description: Chat logging is not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/chat-logs/{kind}:
     get:
+      operationId: readChatLog
       summary: Read recent chat log events
+      x-required-role: admin
       tags: [Chat Logs]
       parameters:
         - name: kind
@@ -1377,21 +2605,34 @@ paths:
           schema:
             type: integer
             default: 200
-          description: Maximum number of events to return
+          description: >
+            Maximum number of events to return. A non-numeric or
+            non-positive value falls back to 200.
         - name: tail_bytes
           in: query
           schema:
             type: integer
             default: 65536
-          description: Number of bytes from the end of the log file to read
+          description: >
+            Number of bytes from the end of the log file to read.
+            Only applies to the file-based chat logger; ignored when the
+            SQLite chat logger is active.
       responses:
         '200':
           description: Chat log events
+        '503':
+          description: Chat logging is not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Chat History ---
   /api/v2/chat-history:
     get:
+      operationId: listChatHistory
       summary: Query chat history
+      x-required-role: admin
       description: >
         Returns paginated chat history messages from the in-memory or SQLite
         chat history store. Requires the HistoryChatLogger backend to be enabled.
@@ -1421,7 +2662,10 @@ paths:
             type: integer
             default: 100
             maximum: 500
-          description: Maximum number of messages to return
+          description: >
+            Maximum number of messages to return. Values above 500 are
+            clamped to 500; a non-numeric or non-positive value falls back
+            to 100.
       responses:
         '200':
           description: Chat history messages
@@ -1462,11 +2706,19 @@ paths:
                         type: boolean
         '404':
           description: Chat history not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/chat-history/prune:
     post:
+      operationId: pruneChatHistory
       summary: Prune old chat history
-      description: Deletes messages older than the specified retention policy.
+      x-required-role: admin
+      description: >
+        Deletes messages older than the specified retention policy. At least
+        one of `max_messages` or `max_days` must be positive.
       tags: [Chat History]
       requestBody:
         required: true
@@ -1499,13 +2751,21 @@ paths:
                       deleted:
                         type: integer
                         format: int64
+        '400':
+          description: Neither `max_messages` nor `max_days` was positive
         '404':
           description: Chat history not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Voice Rooms ---
   /api/v2/voice/rooms:
     get:
+      operationId: listVoiceRooms
       summary: List active voice rooms
+      x-required-role: viewer
       description: Returns all active voice chat rooms and their participants.
       tags: [Voice]
       responses:
@@ -1539,17 +2799,30 @@ paths:
                                     type: boolean
                                   codec:
                                     type: integer
-                                    description: Opus codec ID negotiated for this participant.
+                                    description: >-
+                                      Voice codec ID negotiated for this
+                                      participant. 0 = G.711 μ-law (PCMU),
+                                      the only codec currently offered.
                       total:
                         type: integer
         '404':
           description: Voice chat not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Plugins ---
   /api/v2/plugins:
     get:
+      operationId: listPlugins
       summary: List loaded plugins
-      description: Returns the names of all currently loaded Lua plugins.
+      x-required-role: admin
+      description: >
+        Returns the names of all currently loaded Lua plugins. A server with
+        the plugin subsystem disabled answers 200 with an empty list rather
+        than 404, so an empty list does not distinguish "no plugins" from
+        "plugins off".
       tags: [Plugins]
       responses:
         '200':
@@ -1570,11 +2843,17 @@ paths:
                           type: string
                       total:
                         type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- IRC Bridge ---
   /api/v2/irc-bridge:
     get:
+      operationId: getIRCBridgeStatus
       summary: Get IRC bridge status
+      x-required-role: viewer
       description: Returns the connection status and configuration of the IRC bridge.
       tags: [IRC Bridge]
       responses:
@@ -1602,11 +2881,17 @@ paths:
                         type: string
         '404':
           description: IRC bridge not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Trackers ---
   /api/v2/trackers:
     get:
+      operationId: listTrackers
       summary: List configured trackers
+      x-required-role: viewer
       description: Returns tracker configuration and registration status.
       tags: [Trackers]
       responses:
@@ -1662,14 +2947,23 @@ paths:
                               description: Most recent ack.Status from this tracker (v3 only).
                       total:
                         type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Per-Account Disk Usage ---
   /api/v2/accounts-usage/{login}:
     get:
+      operationId: getAccountUsage
       summary: Get disk usage for an account
+      x-required-role: admin
       description: >
         Returns file count, directory count, and total bytes for an account's
-        dedicated file root. Requires the DiskCatalog to be enabled.
+        dedicated file root, served from the disk catalog. Accounts without
+        a dedicated file root return 200 with a `message` field instead of
+        usage statistics. `disk_quota` and `usage_pct` are only present when
+        the account has a quota configured.
       tags: [Accounts]
       parameters:
         - name: login
@@ -1708,15 +3002,23 @@ paths:
                         type: number
                         format: float
         '404':
-          description: Account or disk catalog not found
+          description: Account not found
+        '500':
+          description: Failed to query the disk catalog
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- File Search ---
   /api/v2/files/search:
     get:
+      operationId: searchFiles
       summary: Search files by modification date
+      x-required-role: viewer
       description: >
-        Returns files modified at or after the specified timestamp.
-        Requires the DiskCatalog to be enabled.
+        Returns files modified at or after the specified timestamp,
+        served from the disk catalog.
       tags: [Files]
       parameters:
         - name: mod_after
@@ -1731,7 +3033,9 @@ paths:
             type: integer
             default: 100
             maximum: 1000
-          description: Maximum number of results
+          description: >
+            Maximum number of results. Values above 1000 are clamped to
+            1000; a non-numeric or non-positive value falls back to 100.
       responses:
         '200':
           description: File search results
@@ -1764,13 +3068,21 @@ paths:
                               type: string
                       total:
                         type: integer
-        '404':
-          description: Disk catalog not enabled
+        '400':
+          description: Missing or invalid `mod_after` parameter
+        '500':
+          description: Failed to query the disk catalog
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Usage History ---
   /api/v2/usage-history:
     get:
+      operationId: getUsageHistory
       summary: Rolling 24-hour user-count summary
+      x-required-role: viewer
       description: |
         Returns the current concurrent user count plus 24h peak and average
         derived from the in-process ring buffer. Peak/average remain 0
@@ -1800,10 +3112,16 @@ paths:
                       started_at:
                         type: string
                         format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/usage-history/samples:
     get:
+      operationId: getUsageHistorySamples
       summary: Raw 24-hour user-count ring buffer
+      x-required-role: viewer
       description: |
         Returns the underlying 1-minute samples in chronological order
         (oldest first). The series is at most 1440 entries (24h).
@@ -1830,11 +3148,17 @@ paths:
                       started_at:
                         type: string
                         format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # --- Diagnostics ---
   /api/v2/diagnostics/runtime:
     get:
+      operationId: getRuntimeDiagnostics
       summary: Go runtime diagnostics
+      x-required-role: admin
       description: |
         Returns live `runtime.NumGoroutine`, `runtime.MemStats` highlights,
         Go version, CPU count, and process uptime. Intended for operator
@@ -1871,10 +3195,16 @@ paths:
                         type: string
                       num_cpu:
                         type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v2/auto-bans:
     get:
+      operationId: listAutoBans
       summary: List IPs currently tracked for rate-limit violations
+      x-required-role: admin
       description: |
         Returns the list of IP addresses that have tripped the per-IP
         connect rate limiter at least once within the current probe
@@ -1910,6 +3240,131 @@ paths:
                               format: date-time
                       total:
                         type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # --- Messaging (instant messaging extension) ---
+  /api/v2/messaging/metrics:
+    get:
+      operationId: getMessagingMetrics
+      summary: Messaging metrics
+      x-required-role: viewer
+      description: >-
+        Returns cumulative instant-messaging counters and the current
+        offline-queue depth. Requires the messaging extension to be enabled.
+      tags: [Messaging]
+      responses:
+        '200':
+          description: Messaging metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      counters:
+                        type: object
+                        properties:
+                          im_sent:
+                            type: integer
+                            description: Instant messages accepted (online + queued).
+                          im_delivered_online:
+                            type: integer
+                            description: Messages delivered to at least one live session at send time.
+                          im_queued_offline:
+                            type: integer
+                            description: Messages spooled for an offline recipient.
+                          friend_requests:
+                            type: integer
+                          file_offers:
+                            type: integer
+                          call_invites:
+                            type: integer
+                      offline_queue:
+                        type: object
+                        properties:
+                          messages:
+                            type: integer
+                            description: Total undelivered messages currently queued.
+                          recipients:
+                            type: integer
+                            description: Distinct recipients awaiting queued messages.
+        '404':
+          description: Messaging extension not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v2/messaging/rosters/{login}:
+    get:
+      operationId: getMessagingRoster
+      summary: Inspect an account's roster
+      x-required-role: admin
+      description: >-
+        Returns the friend graph of a single account for moderation: each
+        relationship's peer login, local nickname, state, and live online
+        status. Admin role.
+      tags: [Messaging]
+      parameters:
+        - name: login
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The bare account login whose roster to inspect.
+      responses:
+        '200':
+          description: Account roster
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      login:
+                        type: string
+                      online:
+                        type: boolean
+                      entries:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            login:
+                              type: string
+                            nickname:
+                              type: string
+                            state:
+                              type: string
+                              enum: [removed, pending_out, pending_in, accepted, blocked]
+                            online:
+                              type: boolean
+                            created_at:
+                              type: integer
+                              description: Unix seconds the relationship row was created.
+                      total:
+                        type: integer
+        '400':
+          description: A single login is required
+        '404':
+          description: Messaging extension not enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
 components:
   securitySchemes:
@@ -1917,11 +3372,146 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: >
-        Role-based API key. Configure keys with roles (viewer, operator, admin)
-        in the server config.yaml under APIKeys.
+      description: |
+        Role-based API key. Configure keys with roles (viewer, operator,
+        admin) in the server config.yaml under `APIKeys`. Keys are compared
+        in constant time, and the role hierarchy is
+        admin > operator > viewer.
+
+        When no keys are configured at all, every request is refused with
+        `401` unless the operator has explicitly set `APIOpenAccess: true`,
+        which drops authentication entirely and serves every endpoint —
+        including account administration and shutdown — to anyone who can
+        reach the port.
 
   schemas:
+    VolumeStatus:
+      type: object
+      properties:
+        file_root:
+          type: string
+        image_path:
+          type: string
+        mounted:
+          type: boolean
+          description: >
+            False when the image is missing or failed to open. Such a root
+            serves nothing and does not fall back to the host filesystem.
+        total_bytes:
+          type: integer
+          format: int64
+        free_bytes:
+          type: integer
+          format: int64
+        largest_free_extent_bytes:
+          type: integer
+          format: int64
+          description: >
+            The largest file that can still be stored whole. A volume with room
+            in many small pieces refuses an upload that free_bytes alone says
+            should fit.
+        catalog_used_nodes:
+          type: integer
+          description: >
+            The catalog is the third way a volume fills: room for the bytes, no
+            room to record the file.
+        catalog_total_nodes:
+          type: integer
+    User:
+      type: object
+      description: >
+        One connected session. Optional keys are omitted rather than sent
+        empty or false, so a missing key means the session does not have
+        that property — `invisible` absent means visible, `version` absent
+        means the client never sent one.
+      properties:
+        id:
+          type: integer
+          description: Session (user) ID, 16-bit
+        nickname:
+          type: string
+        login:
+          type: string
+          description: >
+            Account login, or "" for a session that has arrived but not yet
+            authenticated. A failed login is listable for as long as the
+            attempt takes.
+        ip:
+          type: string
+        icon:
+          type: integer
+        idle:
+          type: integer
+          description: Seconds since the session last did anything
+        encrypted:
+          type: boolean
+        encryption_mode:
+          type: string
+          description: >
+            "none", or the negotiated HOPE transport as
+            "aead/<cipher>" / "stream/<cipher>", with "+<compression>"
+            appended when compression was negotiated.
+        file_transfer_encrypted:
+          type: boolean
+        version:
+          type: integer
+          description: Client protocol version; omitted when unknown
+        text_encoding:
+          type: string
+          description: e.g. "utf-8", "mac_roman", "shift-jis", "latin-1"
+        hope_algorithm:
+          type: string
+        hope_cipher:
+          type: string
+        large_files:
+          type: boolean
+          description: Present only when the client negotiated 64-bit sizes
+        color:
+          type: string
+          description: Nickname colour as "#rrggbb"; omitted when unset
+        has_gif_icon:
+          type: boolean
+        invisible:
+          type: boolean
+        blocked_download:
+          type: boolean
+        auto_reply:
+          type: string
+    Account:
+      type: object
+      description: >
+        A stored account. `file_root`, `disk_quota` and `max_bandwidth` are
+        omitted when unset, so an absent key means "inherit the server
+        default", not zero.
+      properties:
+        login:
+          type: string
+        name:
+          type: string
+          description: Display name shown to other users
+        access:
+          $ref: '#/components/schemas/AccessFlags'
+        red_name:
+          type: boolean
+          description: >
+            Admin appearance (red name) without the disconnect_user
+            privilege
+        has_hope_password:
+          type: boolean
+          description: >
+            True when the account also carries a HOPE secure-login
+            credential. The credential itself is never returned, and neither
+            is the ordinary password hash.
+        file_root:
+          type: string
+          description: Custom FileRoot for this account
+        disk_quota:
+          type: integer
+          format: int64
+          description: Per-account upload quota in bytes
+        max_bandwidth:
+          type: integer
+          description: Per-account download cap in bytes/sec
     Envelope:
       type: object
       properties:
@@ -1998,6 +3588,16 @@ components:
         hope_app_string:
           type: string
           description: HOPE application string
+        new_user_defaults:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: >
+            Access template applied to accounts created without explicit
+            access bits. Reported verbatim from config.yaml, so its keys are
+            the PascalCase names used in the per-account YAML files
+            (`DownloadFile`, `ReadChat`, ...) — not the snake_case names the
+            `access` object of the account endpoints uses.
 
     AccessFlags:
       type: object
@@ -2179,7 +3779,10 @@ components:
         send_media:
           type: boolean
           description: "Bit 57: Can attach inline images in chat (inline media extension)"
-          
+        messaging:
+          type: boolean
+          description: "Bit 58: Can use the IM/roster/presence subsystem (messaging extension)"
+
   responses:
     Unauthorized:
       description: Missing or invalid API key
