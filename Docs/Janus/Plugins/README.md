@@ -1,9 +1,10 @@
 # Janus Plugin System
 
-Janus includes a server-side scripting system powered by **Lua 5.1** (via
-[gopher-lua](https://github.com/yuin/gopher-lua)). Plugins are plain `.lua`
-files that react to server events — chat messages, connections, file transfers,
-and more; through a simple hook-based API.
+> Last updated: September 9, 2026
+
+Janus includes a server-side scripting system powered by **Lua 5.1**.
+Plugins are plain `.lua` files that react to server events — chat messages,
+connections, file transfers and more — through a simple hook-based API.
 
 ## Overview
 
@@ -59,12 +60,10 @@ Both allowlist and blocklist are optional. When the allowlist is empty, all
 `http://` and `https://` URLs are permitted (unless blocked). When both are
 configured, a URL must match the allowlist **and** not match the blocklist.
 
-This is more or less a minor security feature for paranoid operators.
-
 ## Plugin API
 
 Plugins interact with the server through the global `server` table. The full
-API is documented in the [Plugin Developer Guide](Developer-Guide.md).
+API is documented in the [Plugin Developer Guide](developer-guide.md).
 
 ### Core Functions
 
@@ -91,10 +90,21 @@ API is documented in the [Plugin Developer Guide](Developer-Guide.md).
 | `server.cancel_timer(id)` | Cancel a scheduled timer |
 | `server.get_account(login)` | Look up an account by login name |
 | `server.get_config()` | Read server configuration (safe subset) |
+| `server.bcrypt_hash(password)` | Hash a password with bcrypt (returns `hash, err`) |
+| `server.bcrypt_verify(password, hash)` | Check a password against a bcrypt hash |
 | `server.set_shared(key, value)` | Set a value shared across all plugins |
 | `server.get_shared(key)` | Read a shared value set by any plugin |
 | `server.list_files([path])` | List files in the server's file tree |
 | `server.file_info(path)` | Get metadata for a single file |
+| `server.file_access(path)` | Detect folder type (`"normal"`, `"drop_box"`, or `"upload"`) |
+| `server.search_files(opts)` | Query the disk catalog with filters |
+| `server.recent_files([limit])` | Get most recently modified files |
+| `server.storage_stats()` | Get file tree statistics and breakdowns |
+| `server.list_msgboard_posts([limit, offset])` | List message board posts (paginated) |
+| `server.get_msgboard_count()` | Get total message board post count |
+| `server.list_news_categories([path])` | List news categories at a path |
+| `server.list_news_articles(path [, limit, offset])` | List news articles (paginated) |
+| `server.get_news_article_count([path])` | Get total article count for a category |
 
 ### Available Hooks
 
@@ -107,8 +117,8 @@ messages by returning a string. Post-hooks (`on_*`) are fire-and-forget.
 | `message` | Private message sent |
 | `broadcast` | Server broadcast |
 | `connect` | User completes login |
-| `upload` | File upload |
-| `upload_folder` | Folder upload |
+| `upload` | File upload requested |
+| `upload_folder` | Folder upload requested |
 | `download` | File download |
 | `download_folder` | Folder download |
 | `delete_file` | File deleted |
@@ -119,16 +129,33 @@ messages by returning a string. Post-hooks (`on_*`) are fire-and-forget.
 | `delete_user` | Account deleted |
 | `disconnect_user` | User kicked/disconnected |
 | `user_change` | User changes nick or icon |
+| `msgboard_post` | Message board post created |
+| `news_post` | News article posted |
+| `news_delete` | News article deleted |
+| `news_category` | News category created |
+| `news_bundle` | News bundle (folder) created |
+| `news_item_delete` | News item (category/bundle) deleted |
+| `voice_join` | User joins a voice chat room |
+| `voice_leave` | User leaves a voice chat room |
+| `voice_mute` | User mutes or unmutes in voice chat |
+| `im` | Messaging-extension instant message sent |
+| `friend_request` | User adds someone to their roster |
+| `presence` | User changes presence state or status text |
+| `call_invite` | User invites others to a call |
+
+The special `on_upload_complete` hook fires after a file upload finishes
+transferring. The special `on_upload_folder_complete` hook fires after a
+folder upload finishes. Both receive a `ctx` table with the full file `path`
+but no `user` table.
 
 The special `on_disconnect` hook fires when a user disconnects (no `ctx`
 table, only `user`).
 
-## Example Plugins
-
-Janus ships with a library of example plugins in the `Plugins/` directory,
-to showcase what is possible through the plugin system.
+The special `on_msgboard_delete` hook fires when a message board post is
+deleted via the REST API. It is a post-hook only (no `pre_` variant) and
+receives a `ctx` table with `post_id`.
 
 ## Further Reading
 
-- [Plugin Developer Guide](Developer-Guide.md) — Full API reference with
+- [Plugin Developer Guide](developer-guide.md) — Full API reference with
   examples, hook signatures, data types, and best practices.
