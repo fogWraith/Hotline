@@ -122,9 +122,9 @@ Login (string)  →  set of live sessions (each with a 16-bit user ID)
 
 ### Reuse of Existing Subsystems
 
-- **Call media** reuses the [voice chat](Capabilities-Voice.md) WebRTC SFU and its transactions (600–606). This extension adds only the *ring* (invite/accept/decline/cancel) semantics that the voice room model lacks.
+- **Call media** reuses the [voice chat](Capabilities-Voice) WebRTC SFU and its transactions (600–606). This extension adds only the *ring* (invite/accept/decline/cancel) semantics that the voice room model lacks.
 - **File transfer** reuses the existing Hotline file-transfer port and HTXF handshake. A user-to-user transfer is the same mechanism re-addressed from a server file path to a peer.
-- **Text encoding** of all human-readable strings follows the negotiated [text encoding](Capabilities-Text-Encoding.md). Logins SHOULD be restricted to printable ASCII.
+- **Text encoding** of all human-readable strings follows the negotiated [text encoding](Capabilities-Text-Encoding). Logins SHOULD be restricted to printable ASCII.
 
 ---
 
@@ -132,7 +132,7 @@ Login (string)  →  set of live sessions (each with a 16-bit user ID)
 
 ### Capability Bits
 
-This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities.md) for the general negotiation flow.
+This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities) for the general negotiation flow.
 
 | Bit | Mask | Name | Description |
 |---|---|---|---|
@@ -198,7 +198,7 @@ When the server confirms `CAPABILITY_MESSAGING` in the login reply it MUST also 
 | `0x0621` | `DATA_MAX_ROSTER_SIZE` | `Messaging.MaxRosterSize` |
 | `0x0622` | `DATA_MAX_OFFLINE_QUEUE` | `Messaging.MaxOfflinePerRecipient` |
 
-These exist because the caps are configurable and every one of them is otherwise discovered by being refused. A client that assumes the defaults will let someone write a message, or add a friend, that the server was always going to reject - and the rejection arrives after the work, when the only remedy is to undo it. The [inline media extension](Capabilities-Inline-Media.md#server-limits-advertisement) advertises its limits for the same reason; this closes the same gap for messaging.
+These exist because the caps are configurable and every one of them is otherwise discovered by being refused. A client that assumes the defaults will let someone write a message, or add a friend, that the server was always going to reject - and the rejection arrives after the work, when the only remedy is to undo it.
 
 The values are advisory in the sense that the server still enforces them on every request - a client cannot gain anything by ignoring them - but clients SHOULD treat them as authoritative for pre-validation.
 
@@ -384,7 +384,7 @@ repeat count times:
 
 ## Transaction Semantics
 
-This extension uses standard Hotline transaction framing (see [Hotline.md](Hotline.md)). Two patterns are used, following the convention established by the voice extension:
+This extension uses standard Hotline transaction framing (see [hotline-protocol.md](Hotline.md)). Two patterns are used, following the convention established by the voice extension:
 
 - **Request/reply** (800, 802, 803, 805, 806, 807, 808, 810, 812, 822, 823, 824, 825, 826): the client sends with a unique non-zero task ID and the *is-reply* flag unset; the server replies with the same task ID and the *is-reply* flag set. A server MAY leave the reply's *type* field zero - the reference server does - so clients MUST match a reply to its request by task ID and MUST NOT key off the reply's type.
 - **Server-initiated notification** (801, 804, 809, 811, and the relayed halves of 814–821): the server sends asynchronously with task ID `0` and the *is-reply* flag unset. The client does not reply at the transaction layer; application-level acknowledgement (where required) is a separate transaction (e.g. 812).
@@ -678,6 +678,8 @@ The default path; the only path used when either peer lacks `CAPABILITY_DIRECT_T
 
 The relay reference is single-use and expires on the existing transfer-port handshake timeout. Large-file mode applies if both peers negotiated `CAPABILITY_LARGE_FILES`.
 
+**The payload is always a Flattened File Object.** The recipient is receiving a download, and a download is always a [flattened object](Capabilities-Large-File.md#flattened-file-object-ffo) - the legacy 32-bit one, or in large-file mode the one with [64-bit fork headers](Capabilities-Large-File.md#flattened-file-object-fork-headers). The sender MUST frame it so, and in large-file mode MUST declare it with `HTXF_FLAG_FFO` (see [Handshake Flags on the Relay](#handshake-flags-on-the-relay)). The bare data fork of a [raw large-file upload](Capabilities-Large-File.md#uploads-client--server) is never valid on a relay: the recipient has no way to tell it from an object, and would store a plausibly sized file that is wrong from byte zero. This also means the file's type, creator, comment and resource fork travel with it, as they do on every other download.
+
 #### The splice is not always a byte copy
 
 Each peer's transfer-port connection is protected the way *its own control session* is protected, and the two need not match. A vintage messenger on a plaintext connection can be sent a file by a modern one on [HOPE ChaCha20-Poly1305](HOPE-ChaCha20-Poly1305.md); each of them is doing the only thing it knows how to do, and neither is aware of what the other negotiated.
@@ -702,7 +704,8 @@ It also follows that the relay is **not** end-to-end encrypted, and the [Securit
 The relay splices payload, not handshakes. Any [handshake extension block](Capabilities-Large-File.md#handshake-flags-and-length) a peer's flags declare is addressed to the *server*, not to the far peer, so the server MUST consume every block the flags call for before splicing, and MUST forward only what follows. A block left on the stream is not a protocol error - it is delivered to the recipient as the opening bytes of their file, which arrives at a plausible size and is wrong from byte zero.
 
 - `HTXF_FLAG_LARGE_FILE` - permitted only when **both** peers negotiated `CAPABILITY_LARGE_FILES`; otherwise the server MUST refuse the transfer. It describes how the *sender* framed the payload, and the recipient must be able to parse that framing. There is no third option: the flag cannot be stripped, because stripping it would not change the bytes the sender is about to write, and it cannot be ignored, because the relay is the one place in the protocol that never parses the payload and so would never discover the disagreement. The recipient would write a mis-parsed file and report success.
-- `HTXF_FLAG_SIZE64` - permitted under the same condition, and refused the same way. The large-file extension makes it [valid only alongside `HTXF_FLAG_LARGE_FILE`](Capabilities-Large-File.md#handshake-flags-and-length), so it inherits that flag's authorization rather than carrying one of its own. When permitted, the server consumes the 8-byte length and does not forward it.
+- `HTXF_FLAG_SIZE64` - permitted under the same condition, and refused the same way. The large-file extension makes it [valid only alongside `HTXF_FLAG_LARGE_FILE`](Capabilities-Large-File.md#handshake-flags-and-length), so it inherits that flag's authorisation rather than carrying one of its own. When permitted, the server consumes the 8-byte length and does not forward it.
+- `HTXF_FLAG_FFO` - **REQUIRED on the sender's handshake whenever `HTXF_FLAG_LARGE_FILE` is set**, and permitted under the same both-peers condition. A relayed payload is always a flattened object (see [Relay Path](#relay-path)), and this flag is how the sender says so; without it, `HTXF_FLAG_LARGE_FILE` on an upload means a bare data fork, which the recipient cannot parse. The server MUST refuse a sender handshake that sets `HTXF_FLAG_LARGE_FILE` without `HTXF_FLAG_FFO`. It is the one framing decision the relay must make by rule rather than by inspection: the recipient never sees the sender's flags, so the two ends can only agree if the specification agrees for them. On the *recipient's* handshake the flag describes nothing - that connection carries no payload of the recipient's - and the server MUST refuse it there, as it does on an ordinary download.
 - `HTXF_FLAG_RESUME` - **MUST be refused**, unconditionally, however the two peers are capable. A relay is a live pipe between two online peers: nothing is spooled to disk, so there is no partial, no offset the server could have quoted, and nothing to continue. A sender that sets it is about to send a file's tail, and splicing that delivers a truncated file that both peers report as a success. Resuming an interrupted user-to-user transfer means a fresh offer, not a resumed handshake.
 
 This applies to a server that implements no part of the large-file extension as well. A peer may still *set* these flags, and a server that ignores a block instead of consuming it corrupts the transfer.
@@ -741,7 +744,7 @@ A caller MAY include a `DATA_CALL_ID` to invite further friends into a call alre
 
 A call's `DATA_CALL_ID` doubles as the voice room ID, and a voice room is addressed by a bare identifier with no membership of its own. Servers MUST therefore enforce the room's guest list themselves:
 
-- A server MUST refuse [Join Voice Room (600)](capabilities-voice.md) for a call's room from any Login that was not the caller or one of the invitees - however privileged, and whether or not it negotiated `CAPABILITY_MESSAGING`. A classic Hotline client with voice support has no concept of this extension and MUST NOT be able to enter a call by naming its ID.
+- A server MUST refuse [Join Voice Room (600)](Capabilities-Voice.md) for a call's room from any Login that was not the caller or one of the invitees - however privileged, and whether or not it negotiated `CAPABILITY_MESSAGING`. A classic Hotline client with voice support has no concept of this extension and MUST NOT be able to enter a call by naming its ID.
 - The guest list MUST outlive the ring. A one-to-one call leaves the ring state the moment it is answered, which is *before* either party joins the room; authorising against ring state alone admits nobody. It is retired when the room empties.
 - Inviting further friends into a call already under way MUST add to the guest list rather than replace it.
 - Because the *caller* chooses the ID, a server MUST reject a Call Invite naming a voice room that is already occupied, unless the caller is already a member of it. Otherwise a crafted invite naming a private chat's ID - or `0`, the public chat - would walk the invitees into that room.
