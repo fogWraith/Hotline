@@ -45,7 +45,7 @@ Developers of new software should choose a version number that does not conflict
 | 190     | `0x00BE` | Underline 1.9.5          |                                           |
 | 190     | `0x00BE` | Hotline Client 1.9.5 GPL | Appears to be a modified client           |
 | 197     | `0x00C5` | GLoarbLine 1.9.7         |                                           |
-| 198     | `0x00C6` | Hermes                   | Modern client; native UTF-8               |
+| 198     | `0x00C6` | ~Hermes~ Zephyr            | Modern client; native UTF-8               |
 | 199     | `0x00C7` | Klein                    | Modern client; native UTF-8               |
 | 200     | `0x00C8` | HotStuff                 |                                           |
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
