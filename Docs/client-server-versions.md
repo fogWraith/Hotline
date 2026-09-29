@@ -48,6 +48,7 @@ Developers of new software should choose a version number that does not conflict
 | 198     | `0x00C6` | ~Hermes~ Zephyr            | Modern client; native UTF-8               |
 | 199     | `0x00C7` | Klein                    | Modern client; native UTF-8               |
 | 200     | `0x00C8` | HotStuff                 |                                           |
+| 254     | `0x00FE` | GtkHx         | Modern continuation               |
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
 | 300     | `0x012C` | Iris                     | Classic Instant Messenger                 |
 | 301     | `0x012D` | Nyx                      | Modern Instant Messenger                  |
