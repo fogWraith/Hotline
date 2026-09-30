@@ -1,5 +1,7 @@
 # Instant Messaging Extension
 
+> Last updated: September 30, 2026
+
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This document describes the instant messaging extension to the Hotline protocol. It adds a presence-based buddy-list messaging layer - friends, presence, one-to-one instant messages with offline store-and-forward, user-to-user file transfer, and call signaling - on top of an otherwise unmodified Hotline server. The extension is optional and capability-gated: a client that does not negotiate it observes no change in behaviour, and no new transaction is ever sent to it.
@@ -122,9 +124,9 @@ Login (string)  →  set of live sessions (each with a 16-bit user ID)
 
 ### Reuse of Existing Subsystems
 
-- **Call media** reuses the [voice chat](Capabilities-Voice) WebRTC SFU and its transactions (600–606). This extension adds only the *ring* (invite/accept/decline/cancel) semantics that the voice room model lacks.
+- **Call media** reuses the [voice chat](Capabilities-Voice.md) WebRTC SFU and its transactions (600–606). This extension adds only the *ring* (invite/accept/decline/cancel) semantics that the voice room model lacks.
 - **File transfer** reuses the existing Hotline file-transfer port and HTXF handshake. A user-to-user transfer is the same mechanism re-addressed from a server file path to a peer.
-- **Text encoding** of all human-readable strings follows the negotiated [text encoding](Capabilities-Text-Encoding). Logins SHOULD be restricted to printable ASCII.
+- **Text encoding** of all human-readable strings follows the negotiated [text encoding](Capabilities-Text-Encoding.md). Logins SHOULD be restricted to printable ASCII.
 
 ---
 
@@ -132,7 +134,7 @@ Login (string)  →  set of live sessions (each with a 16-bit user ID)
 
 ### Capability Bits
 
-This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities) for the general negotiation flow.
+This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities.md) for the general negotiation flow.
 
 | Bit | Mask | Name | Description |
 |---|---|---|---|
@@ -384,7 +386,7 @@ repeat count times:
 
 ## Transaction Semantics
 
-This extension uses standard Hotline transaction framing (see [hotline-protocol.md](Hotline.md)). Two patterns are used, following the convention established by the voice extension:
+This extension uses standard Hotline transaction framing (see [Hotline.md](Hotline.md)). Two patterns are used, following the convention established by the voice extension:
 
 - **Request/reply** (800, 802, 803, 805, 806, 807, 808, 810, 812, 822, 823, 824, 825, 826): the client sends with a unique non-zero task ID and the *is-reply* flag unset; the server replies with the same task ID and the *is-reply* flag set. A server MAY leave the reply's *type* field zero - the reference server does - so clients MUST match a reply to its request by task ID and MUST NOT key off the reply's type.
 - **Server-initiated notification** (801, 804, 809, 811, and the relayed halves of 814–821): the server sends asynchronously with task ID `0` and the *is-reply* flag unset. The client does not reply at the transaction layer; application-level acknowledgement (where required) is a separate transaction (e.g. 812).
@@ -472,7 +474,9 @@ Removal is **mutual**. The server MUST delete the relationship in both direction
 
 Server-initiated notification delivering an inbound authorization request. Delivered immediately if the target is online, otherwise on next login.
 
-**Fields:** `DATA_FRIEND_LOGIN` (the requester), `DATA_FRIEND_CAPABILITIES` (optional), `DATA_REQUEST_NOTE` (optional).
+**Fields:** `DATA_FRIEND_LOGIN` (the requester), `DATA_REQUEST_NOTE` (optional).
+
+**A server MUST NOT send `DATA_FRIEND_CAPABILITIES` in a Friend Request.** Its recipient is not yet a friend of the requester, and the rule under [User Discovery](#user-discovery) applies for the same reason: capabilities exist only while the requester is signed in, so carrying them tells a stranger that fact. A request queued for an offline recipient is worse, as it reports the requester's state at the moment of delivery, not of sending. Nothing is lost - the requester's capabilities arrive in the roster entry once the request is accepted. Earlier revisions of this document listed the field as optional; clients MUST NOT rely on it.
 
 ### Friend Response (805)
 
@@ -525,7 +529,7 @@ The server MUST send the updated [Roster Entry (801)](#roster-entry-801) to ever
 
 Discovery answers two questions - "does this handle exist" and "who matches this word" - and it answers neither with anything about who is online. That is the whole difference between a directory and a presence service, and it constrains one field in particular.
 
-**Servers MUST NOT send `DATA_FRIEND_CAPABILITIES` to a caller who is not an accepted friend of the subject.** This applies to [Find User (822)](#find-user-822), [User Search (823)](#user-search-823) and [Get User Info (825)](#get-user-info-825) alike. Capabilities are negotiated per session and therefore exist only while the subject is signed in: a server that reports them has reported that fact, and one that omits them has reported the opposite. There is no value the field can carry that does not answer a question discovery declines to answer, which is why the rule is *omit for non-friends* rather than *report something safe*.
+**Servers MUST NOT send `DATA_FRIEND_CAPABILITIES` to a caller who is not an accepted friend of the subject.** This applies to [Find User (822)](#find-user-822), [User Search (823)](#user-search-823) and [Get User Info (825)](#get-user-info-825) alike, and to [Friend Request (804)](#friend-request-804), whose recipient is not yet a friend either. Capabilities are negotiated per session and therefore exist only while the subject is signed in: a server that reports them has reported that fact, and one that omits them has reported the opposite. There is no value the field can carry that does not answer a question discovery declines to answer, which is why the rule is *omit for non-friends* rather than *report something safe*.
 
 Clients MUST NOT read the field's absence as presence information - against a conforming server it is absent for every non-friend, online or not.
 
@@ -588,6 +592,14 @@ The simplest conforming client always sends the field, empty when the user has n
 Server-initiated notification sent to a client when one of its accepted friends changes presence (including going online/offline). A friend who has disconnected or is in the `Invisible` state is reported with `DATA_PRESENCE_STATE` = `Offline` (`0`), so the two are indistinguishable to the recipient. Presence is aggregated across the friend's sessions: the reported state is the most-available session's (online > busy > away), and `Offline` only when no session is visible.
 
 **Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_PRESENCE_STATE` (REQUIRED), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional).
+
+`DATA_FRIEND_CAPABILITIES` follows the rule for roster entries: it describes a live session, so it MUST be omitted whenever the reported state is `Offline` - including for a friend who is `Invisible`.
+
+#### Invisible friends are silent
+
+**Once friends have been told a Login is `Offline` because it went `Invisible`, the server MUST NOT send them another 809 for it until it becomes visible again.** A notification from a friend who is signed out is proof that they are not, so anything the Login does while `Invisible` - changing its status text or published name, one of its `Invisible` sessions disconnecting, its last one disconnecting - is withheld. (A new session is not among them: it starts `Online`, as described under [Set Presence (808)](#set-presence-808), so signing on makes the Login visible and is announced.) The server still stores the change; friends learn it from their next [Get Roster (800)](#get-roster-800) snapshot, or from the 809 that announces the Login visible again, which carries its current state in full.
+
+The rule a server needs is simple: send 809 only when the Login was visible before the change or is visible after it. Entering `Invisible` passes (visible before), as does leaving it (visible after); everything in between does not.
 
 `FieldUserName` carries the name the friend currently goes by, which is why this transaction is also how a [Set User Info (826)](#set-user-info-826) change reaches their friends. A client MUST apply it to its stored roster entry rather than only to a live presence indicator: the name has to survive that friend going offline, or the buddy list falls back to bare account names for everyone who is not signed in.
 
@@ -826,7 +838,7 @@ Request/reply. Replaces the caller's own profile; an absent or empty field clear
 
 **Reply fields:** `DATA_REASON_CODE`.
 
-Because the published name appears in friends' rosters, a server MUST announce a change to the caller's accepted friends - a [Presence Changed (809)](#presence-changed-809) carrying the new `FieldUserName` is sufficient.
+Because the published name appears in friends' rosters, a server MUST announce a change to the caller's accepted friends - a [Presence Changed (809)](#presence-changed-809) carrying the new `FieldUserName` is sufficient - unless the caller is `Invisible`, in which case the change waits (see [Invisible friends are silent](#invisible-friends-are-silent)).
 
 ### Searching profiles
 
@@ -858,7 +870,7 @@ Three account-lifecycle events reach into the friend graph, and each MUST leave 
 
 - **Authorization is server-enforced.** The server MUST verify friendship and block state on every message, file offer, call, and friend request. The client is never trusted to enforce these.
 - **Block-state confidentiality.** To avoid revealing that a target has blocked the caller, a server SHOULD return `AccountNotFound` rather than `Blocked` for friend requests and discovery against a blocking target, so a blocked caller cannot distinguish a block from a non-existent account.
-- **Enumeration resistance.** [Find User (822)](#find-user-822) and [User Search (823)](#user-search-823) MUST be rate-limited per account. Directory search MUST return only opted-in accounts. Exact-handle resolution leaks only existence and capabilities, never presence, for non-friends.
+- **Enumeration resistance.** [Find User (822)](#find-user-822) and [User Search (823)](#user-search-823) MUST be rate-limited per account. Directory search MUST return only opted-in accounts. Exact-handle resolution leaks only existence, never presence or capabilities, for non-friends.
 - **Spam control.** Because messaging requires mutual acceptance, only accepted friends can queue offline messages. Offline queues are bounded (`MaxOfflinePerRecipient`), and per-account send rate limits SHOULD reuse the server's existing flood-control mechanism.
 - **Public handle.** A messaging-enabled account's Login is a public handle; account security rests entirely on the password. Operators SHOULD NOT reuse a privileged administrative login as a messaging handle.
 - **Transport encryption.** This extension defines no payload encryption of its own. Over the relay path the server observes message and file content, identical to the trust model of the base Hotline protocol. Deployments requiring confidentiality on the wire SHOULD use the [HOPE](HOPE-Secure-Login.md) encrypted transport. The optional direct file path MAY provide end-to-end confidentiality via the WebRTC data channel's DTLS, but this is never mandatory (vintage clients cannot rely on it).
@@ -894,7 +906,7 @@ A conforming messaging server:
 7. Never sends a messaging transaction to a client that has not negotiated `CAPABILITY_MESSAGING`.
 8. Answers failures with a non-zero header error code plus `FieldError` (100) text, and a `DATA_REASON_CODE` wherever one applies (see [Reply Shape](#reply-shape)).
 9. Sends `FieldUserName` (102) and `DATA_PRESENCE_STATUS_TEXT` with roster entries as well as presence changes, so both reach a client that signed in after they were last set. For the name it prefers the published profile over a live session's, so the value outlives the session.
-10. Withholds `DATA_FRIEND_CAPABILITIES` from a caller who is not an accepted friend of the subject, on every discovery transaction (see [User Discovery](#user-discovery)).
+10. Withholds `DATA_FRIEND_CAPABILITIES` from a caller who is not an accepted friend of the subject, on every discovery transaction and in [Friend Request (804)](#friend-request-804) (see [User Discovery](#user-discovery)), and from everyone while the subject is `Invisible`.
 11. Terminates transfer-port protection per peer on a relay rather than copying bytes between the two connections (see [The splice is not always a byte copy](#the-splice-is-not-always-a-byte-copy)).
 
 ## Implementation Notes
