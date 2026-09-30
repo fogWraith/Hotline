@@ -1,5 +1,7 @@
 # DATA_CAPABILITIES – Session Capability Negotiation
 
+> Last updated: September 30, 2026
+
 `DATA_CAPABILITIES` is a field used during the Hotline login sequence to negotiate protocol extensions between client and server. Each extension is represented by a single bit in a bitmask, allowing both sides to advertise and confirm support for specific features.
 
 ## Table of Contents
@@ -47,7 +49,7 @@ The field is a bitmask. Each bit represents a specific protocol extension. Unrec
 
 4. **Session behaviour:** Both sides use the negotiated capabilities to determine which protocol features are available for the duration of the connection.
 
-If `DATA_CAPABILITIES` is absent from either the request or reply, no extension features are active — the session operates in standard Hotline mode.
+If `DATA_CAPABILITIES` is absent from either the request or reply, no extension features are active - the session operates in standard Hotline mode.
 
 ---
 
@@ -63,9 +65,10 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | 5 | `0x0020` | `CAPABILITY_EXTENDED_PRIV` | Extended 128-bit `FieldUserAccess` (110) bitmap (provisional) | See [Extended Privilege Bitmap Extension](Capabilities-Extended-Priv.md) |
 | 6 | `0x0040` | `CAPABILITY_MESSAGING` | Instant messaging layer: roster, presence, IM, offline delivery, discovery, file transfer, call signaling (provisional) | See [Instant Messaging Extension](Capabilities-Messaging.md) |
 | 7 | `0x0080` | `CAPABILITY_DIRECT_TRANSFER` | Optional peer-to-peer (hole-punched) file transfer for messaging; absence uses the server relay (provisional) | See [Instant Messaging Extension](Capabilities-Messaging.md) |
-| 8 | `0x0100` | `CAPABILITY_MESSENGER_SESSION` | Declares a pure instant-messenger session (provisional). Only meaningful alongside bit 6; a server MUST NOT confirm bit 8 unless it also confirms bit 6. When confirmed, the session is hidden from the classic Hotline world: excluded from Get User Name List (300) replies, and its join/leave/away announcements (Notify Change/Delete User 301/302) are suppressed. Rationale: a pure messenger never participates in public chat or classic PM, so listing it only confuses regular users — the session appears to join but cannot be interacted with. It remains fully visible through the messaging layer (roster, presence, discovery). | See [Instant Messaging Extension](Capabilities-Messaging.md) |
-| 9 | `0x0200` | `CAPABILITY_MODERN_DATES` | Client parses the modern date encoding (actual year + seconds since Jan 1 of that year). Absent, the server MUST serve the legacy Mac 1904 epoch encoding (year field `1904`, seconds = total elapsed seconds since Jan 1 1904 UTC). A server MUST NOT infer this bit from any other capability: a classic Mac client reads the 4-byte seconds field as total-seconds-since-1904 and ignores the year field, so a modern date renders every timestamp in 1904. Ungated — a server confirms the bit whenever the client advertises it. | See [Date Format Selection](#date-format-selection) below |
-| 10–63 | — | *Reserved* | Available for future extensions | — |
+| 8 | `0x0100` | `CAPABILITY_MESSENGER_SESSION` | Declares a pure instant-messenger session (provisional). Only meaningful alongside bit 6; a server MUST NOT confirm bit 8 unless it also confirms bit 6. When confirmed, the session is hidden from the classic Hotline world: excluded from Get User Name List (300) replies, and its join/leave/away announcements (Notify Change/Delete User 301/302) are suppressed. Rationale: a pure messenger never participates in public chat or classic PM, so listing it only confuses regular users - the session appears to join but cannot be interacted with. It remains fully visible through the messaging layer (roster, presence, discovery). | See [Instant Messaging Extension](Capabilities-Messaging.md) |
+| 9 | `0x0200` | `CAPABILITY_MODERN_DATES` | Client parses the modern date encoding (actual year + seconds since Jan 1 00:00 UTC of that year). Absent, the server MUST serve the legacy Mac 1904 epoch encoding (year field `1904`, seconds = total elapsed seconds since Jan 1 1904 UTC). A server MUST NOT infer this bit from any other capability: a classic Mac client reads the 4-byte seconds field as total-seconds-since-1904 and ignores the year field, so a modern date renders every timestamp in 1904. Ungated - a server confirms the bit whenever the client advertises it. | See [Date Format Selection](#date-format-selection) below |
+| 10 | `0x0400` | `CAPABILITY_VIDEO` | Camera video and screen sharing inside voice rooms (provisional). Only meaningful alongside bit 2: a client MUST NOT set bit 10 without bit 2, and a server MUST NOT confirm bit 10 unless it also confirms bit 2 - video has no meaning without the voice room that carries it. Delivery is opt-in per stream, so a session without this bit receives no video media sections and no video RTP. | See [Video Chat Extension](Capabilities-Video.md) |
+| 11–63 | - | *Reserved* | Available for future extensions | - |
 
 ---
 
@@ -95,7 +98,7 @@ The server includes `DATA_CAPABILITIES` in the login reply to confirm which exte
 | 103 | User ID | Assigned UID |
 | **0x01F0** | **Capabilities** | **Bitmask of confirmed extensions** |
 
-If the server does not support any of the client's advertised capabilities, `DATA_CAPABILITIES` may be omitted from the reply entirely — the session falls back to standard mode. Clients should treat an absent `DATA_CAPABILITIES` field in the reply as a zero bitmask.
+If the server does not support any of the client's advertised capabilities, `DATA_CAPABILITIES` may be omitted from the reply entirely - the session falls back to standard mode. Clients should treat an absent `DATA_CAPABILITIES` field in the reply as a zero bitmask.
 
 ---
 
@@ -112,9 +115,10 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Chat history | `DATA_CAPABILITIES` bit 4 + server config (`Enabled` for history persistence) |
 | Extended privilege bitmap | `DATA_CAPABILITIES` bit 5 + server config (account store widened to 128 bits) |
 | Instant messaging | `DATA_CAPABILITIES` bit 6 (+ optional bit 7 for direct transfer) + server config (`Messaging.Enabled`) + `AccessMessaging` (bit 58) permission |
+| Video chat | `DATA_CAPABILITIES` bit 10, requires bit 2 + server config (`EnableVideo`, requires `EnableVoice`) + `accessVideoChat` (bit 59) for camera, `accessScreenShare` (bit 60) for screen share |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
-| GIF icons | No negotiation — feature is always available if server supports it |
+| GIF icons | No negotiation - feature is always available if server supports it |
 
 `DATA_CAPABILITIES` is designed for features that require **explicit mutual agreement** before altered wire behaviour. Features that are purely additive (extra fields that can be safely ignored) may use simpler mechanisms.
 
@@ -142,7 +146,7 @@ The two cannot be told apart by inspection: a legacy value is simply one whose y
 
 Many clients handle both formats transparently (e.g. hotline-1.0beta28's `Date(year:seconds:)` initializer works with either by accident of date arithmetic). However, some clients interpret the fields literally, and a mismatch in either direction produces a wrong date:
 
-- **Legacy client, modern encoding.** The client reads the seconds field as total seconds since 1904 and ignores the year field. A seconds-since-Jan-1 offset (0 … ~31.5M) lands a few months into 1904, so dates render with roughly the right month and day and the year `1904` — one day out for dates after February in a non-leap year, because 1904 was a leap year.
+- **Legacy client, modern encoding.** The client reads the seconds field as total seconds since 1904 and ignores the year field. A seconds-since-Jan-1 offset (0 … ~31.5M) lands a few months into 1904, so dates render with roughly the right month and day and the year `1904` - one day out for dates after February in a non-leap year, because 1904 was a leap year.
 - **Modern client, legacy encoding.** The client reads the year field as the calendar year and gets `1904`, then applies a seconds count far larger than a year. Depending on the width of its arithmetic, the result is a nonsensical date or an overflow.
 
 ### Server Behaviour
@@ -156,9 +160,9 @@ A server selects the encoding **per client**, from `CAPABILITY_MODERN_DATES` (bi
 
 A server **MUST NOT** infer the modern encoding from any other capability, from the mere presence of `DATA_CAPABILITIES`, or from the client's version number. A client can want 64-bit file sizes or UTF-8 text while still reading dates the way an old Mac would, and a client under active development can change what it advertises between builds.
 
-Because the choice is a wire format rather than a feature, negotiation is **ungated**: a server confirms bit 9 whenever the client advertises it, and has no reason to withhold it. This is a deliberate exception to the server-side overrides described under [Implementation Notes](#implementation-notes) — a server may grant *other* capabilities the client did not ask for, but must never grant this one.
+Because the choice is a wire format rather than a feature, negotiation is **ungated**: a server confirms bit 9 whenever the client advertises it, and has no reason to withhold it. This is a deliberate exception to the server-side overrides described under [Implementation Notes](#implementation-notes) - a server may grant *other* capabilities the client did not ask for, but must never grant this one.
 
-**Range limit.** The legacy encoding carries an unsigned 32-bit second count from 1904, so it cannot express an instant after **2040-02-06 06:28:15 UTC**. A server encoding a later date MUST clamp to that ceiling rather than allow the conversion to wrap; a wrapped value re-enters 1904 and reproduces the symptom above. Clients that never advertise bit 9 will therefore see dates pinned at the ceiling after that point — visibly wrong, but never wrong in a way that looks plausible.
+**Range limit.** The legacy encoding carries an unsigned 32-bit second count from 1904, so it cannot express an instant after **2040-02-06 06:28:15 UTC**. A server encoding a later date MUST clamp to that ceiling rather than allow the conversion to wrap; a wrapped value re-enters 1904 and reproduces the symptom above. Clients that never advertise bit 9 will therefore see dates pinned at the ceiling after that point - visibly wrong, but never wrong in a way that looks plausible.
 
 This applies to **all** date fields sent to the client:
 
@@ -166,7 +170,7 @@ This applies to **all** date fields sent to the client:
 - `CreateDate` / `ModifyDate` in `FlatFileInformationFork` during file and folder downloads
 - `Date` in threaded news article listings and article data
 
-The selection applies uniformly. Bit 9 is a statement about the client's decoder, not about one screen, so a server that honoured it for news but not for file dates would be sending one session two encodings — and the client has no way to tell which field carries which. Threaded news is merely where a wrong year is most obvious at a glance, which is why it is usually the first place the mismatch is reported.
+The selection applies uniformly. Bit 9 is a statement about the client's decoder, not about one screen, so a server that honoured it for news but not for file dates would be sending one session two encodings - and the client has no way to tell which field carries which. Threaded news is merely where a wrong year is most obvious at a glance, which is why it is usually the first place the mismatch is reported.
 
 ### Client Behaviour
 
@@ -177,7 +181,7 @@ Clients should be prepared to handle both date formats. A robust decoder can dis
 
 A client that decodes both formats this way should still advertise bit 9 when it can: the legacy encoding it would otherwise receive cannot represent a date after February 2040.
 
-A client that reads **only** the legacy encoding — which is the natural implementation on a classic Mac, and correct for one — must simply leave bit 9 clear. It then keeps receiving the encoding it understands no matter which other capabilities it negotiates, and needs no further changes. Bit 9 should be set in the same change that adds a modern-capable decoder, never ahead of it.
+A client that reads **only** the legacy encoding - which is the natural implementation on a classic Mac, and correct for one - must simply leave bit 9 clear. It then keeps receiving the encoding it understands no matter which other capabilities it negotiates, and needs no further changes. Bit 9 should be set in the same change that adds a modern-capable decoder, never ahead of it.
 
 Clients that advertise bit 9 and see it confirmed in the login reply can expect dates in the modern format. A client that advertises it and does **not** see it echoed back is talking to a server that predates this bit; it will receive legacy dates and should decode accordingly.
 
@@ -208,7 +212,7 @@ Large-file mode is now active for the session. Subsequent file transactions will
 If the server did not support or denied large files:
 
 ```
-Field: DATA_CAPABILITIES — absent from reply (or value 00 00)
+Field: DATA_CAPABILITIES - absent from reply (or value 00 00)
 ```
 
 The session operates in standard 32-bit mode.
