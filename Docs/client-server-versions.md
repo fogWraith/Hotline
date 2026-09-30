@@ -41,6 +41,7 @@ Developers of new software should choose a version number that does not conflict
 | 184     | `0x00B8` | The DefBot 1.0.2 (HL Bot)|                                           |
 | 185     | `0x00B9` | Hotline Client 1.8.5     | Official Client                           |
 | 185     | `0x00B9` | Pitbull Pro 2.4.4        |                                           |
+| 185     | `0x00B9` | GtkHx 1.2 to 1.4.0       | Releases through 1.4.0                    |
 | 190     | `0x00BE` | Hotline Client 1.9.2     | Last official client                      |
 | 190     | `0x00BE` | Underline 1.9.5          |                                           |
 | 190     | `0x00BE` | Hotline Client 1.9.5 GPL | Appears to be a modified client           |
@@ -48,7 +49,7 @@ Developers of new software should choose a version number that does not conflict
 | 198     | `0x00C6` | ~Hermes~ Zephyr            | Modern client; native UTF-8               |
 | 199     | `0x00C7` | Klein                    | Modern client; native UTF-8               |
 | 200     | `0x00C8` | HotStuff                 |                                           |
-| 254     | `0x00FE` | GtkHx         | Modern continuation               |
+| 254     | `0x00FE` | GtkHx 1.4.1+             | Modern continuation                       |
 | 255     | `0x00FF` | Hotline Navigator        | Modern client; native UTF-8               |
 | 300     | `0x012C` | Iris                     | Classic Instant Messenger                 |
 | 301     | `0x012D` | Nyx                      | Modern Instant Messenger                  |
@@ -73,3 +74,4 @@ Developers of new software should choose a version number that does not conflict
 | 196     | `0x00C4` | FreeShare Server 1.0.2  | Returned in login reply                   |
 | 197     | `0x00C5` | GLoarbLine Server 1.9.7 | Returned in login reply                   |
 | 200     | `0x00C8` | Janus Server 2.0.10     | Returned in login reply                   |
+| 254     | `0x00FE` | hxd-ng                  | Returned in login reply                   |
