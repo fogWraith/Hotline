@@ -2,7 +2,7 @@
 
 > **Author:** John Leighow ([@tagban](https://github.com/tagban))
 
-> **Status:** proposal. Nothing in this document is implemented by a server yet.
+> **Status:** accepted (2026-09-30). Implemented by the reference server, Janus, from 2.0.16.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -30,6 +30,7 @@ This document describes an addition to the [Instant Messaging Extension](Capabil
 - [Validation](#validation)
 - [Privacy](#privacy)
 - [Client Guidance](#client-guidance)
+- [Implementation Notes](#implementation-notes)
 
 ---
 
@@ -273,3 +274,23 @@ All of these failures except the size limit are reported as `InvalidImage` (14).
 - Draw icons at 48 x 48 as well, scaling larger pictures down. Animated GIFs SHOULD animate; clients MAY stop animation after a while or on request.
 - Decode defensively: a picture from another user is untrusted input. Cap decoded dimensions and frame count even though the server has checked them.
 - A client that cannot render a format SHOULD show no icon rather than an error.
+
+## Implementation Notes
+
+This section is informative. It records how the reference server, Janus, meets this document where the document leaves the choice to the server.
+
+- **Configuration.** The settings are as in [Server Configuration](#server-configuration). Values outside the protocol's bounds are corrected rather than refused: `MaxIconBytes` above 65535 is treated as 65535, and `MaxIconDimension` and `MaxIconFrames` below their floors are raised to 64 and 32.
+- **Validation** reuses the server's [Inline Media](Capabilities-Inline-Media.md) validator. It also rejects polyglot files with data after the image's end marker, probes dimensions before allocating pixel memory, and bounds decoding time.
+- **Re-encoding.** Janus stores the validator's re-encoded image, which removes metadata such as a phone photo's EXIF location. A re-encode can come out larger than the upload. When it no longer fits `MaxIconBytes` but the upload did, Janus stores the upload instead, with its metadata removed losslessly:
+  - **PNG:** only the chunks needed to draw the image are kept (`IHDR`, `PLTE`, `IDAT`, `IEND`, `tRNS`, `gAMA`, `cHRM`, `sRGB`).
+  - **JPEG:** `APPn` and comment segments are removed, except `APP0` (JFIF) and `APP14` (Adobe), which affect how colour is decoded.
+  - **GIF:** stored as uploaded.
+
+  An upload within the advertised limit is therefore never refused with `MessageTooLong`.
+- **Animated PNG** is stored as its default image. Neither path keeps the APNG animation chunks, so the icon is static. Animated GIFs keep their animation, and their frame count is checked against `MaxIconFrames`.
+- **Rate limits** are per account:
+  - 827 allows a burst of 3, then one change every five seconds.
+  - 828 allows a burst of 50, then 5 per second, so a full default roster of 500 changed icons downloads in about 90 seconds.
+- **Storage.** Icons are kept in their own table in the messaging database. It was added without a schema version change, so an existing database gains it on the next start.
+- **Switching the feature off** keeps stored icons but stops serving them: the limits are no longer advertised, `DATA_BUDDY_ICON_HASH` is left out of roster, presence and profile data, and 827 and 828 are refused with `FieldError` text and no reason code.
+- **Task ID.** The 827 echo, like every messaging notification Janus sends, carries task ID `0`.
