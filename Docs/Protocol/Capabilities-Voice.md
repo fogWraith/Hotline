@@ -1,12 +1,12 @@
 # Voice Chat Extension
 
-> Last updated: September 17, 2026
+> Last updated: September 30, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This document describes the voice chat extension to the Hotline protocol. It adds real-time voice communication using a server-side SFU (Selective Forwarding Unit) architecture, where all media routes through the server. Clients negotiate voice support during login, establish WebRTC peer connections to the server, and the server forwards audio streams between participants in the same chat room.
 
-Media is carried over DTLS-SRTP by default. For clients on platforms with no TLS stack — the classic Mac OS clients the protocol comes from — an operator may additionally allow the [plain RTP transport](#plain-rtp-transport), which keeps the signaling, the SDP and the ICE binding but sends audio in the clear.
+Media is carried over DTLS-SRTP by default. For clients on platforms with no TLS stack - the classic Mac OS clients the protocol comes from - an operator may additionally allow the [plain RTP transport](#plain-rtp-transport), which keeps the signaling, the SDP and the ICE binding but sends audio in the clear.
 
 For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
@@ -55,6 +55,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [Room Membership](#room-membership)
 - [Bandwidth Considerations](#bandwidth-considerations)
 - [Client Behaviour](#client-behaviour)
+  - [Device Changes](#device-changes)
 - [Server Behaviour](#server-behaviour)
 - [Implementation Notes](#implementation-notes)
 
@@ -62,9 +63,9 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
 
 ## Background
 
-The original Hotline protocol supports text chat in public and private chat rooms but has no mechanism for voice communication. As voice-over-IP became ubiquitous, adding voice to Hotline's existing chat room model is a natural fit — users already gather in rooms with join/leave semantics, making voice an incremental enhancement rather than a separate system.
+The original Hotline protocol supports text chat in public and private chat rooms but has no mechanism for voice communication. As voice-over-IP became ubiquitous, adding voice to Hotline's existing chat room model is a natural fit - users already gather in rooms with join/leave semantics, making voice an incremental enhancement rather than a separate system.
 
-This extension uses WebRTC for media transport, leveraging its built-in encryption (DTLS/SRTP), codec support, and NAT traversal. By using the server as an SFU, the architecture avoids the need for external TURN servers — clients already know the server's address and can establish direct UDP connections to it.
+This extension uses WebRTC for media transport, leveraging its built-in encryption (DTLS/SRTP), codec support, and NAT traversal. By using the server as an SFU, the architecture avoids the need for external TURN servers - clients already know the server's address and can establish direct UDP connections to it.
 
 ---
 
@@ -72,7 +73,7 @@ This extension uses WebRTC for media transport, leveraging its built-in encrypti
 
 ### Why SFU
 
-In a Selective Forwarding Unit model, each client sends a single audio stream to the server, and the server forwards copies of that stream to every other participant in the room. The server performs no mixing or transcoding — it simply routes packets.
+In a Selective Forwarding Unit model, each client sends a single audio stream to the server, and the server forwards copies of that stream to every other participant in the room. The server performs no mixing or transcoding - it simply routes packets.
 
 ```
         ┌─────────────────────────┐
@@ -92,20 +93,20 @@ In a Selective Forwarding Unit model, each client sends a single audio stream to
 Each client sends 1 stream and receives N−1 streams, where N is the number of active speakers in the room.
 
 Advantages:
-- **Low server CPU** — no mixing or transcoding; just packet forwarding
-- **Low latency** — no processing delay from mixing
-- **Individual stream control** — clients can independently adjust volume per speaker, or mute specific participants
-- **Scales well** — adding a participant adds one inbound and N outbound stream copies, which is linear
+- **Low server CPU** - no mixing or transcoding; just packet forwarding
+- **Low latency** - no processing delay from mixing
+- **Individual stream control** - clients can independently adjust volume per speaker, or mute specific participants
+- **Scales well** - adding a participant adds one inbound and N outbound stream copies, which is linear
 
 ### Why Not Peer-to-Peer
 
 A peer-to-peer mesh (each client connects directly to every other client) avoids the server entirely but introduces significant problems:
 
-- **NAT traversal** — clients behind NATs cannot reach each other without STUN/TURN infrastructure
-- **Upload bandwidth** — each client must send N−1 copies of their stream, scaling poorly
-- **Firewall complexity** — operators must configure additional infrastructure for STUN/TURN
+- **NAT traversal** - clients behind NATs cannot reach each other without STUN/TURN infrastructure
+- **Upload bandwidth** - each client must send N−1 copies of their stream, scaling poorly
+- **Firewall complexity** - operators must configure additional infrastructure for STUN/TURN
 
-Since every Hotline client already maintains a TCP connection to the server, the SFU model requires no additional infrastructure — only a UDP port on the same host.
+Since every Hotline client already maintains a TCP connection to the server, the SFU model requires no additional infrastructure - only a UDP port on the same host.
 
 ---
 
@@ -127,7 +128,7 @@ When all three extensions are active (large files, text encoding, voice), the ca
 2. Server checks its configuration. If voice is enabled and the server has a functioning SFU, it echoes bit 2 back in the login reply.
 3. If the server does not echo bit 2, voice is unavailable for the session. The client MUST NOT display voice UI elements or send voice-related transactions.
 
-Clients that do not set bit 2 are unaffected — they participate in text chat normally and never receive voice-related transactions.
+Clients that do not set bit 2 are unaffected - they participate in text chat normally and never receive voice-related transactions.
 
 ### Server Configuration
 
@@ -160,7 +161,7 @@ Codec IDs are used in the `DATA_VOICE_PARTICIPANTS` binary structure and in serv
 | Codec ID | Name | SDP Encoding Name | Clock Rate | Channels | RTP Payload Type |
 |---|---|---|---|---|---|
 | 0 | PCMU | `PCMU` | 8000 | 1 | 0 (static, RFC 3551) |
-| 1–65535 | Reserved | — | — | — | — |
+| 1–65535 | Reserved | - | - | - | - |
 
 PCMU uses static RTP payload type 0 as defined in RFC 3551. No dynamic payload type negotiation is required.
 
@@ -232,7 +233,7 @@ All signaling transactions are only sent to/from clients that have negotiated `C
 
 ### Transaction Semantics
 
-Voice transactions use the standard Hotline transaction framing (see [Hotline.md](Hotline.md)). A few semantics require clarification for implementors:
+Voice transactions use the standard Hotline transaction framing (see [Hotline.md](../Hotline.md)). A few semantics require clarification for implementors:
 
 - **Request/reply transactions** (600, 601, 603, 606): The client sends a transaction with a unique task ID and the "is reply" flag unset. The server responds with a transaction using the same task ID and the "is reply" flag set.
 - **Server-initiated notifications** (602, 604, 605): The server sends these asynchronously with task ID `0` and the "is reply" flag **unset**. The client does not send a reply. These arrive interleaved with normal transaction traffic on the TCP connection.
@@ -258,47 +259,59 @@ Transaction IDs 600–606 are chosen to avoid collision with existing Hotline tr
 
 | ID (hex) | Name | Type | Description |
 |---|---|---|---|
-| `0x01F5` | `DATA_VOICE_SDP` | String | SDP blob — see [SDP Format](#sdp-format) |
-| `0x01F6` | `DATA_VOICE_ICE` | String | JSON-encoded ICE candidate — see [ICE Candidate Format](#ice-candidate-format) |
+| `0x01F5` | `DATA_VOICE_SDP` | String | SDP blob - see [SDP Format](#sdp-format) |
+| `0x01F6` | `DATA_VOICE_ICE` | String | JSON-encoded ICE candidate - see [ICE Candidate Format](#ice-candidate-format) |
 | `0x01F7` | `DATA_VOICE_CODEC` | String | Active codec name for the room |
 | `0x01F8` | `DATA_VOICE_MUTED` | UInt16 | Mute state: 0 = unmuted, 1 = muted |
 | `0x01F9` | `DATA_VOICE_PARTICIPANTS` | Binary | Packed array of voice participant entries |
-| `0x01FB` | `DATA_VOICE_TRANSPORT` | UInt16 | Media transport selector — see [Plain RTP Transport](#plain-rtp-transport). `0` = DTLS-SRTP (default), `1` = plain RTP. `0x01FA` is the large-file extension's resume digest. |
+| `0x01FB` | `DATA_VOICE_TRANSPORT` | UInt16 | Media transport selector - see [Plain RTP Transport](#plain-rtp-transport). `0` = DTLS-SRTP (default), `1` = plain RTP. `0x01FA` is the large-file extension's resume digest. |
 
 `DATA_VOICE_PARTICIPANTS` is a packed binary structure:
 
 ```
 For each participant (6 bytes):
   [2] User ID    (big-endian uint16)
-  [2] Flags      (big-endian uint16: bit 0 = muted, bits 1-15 reserved)
+  [2] Flags      (big-endian uint16:
+                    bit 0 = muted
+                    bit 1 = holds a camera publication
+                    bit 2 = holds a screen-share publication
+                    bits 3-15 reserved)
   [2] Codec ID   (big-endian uint16: see Codec ID Table)
 ```
 
-The total field length divided by 6 gives the participant count. See [Codec ID Table](#codec-id-table) for codec ID values.
+The total field length divided by 6 gives the participant count. See [Codec ID Table](#codec-id-table) for codec ID values; the codec is always the participant's audio codec.
+
+**Flags.**
+
+- **Bit 0** is the participant's mute state, as set by [Voice Mute (606)](#voice-mute-606).
+- **Bits 1 and 2** are defined by the [Video Chat Extension](Capabilities-Video.md). Bit 1 is set while the participant holds a camera publication, and bit 2 while it holds a screen-share publication, **whether that publication is live or paused**. They are set in every copy of the list, **whatever the receiving client negotiated**: they exist so that a participant without video can still tell that a camera or a screen share is live in its room. Pause state, the video codec and everything else about a publication are carried only by Video Status (611). A server that does not implement video never sets them.
+- **Servers MUST send reserved bits as zero. Clients MUST ignore reserved bits, and MUST read the mute state from bit 0 alone.** A client that treats any non-zero flags word as "muted" shows a participant with a camera on as muted. Audio is unaffected, since mute is enforced by the server, but the indicator is wrong.
+
+The same list, with the same flags, is carried in the [Join Voice Room (600)](#join-voice-room-600) reply and in every [Voice Room Status (605)](#voice-room-status-605), so a participant joining a room where a share is already live learns of it at once rather than at the next change.
 
 ### SDP Format
 
 `DATA_VOICE_SDP` contains a standard WebRTC Session Description Protocol blob as defined in RFC 8866 (SDP) and the WebRTC JSEP specification (RFC 8829). The value is a **UTF-8 encoded string** using standard SDP line-based formatting (`v=`, `o=`, `s=`, `m=`, `a=`, etc.).
 
-Implementors should use their platform's WebRTC library to generate and parse SDP. The SDP is not a custom format — any RFC-compliant WebRTC stack will produce compatible output.
+Implementors should use their platform's WebRTC library to generate and parse SDP. The SDP is not a custom format - any RFC-compliant WebRTC stack will produce compatible output.
 
 The server's SDP offer MUST contain:
 - One `m=audio` section per receive track (one per existing voice participant in the room)
 - One `m=audio` section for the joiner's send track
 - `a=mid` attributes labelling each media section (see [Track-to-User Mapping](#track-to-user-mapping))
-- `a=rtpmap:0 PCMU/8000` — the only codec offered
+- `a=rtpmap:0 PCMU/8000` - the only codec offered
 - `a=fingerprint` for DTLS key verification
-- `a=ice-lite` at session level — the server is an ICE-lite agent (RFC 8445 §2.5): it offers only host candidates and never initiates connectivity checks
+- `a=ice-lite` at session level - the server is an ICE-lite agent (RFC 8445 §2.5): it offers only host candidates and never initiates connectivity checks
 - `a=ice-ufrag` and `a=ice-pwd` for ICE authentication
 - `a=ssrc:<ssrc> cname:<cname>` on every `user-{UID}` section, declaring the SSRC the client will observe on RTP packets carrying that user's audio (see [Track-to-User Mapping](#track-to-user-mapping))
-- `a=group:BUNDLE` — all media sections MUST be bundled over a single transport (RFC 8843)
-- `a=rtcp-mux` — RTCP MUST be multiplexed on the same port as RTP (RFC 5761)
-- `a=setup:actpass` on the offer, `a=setup:active` on the answer — DTLS role negotiation (RFC 8842)
+- `a=group:BUNDLE` - all media sections MUST be bundled over a single transport (RFC 8843)
+- `a=rtcp-mux` - RTCP MUST be multiplexed on the same port as RTP (RFC 5761)
+- `a=setup:actpass` on the offer, `a=setup:active` on the answer - DTLS role negotiation (RFC 8842)
 - A direction attribute on each media section: `a=sendonly` or `a=recvonly`, or `a=inactive` on the section of a participant who has left (see [Track-to-User Mapping](#track-to-user-mapping))
 
-The `m=audio` line uses port `9`, which is the standard placeholder port in bundled WebRTC SDP (RFC 8843 §9.3). Port `9` has no transport-layer significance — actual media transport uses the ICE candidate addresses. Implementations MUST NOT attempt to connect to port 9.
+The `m=audio` line uses port `9`, which is the standard placeholder port in bundled WebRTC SDP (RFC 8843 §9.3). Port `9` has no transport-layer significance - actual media transport uses the ICE candidate addresses. Implementations MUST NOT attempt to connect to port 9.
 
-The server's offer MAY carry further attributes that a WebRTC stack emits by habit — `a=rtcp-fb`, `a=extmap`, `a=extmap-allow-mixed`, `a=rtcp-rsize`, `a=msid`, `a=rtpmap:0 PCMU/8000/1` with an explicit channel count — none of which this specification depends on. A client MUST ignore any it does not implement and MAY omit them from its answer.
+The server's offer MAY carry further attributes that a WebRTC stack emits by habit - `a=rtcp-fb`, `a=extmap`, `a=extmap-allow-mixed`, `a=rtcp-rsize`, `a=msid`, `a=rtpmap:0 PCMU/8000/1` with an explicit channel count - none of which this specification depends on. A client MUST ignore any it does not implement and MAY omit them from its answer.
 
 #### Annotated SDP Offer Example
 
@@ -393,7 +406,7 @@ a=ice-ufrag:clnt
 a=ice-pwd:clienticepasswordvalue5678
 a=fingerprint:sha-256 11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00
 
-# Accept send track — the a=ssrc line declaring the microphone stream is REQUIRED
+# Accept send track - the a=ssrc line declaring the microphone stream is REQUIRED
 # (see Send SSRC Declaration below)
 m=audio 9 UDP/TLS/RTP/SAVPF 0
 c=IN IP4 0.0.0.0
@@ -408,7 +421,7 @@ a=fingerprint:sha-256 11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:4
 a=ssrc:2226456186 cname:janusclientmic01
 ```
 
-Key differences from the offer: `a=setup:active` (the answerer takes the DTLS client role), the client's own ICE credentials and DTLS fingerprint replace the server's, and the send section declares the SSRC of the client's microphone stream. The `a=ssrc` lines on the `user-{UID}` sections of the offer are not mirrored — they describe what the server sends.
+Key differences from the offer: `a=setup:active` (the answerer takes the DTLS client role), the client's own ICE credentials and DTLS fingerprint replace the server's, and the send section declares the SSRC of the client's microphone stream. The `a=ssrc` lines on the `user-{UID}` sections of the offer are not mirrored - they describe what the server sends.
 
 #### Send SSRC Declaration
 
@@ -420,7 +433,7 @@ a=ssrc:<ssrc> cname:<cname>
 
 `<ssrc>` is the 32-bit synchronisation source identifier the client will use in its outbound RTP packets, as an unsigned decimal integer. It MUST match the SSRC field of the RTP packets the client actually sends. `<cname>` is the RTCP canonical name (RFC 3550 §6.5.1); any stable, randomly generated string is acceptable. Standard WebRTC stacks (libwebrtc, browsers, pion) emit this attribute automatically when a sending track is attached; implementations that hand-write SDP must take care not to omit it.
 
-Rationale: the server is always the offerer, and this specification requires no RTP header extensions, so the `a=ssrc` declaration in the answer is the only mechanism by which the server can attribute inbound RTP packets to the client's microphone track. A conforming server tolerates answers that omit the declaration by falling back to payload-type matching, but that fallback causes an additional unlabelled media section to appear in the server's subsequent renegotiation offers (which clients must ignore — see [Track-to-User Mapping](#track-to-user-mapping)). Clients MUST NOT rely on the fallback.
+Rationale: the server is always the offerer, and this specification requires no RTP header extensions, so the `a=ssrc` declaration in the answer is the only mechanism by which the server can attribute inbound RTP packets to the client's microphone track. A conforming server tolerates answers that omit the declaration by falling back to payload-type matching, but that fallback causes an additional unlabelled media section to appear in the server's subsequent renegotiation offers (which clients must ignore - see [Track-to-User Mapping](#track-to-user-mapping)). Clients MUST NOT rely on the fallback.
 
 #### SDP Size Considerations
 
@@ -477,7 +490,7 @@ Standard error reply with `DATA_ERROR_TEXT` (field 100). Error strings are human
 - Insufficient privileges (`accessVoiceChat` not set)
 - Plain RTP requested but not allowed (`VoiceAllowPlainRTP` is off), or an unknown transport value
 
-A transport the server will not provide is refused **before** any room state changes: the client is neither added to the requested room nor removed from one it is already in. The server MUST NOT substitute a different transport for the one requested — a client that asks for plain RTP has no DTLS stack to fall back to.
+A transport the server will not provide is refused **before** any room state changes: the client is neither added to the requested room nor removed from one it is already in. The server MUST NOT substitute a different transport for the one requested - a client that asks for plain RTP has no DTLS stack to fall back to.
 
 The server also sends a **Voice Room Status (605)** notification to all other voice participants in the room to announce the new joiner.
 
@@ -533,7 +546,7 @@ ICE candidates are exchanged as trickle-ICE after the SDP offer/answer. Both cli
 | Chat ID | 114 | UInt32 | Room context |
 | Voice ICE | `0x01F6` | String | JSON-encoded ICE candidate (see [ICE Candidate Format](#ice-candidate-format)) |
 
-Since the client connects directly to the server (whose address is already known), ICE negotiation is typically trivial — the server's host candidate is the only one needed. However, the full ICE exchange is preserved for correctness in edge cases (e.g. server behind a load balancer).
+Since the client connects directly to the server (whose address is already known), ICE negotiation is typically trivial - the server's host candidate is the only one needed. However, the full ICE exchange is preserved for correctness in edge cases (e.g. server behind a load balancer).
 
 ### End of ICE Candidates
 
@@ -542,7 +555,7 @@ After sending all ICE candidates, each side signals completion by sending a Voic
 | Field | ID | Type | Value |
 |---|---|---|---|
 | Chat ID | 114 | UInt32 | Room context |
-| Voice ICE | `0x01F6` | String | `""` (empty — zero-length string) |
+| Voice ICE | `0x01F6` | String | `""` (empty - zero-length string) |
 
 The end-of-candidates signal as a complete JSON object:
 
@@ -554,17 +567,17 @@ The end-of-candidates signal as a complete JSON object:
 }
 ```
 
-The `sdpMid` and `sdpMLineIndex` fields SHOULD reference the first media section, but their values are not semantically significant for end-of-candidates — the empty `candidate` string is the authoritative signal.
+The `sdpMid` and `sdpMLineIndex` fields SHOULD reference the first media section, but their values are not semantically significant for end-of-candidates - the empty `candidate` string is the authoritative signal.
 
 Alternatively, an empty string `""` (zero-length `DATA_VOICE_ICE` field) is also accepted as an end-of-candidates signal.
 
-This follows the standard WebRTC end-of-candidates convention. Implementations MUST NOT wait for this signal before attempting connectivity checks — trickle ICE allows checks to begin as candidates arrive.
+This follows the standard WebRTC end-of-candidates convention. Implementations MUST NOT wait for this signal before attempting connectivity checks - trickle ICE allows checks to begin as candidates arrive.
 
 ### Voice Room Status (605)
 
 **Server → Client (notification)**
 
-Sent to all voice participants in a room when the participant list changes (join, leave, mute/unmute).
+Sent to all voice participants in a room when the participant list or a participant's flags change: join, leave, mute/unmute, and - on a server implementing the [Video Chat Extension](Capabilities-Video.md) - a camera or screen-share publication starting or stopping, including a publication that ends because its publisher left voice or disconnected. Pausing or resuming a publication does not change the flags and is announced only by Video Status (611).
 
 | Field | ID | Type | Notes |
 |---|---|---|---|
@@ -590,7 +603,7 @@ The server sends a **Voice Room Status (605)** notification to all participants 
 
 ### Hand-Rolled Signaling
 
-Nothing above requires a WebRTC library; the SDP is text and the transactions are ordinary Hotline transactions. A client that builds its SDP by hand — because no WebRTC stack exists for its platform — needs to know the following, all of which a library would otherwise hide:
+Nothing above requires a WebRTC library; the SDP is text and the transactions are ordinary Hotline transactions. A client that builds its SDP by hand - because no WebRTC stack exists for its platform - needs to know the following, all of which a library would otherwise hide:
 
 - **The server is ICE-lite**, so the client is always the controlling agent and full ICE is unnecessary. One STUN Binding Request to the server's host candidate, carrying `USERNAME` (`<server-ufrag>:<client-ufrag>`), `MESSAGE-INTEGRITY` keyed with the **server's** `ice-pwd` (RFC 8445 §7.2.2: a request is keyed with the recipient's password), `ICE-CONTROLLING`, `PRIORITY`, `USE-CANDIDATE` and `FINGERPRINT`, nominates the pair. The server answers with a Binding Success carrying `XOR-MAPPED-ADDRESS`. The request is repeated as a keepalive.
 - **The server's candidates are inline** in the offer, followed by `a=end-of-candidates`. A hand-rolled client can take the address from the first `a=candidate` line and never handle Voice ICE Candidate (604) at all; it need not send any 604 of its own if the server can learn its address from the STUN request, which an ICE-lite server can.
@@ -612,8 +625,8 @@ The server opens a UDP listener for WebRTC media. The port is configurable via `
 |---|---|
 | Base port | Transactions (TCP) |
 | Base port + 1 | File transfers (TCP) |
-| Base port + 2 | HTTP tunneling — transactions (TCP) |
-| Base port + 3 | HTTP tunneling — transfers (TCP) |
+| Base port + 2 | HTTP tunneling - transactions (TCP) |
+| Base port + 3 | HTTP tunneling - transfers (TCP) |
 | **Base port + 4** | **Voice media (UDP)** |
 
 A single UDP port handles all WebRTC sessions. The WebRTC stack demultiplexes connections using DTLS fingerprints and ICE credentials. Sessions on the [plain RTP transport](#plain-rtp-transport) share the same port: their STUN requests are told apart by ICE ufrag and their media by bound source address, so enabling that transport opens nothing new.
@@ -622,8 +635,8 @@ A single UDP port handles all WebRTC sessions. The WebRTC stack demultiplexes co
 
 Each voice participant has one WebRTC peer connection to the server. The peer connection carries:
 
-- **One send track** — the client's microphone audio
-- **N−1 receive tracks** — audio from every other participant in the room
+- **One send track** - the client's microphone audio
+- **N−1 receive tracks** - audio from every other participant in the room
 
 When a new participant joins, the server renegotiates existing peer connections to add the new receive track. When a participant leaves, the track is removed and connections are renegotiated.
 
@@ -650,7 +663,7 @@ a=recvonly
 ...
 ```
 
-(Directions are from the server's — the offerer's — perspective: `a=sendonly` on sections whose audio the server forwards to the client, `a=recvonly` on the section carrying the client's microphone.)
+(Directions are from the server's - the offerer's - perspective: `a=sendonly` on sections whose audio the server forwards to the client, `a=recvonly` on the section carrying the client's microphone.)
 
 | `mid` value | Meaning |
 |---|---|
@@ -661,19 +674,19 @@ a=recvonly
 
 Clients parse the `mid` labels to associate incoming audio tracks with users. The user IDs correspond to the standard Hotline user IDs visible in the chat room user list.
 
-A `mid` is a property of the SDP, not of the packets: RTP packets carry no `mid` unless the RTP MID header extension (RFC 8843 §15) is negotiated, and this specification does not negotiate it. What a packet does carry is its SSRC, so **every `user-{UID}` section of the server's offer MUST declare, with `a=ssrc:<ssrc> cname:<cname>`, the SSRC the client will observe on packets carrying that user's audio**, and the server MUST stamp forwarded packets with exactly that SSRC — rewriting the source's own SSRC if they differ. A WebRTC library performs the SSRC → `mid` step internally; a client that reads RTP itself performs it from the offer. A renegotiation offer MAY change a section's declared SSRC (for instance when a user leaves and rejoins), and the client MUST use the mapping from the most recent offer it has answered.
+A `mid` is a property of the SDP, not of the packets: RTP packets carry no `mid` unless the RTP MID header extension (RFC 8843 §15) is negotiated, and this specification does not negotiate it. What a packet does carry is its SSRC, so **every `user-{UID}` section of the server's offer MUST declare, with `a=ssrc:<ssrc> cname:<cname>`, the SSRC the client will observe on packets carrying that user's audio**, and the server MUST stamp forwarded packets with exactly that SSRC - rewriting the source's own SSRC if they differ. A WebRTC library performs the SSRC → `mid` step internally; a client that reads RTP itself performs it from the offer. A renegotiation offer MAY change a section's declared SSRC (for instance when a user leaves and rejoins), and the client MUST use the mapping from the most recent offer it has answered.
 
-When a participant leaves, the server sends a renegotiation offer (602) in which that user's media section is marked `a=inactive` (standard offer/answer direction semantics, [RFC 3264 §8.4](https://datatracker.ietf.org/doc/html/rfc3264#section-8.4)); the port remains `9`. The `m=` line remains in the SDP to preserve media section indexing — implementations MUST NOT delete `m=` lines from subsequent offers, as this would misalign `sdpMLineIndex` values.
+When a participant leaves, the server sends a renegotiation offer (602) in which that user's media section is marked `a=inactive` (standard offer/answer direction semantics, [RFC 3264 §8.4](https://datatracker.ietf.org/doc/html/rfc3264#section-8.4)); the port remains `9`. The `m=` line remains in the SDP to preserve media section indexing - implementations MUST NOT delete `m=` lines from subsequent offers, as this would misalign `sdpMLineIndex` values.
 
-A `mid` is never reassigned to a different user within a session: `user-{UID}` always carries the audio of user `{UID}`. If a user leaves and later rejoins the same room (with the same user ID), the server reactivates the existing inactive section — the same `mid` returns to `a=sendonly` in the renegotiation offer rather than a duplicate section being added. Clients MUST treat the `mid` and direction in each SDP offer as the authoritative mapping: a section is live only while its offered direction is `a=sendonly`. If a `mid` references a user ID not present in the most recent Voice Room Status (605) participant list, the client SHOULD accept the track but MAY treat it as inactive until the user appears in a subsequent status update.
+A `mid` is never reassigned to a different user within a session: `user-{UID}` always carries the audio of user `{UID}`. If a user leaves and later rejoins the same room (with the same user ID), the server reactivates the existing inactive section - the same `mid` returns to `a=sendonly` in the renegotiation offer rather than a duplicate section being added. Clients MUST treat the `mid` and direction in each SDP offer as the authoritative mapping: a section is live only while its offered direction is `a=sendonly`. If a `mid` references a user ID not present in the most recent Voice Room Status (605) participant list, the client SHOULD accept the track but MAY treat it as inactive until the user appears in a subsequent status update.
 
-Clients MUST tolerate media sections whose `mid` is neither `send` nor `user-{UID}`. Such sections can appear in renegotiation offers — for example, a server-side compatibility fallback creates one when a client's answer omits its [send SSRC declaration](#send-ssrc-declaration) — and future revisions of this specification may define additional labels. A client encountering an unrecognized `mid` MUST NOT map it to a user or play audio from it, MUST NOT reject the offer because of it, and MUST still mirror the section in its answer as required by RFC 3264 (answering it with the direction complement or `a=inactive` is acceptable).
+Clients MUST tolerate media sections whose `mid` is neither `send` nor `user-{UID}`. Such sections can appear in renegotiation offers - for example, a server-side compatibility fallback creates one when a client's answer omits its [send SSRC declaration](#send-ssrc-declaration) - and future revisions of this specification may define additional labels. A client encountering an unrecognized `mid` MUST NOT map it to a user or play audio from it, MUST NOT reject the offer because of it, and MUST still mirror the section in its answer as required by RFC 3264 (answering it with the direction complement or `a=inactive` is acceptable).
 
 ### Renegotiation Flow
 
-Renegotiation occurs when the participant list changes. The server MUST serialise renegotiations per peer — it MUST NOT send a new SDP offer to a client while a previous offer to that client is still awaiting an answer, as this results in undefined behaviour in most WebRTC stacks.
+Renegotiation occurs when the participant list changes. The server MUST serialise renegotiations per peer - it MUST NOT send a new SDP offer to a client while a previous offer to that client is still awaiting an answer, as this results in undefined behaviour in most WebRTC stacks.
 
-Serialisation is achieved by deferral: if the participant list changes while an offer to a client is outstanding, the server applies the track changes internally but withholds the new offer. When the client's answer (603) arrives, the server immediately issues a single follow-up offer (602) consolidating every change that accumulated in the meantime. Consequently, a client may receive a new offer directly after its answer is processed — clients MUST be prepared to run consecutive offer/answer cycles back to back, answering each offer in turn.
+Serialisation is achieved by deferral: if the participant list changes while an offer to a client is outstanding, the server applies the track changes internally but withholds the new offer. When the client's answer (603) arrives, the server immediately issues a single follow-up offer (602) consolidating every change that accumulated in the meantime. Consequently, a client may receive a new offer directly after its answer is processed - clients MUST be prepared to run consecutive offer/answer cycles back to back, answering each offer in turn.
 
 If a client nevertheless receives a new SDP offer (602) while it has not yet answered a previous offer, the client MUST discard the previous unanswered offer and process only the newest one. In practice, well-behaved servers will not trigger this condition due to the serialisation requirement above, but clients SHOULD handle it defensively.
 
@@ -739,11 +752,11 @@ If the WebRTC session fails to establish (e.g. ICE connectivity check failure, D
 | DTLS handshake failure | 10 seconds | Same as above. |
 | Media timeout (no RTP/RTCP received from client) | 30 seconds | Server assumes the client's media path is dead. Tears down peer connection and sends Room Status (605) and Leave Voice Room notification. On the [plain RTP transport](#plain-rtp-transport), an authenticated STUN Binding Request also resets this timer. |
 
-All timeouts SHOULD be measured using monotonic clocks to avoid issues with system clock adjustments. The specific timeout values above are recommendations — implementations MAY adjust them, but SHOULD NOT use values shorter than those listed.
+All timeouts SHOULD be measured using monotonic clocks to avoid issues with system clock adjustments. The specific timeout values above are recommendations - implementations MAY adjust them, but SHOULD NOT use values shorter than those listed.
 
 Clients that detect a failed WebRTC session SHOULD update their UI to reflect that voice is no longer active and MAY present an option to retry (re-send Join Voice Room 600).
 
-The Hotline TCP connection is **not** affected by WebRTC session failure — text chat continues normally.
+The Hotline TCP connection is **not** affected by WebRTC session failure - text chat continues normally.
 
 ### Stream Topology
 
@@ -771,7 +784,7 @@ For a client that implements DTLS-SRTP by hand rather than through a WebRTC libr
 
 Some platforms have no TLS implementation and no cycles to spare for one: a 68k Macintosh cannot complete an ECDHE handshake in reasonable time, and cannot run AES and HMAC-SHA1 on fifty packets a second. For such clients this specification defines an alternative transport in which **everything except the encryption is unchanged**: the same transactions, the same SDP offer/answer, the same `mid` labelling and renegotiation rules, the same ICE credentials, the same UDP port. What differs is that the media sections are `RTP/AVP` instead of `UDP/TLS/RTP/SAVPF`, there is no DTLS handshake, and RTP travels in the clear.
 
-**Availability.** The plain transport is an operator opt-in (`VoiceAllowPlainRTP`, default off). It is not advertised at login; a client simply asks for it in Join Voice Room (600) and is refused if it is not available. Clients that do not ask are unaffected, and a room may hold plain and DTLS-SRTP participants together — the server bridges the two, and a participant cannot tell which transport the others use.
+**Availability.** The plain transport is an operator opt-in (`VoiceAllowPlainRTP`, default off). It is not advertised at login; a client simply asks for it in Join Voice Room (600) and is refused if it is not available. Clients that do not ask are unaffected, and a room may hold plain and DTLS-SRTP participants together - the server bridges the two, and a participant cannot tell which transport the others use.
 
 **Requesting it.** The client sets `DATA_VOICE_TRANSPORT` (`0x01FB`) to `1` in Join Voice Room (600). A successful reply echoes the field with the transport in use, which is always the one requested; a transport the server will not provide is refused with an error. The server MUST NOT downgrade a DTLS request to plain, nor upgrade a plain request to DTLS. A client that receives an error for a plain request MAY tell the user that the server does not allow unencrypted voice; it MUST NOT retry with `0` unless it can actually do DTLS-SRTP.
 
@@ -825,20 +838,20 @@ a=end-of-candidates
 
 | Attribute | Value |
 |---|---|
-| `USERNAME` | `<server ice-ufrag>:<client ice-ufrag>` — the client's own ufrag may be any string |
+| `USERNAME` | `<server ice-ufrag>:<client ice-ufrag>` - the client's own ufrag may be any string |
 | `MESSAGE-INTEGRITY` | HMAC-SHA1 keyed with the **server's** `ice-pwd` from the offer |
 | `FINGERPRINT` | CRC-32 of the message XOR `0x5354554e`; RECOMMENDED and validated if present |
 | `ICE-CONTROLLING`, `PRIORITY`, `USE-CANDIDATE` | MAY be present; the server does not require them |
 
 The server validates `MESSAGE-INTEGRITY` (and `FINGERPRINT` if present), records the request's source address as the client's media address, and replies with a Binding Success carrying `XOR-MAPPED-ADDRESS`. A request that fails validation is dropped without reply. Later authenticated requests from a different address re-bind the client (NAT rebinding). The server MUST NOT accept media from, or send media to, an address that has not bound.
 
-The client MUST repeat the Binding Request at least every **15 seconds** for the life of the session. This keeps NAT mappings open and, because the server treats an authenticated request as liveness, keeps a muted client — which sends no RTP — from being timed out as dead (see [Session Timeout and Failure](#session-timeout-and-failure)).
+The client MUST repeat the Binding Request at least every **15 seconds** for the life of the session. This keeps NAT mappings open and, because the server treats an authenticated request as liveness, keeps a muted client - which sends no RTP - from being timed out as dead (see [Session Timeout and Failure](#session-timeout-and-failure)).
 
 **Media.** RTP is as in [RTP and RTCP](#rtp-and-rtcp): PCMU, payload type 0, 160-byte payloads, no SRTP. Inbound packets are attributed to the client by source address, so the SSRC the client sends with is its own affair; the server rewrites it before forwarding. Outbound packets carry the SSRC declared for that user's section in the most recent offer, and are sent to the bound address. The server MUST forward only payload type 0 from a plain client and MUST discard anything else. RTCP is OPTIONAL in both directions on this transport: a client MAY send Receiver Reports and the server MAY ignore them; the server sends none. Server-side mute enforcement applies exactly as for DTLS-SRTP participants.
 
 **Not available on this transport.** The [video extension](Capabilities-Video.md) is layered on the WebRTC peer connection, which a plain-transport session does not have; a server MUST reject Video Start (607) from a participant on the plain transport.
 
-**Security considerations.** Audio on this transport is readable and forgeable by anyone on the path — the same standing that Hotline's chat, private messages and (obfuscated, not encrypted) passwords have on the TCP connection, which is why an operator who accepts the one may reasonably accept the other. The STUN binding proves possession of the `ice-pwd`, which travels over that same TCP session, so it protects against off-path injection (an attacker who cannot see the offer cannot bind as the client) and not against an on-path attacker. Operators who run the base protocol over TLS or HOPE should note that voice on the plain transport is still unencrypted. Operators who cannot accept unencrypted audio simply leave `VoiceAllowPlainRTP` off, which is the default.
+**Security considerations.** Audio on this transport is readable and forgeable by anyone on the path - the same standing that Hotline's chat, private messages and (obfuscated, not encrypted) passwords have on the TCP connection, which is why an operator who accepts the one may reasonably accept the other. The STUN binding proves possession of the `ice-pwd`, which travels over that same TCP session, so it protects against off-path injection (an attacker who cannot see the offer cannot bind as the client) and not against an on-path attacker. Operators who run the base protocol over TLS or HOPE should note that voice on the plain transport is still unencrypted. Operators who cannot accept unencrypted audio simply leave `VoiceAllowPlainRTP` off, which is the default.
 
 ### RTP and RTCP
 
@@ -859,7 +872,7 @@ The client MUST repeat the Binding Request at least every **15 seconds** for the
 
 The SFU forwards RTP payloads, sequence numbers and timestamps without modification. It **does** rewrite the SSRC: each forwarded copy carries the SSRC declared in the receiving client's offer for that user's section (see [Track-to-User Mapping](#track-to-user-mapping)), which is what makes the mapping stable and immune to collisions between sources. Sequence numbers and timestamps are continuous per source, so a receiver's jitter buffer sees a well-formed stream. In WebRTC stacks the SSRC-to-track binding is done by the library from the `a=ssrc` attributes; a client that reads RTP itself does the same lookup from the offer.
 
-**RTCP** is multiplexed on the same port as RTP (`a=rtcp-mux` is mandatory). WebRTC stacks handle RTCP automatically, generating Sender Reports (SR), Receiver Reports (RR), and other feedback. Implementations SHOULD NOT suppress or filter RTCP — it is needed for jitter buffer adaptation, lip-sync (if video is added in the future), and connectivity keepalives.
+**RTCP** is multiplexed on the same port as RTP (`a=rtcp-mux` is mandatory). WebRTC stacks handle RTCP automatically, generating Sender Reports (SR), Receiver Reports (RR), and other feedback. Implementations SHOULD NOT suppress or filter RTCP - it is needed for jitter buffer adaptation, lip-sync (if video is added in the future), and connectivity keepalives.
 
 The SFU SHOULD forward RTCP feedback between peers to support receiver-side quality adaptation. At minimum, the SFU MUST respond to RTCP as required to keep the DTLS/ICE session alive.
 
@@ -887,7 +900,7 @@ When an implicit leave occurs (user joins voice in room B while in voice in room
 2. Sends a **Voice Room Status (605)** notification to all remaining voice participants in room A, with the user removed from the participant list.
 3. Proceeds with the Join Voice Room flow for room B as normal.
 
-If the join in room B fails (e.g. the room is full), the user is left in no voice room. The server MUST NOT attempt to re-join the user to room A automatically — the client MAY retry by sending a new Join Voice Room (600) for room A.
+If the join in room B fails (e.g. the room is full), the user is left in no voice room. The server MUST NOT attempt to re-join the user to room A automatically - the client MAY retry by sending a new Join Voice Room (600) for room A.
 
 ---
 
@@ -909,7 +922,7 @@ A voice room is addressed by a bare `DATA_CHATID` and carries no membership of i
 |---|---|
 | Public chat (`DATA_CHATID` = `0`) | Any client holding `accessVoiceChat` |
 | A private chat's room | That chat's current members |
-| A messenger call's room | Only the parties to that call — see [Instant Messaging](Capabilities-Messaging.md#call-invite-818) |
+| A messenger call's room | Only the parties to that call - see [Instant Messaging](Capabilities-Messaging.md#call-invite-818) |
 
 The last row matters even for servers that do not implement the messaging extension, because it constrains the ID space: a call's room ID and a private chat's ID are drawn from the same 32-bit space, so **room identifiers MUST be allocated by the server, from a cryptographically secure random source, and checked against every room already in use**. A predictable or client-chosen identifier lets a client name a room it was never invited to.
 
@@ -918,7 +931,7 @@ This is not hypothetical. A classic Hotline client with voice support has no con
 **Behaviour:**
 - If `accessVoiceChat` is **not set**, the server rejects Join Voice Room (600) with an error: `"You are not allowed to join voice chat."`
 - The privilege says a user may join voice rooms; it does **not** say *which*. See [Room Membership](#room-membership).
-- The `CAPABILITY_VOICE` bit is still echoed in the login reply regardless of the user's privilege — the capability indicates server support, not user permission. This allows clients to display voice UI in a disabled state with a tooltip ("Voice chat requires permission") rather than hiding it entirely.
+- The `CAPABILITY_VOICE` bit is still echoed in the login reply regardless of the user's privilege - the capability indicates server support, not user permission. This allows clients to display voice UI in a disabled state with a tooltip ("Voice chat requires permission") rather than hiding it entirely.
 - Administrators and operators should have `accessVoiceChat` set by default.
 - Servers that do not implement access privilege checking for voice may treat the bit as always set (allowing all users).
 
@@ -943,14 +956,24 @@ PCMU does not support DTX, so silent participants still consume full bandwidth. 
 
 - **Capability advertisement:** Set `CAPABILITY_VOICE` during login. If the server does not echo it, disable all voice UI.
 - **Room join:** When the user clicks a voice button in a chat room, send Join Voice Room (600). On success, initialise the WebRTC peer connection using the SDP offer from the reply.
-- **Audio capture:** Begin capturing microphone audio only after the WebRTC session is established. Audio MUST be captured at 8000 Hz, mono (1 channel), 16-bit signed linear PCM, encoded to G.711 μ-law before packetisation. Each RTP packet carries one 20 ms frame (160 samples = 160 μ-law bytes). Most WebRTC stacks handle resampling and encoding internally — if the platform's audio API provides audio at a different sample rate, the WebRTC codec layer will resample to 8000 Hz automatically.
+- **Audio capture:** Begin capturing microphone audio only after the WebRTC session is established. Audio MUST be captured at 8000 Hz, mono (1 channel), 16-bit signed linear PCM, encoded to G.711 μ-law before packetisation. Each RTP packet carries one 20 ms frame (160 samples = 160 μ-law bytes). Most WebRTC stacks handle resampling and encoding internally - if the platform's audio API provides audio at a different sample rate, the WebRTC codec layer will resample to 8000 Hz automatically.
 - **Mute default:** Clients SHOULD join **muted by default** to avoid unexpected audio. The user explicitly unmutes.
-- **UI indicators:** Display speaker/muted icons next to users in the chat room user list based on Voice Room Status (605) notifications.
+- **UI indicators:** Display speaker/muted icons next to users in the chat room user list based on Voice Room Status (605) notifications. A client SHOULD also show that a participant has a camera or a screen share live (flag bits 1 and 2), even if it cannot display video, so that nobody is in a room with a camera on without knowing it.
 - **Graceful degradation:** If the user's system has no microphone, the client may still join voice as a listen-only participant (send track is simply silent/absent).
 - **Push-to-talk (PTT):** PTT is a client-side UX mode, not a protocol feature. The client sends Voice Mute (606) with `DATA_VOICE_MUTED = 0` when the PTT key is pressed and `DATA_VOICE_MUTED = 1` when released. No additional transactions are required. Clients may offer both PTT and open-mic modes as a user preference.
 - **Leave on disconnect:** If the client loses connection, voice is cleaned up server-side automatically.
 - **Early audio:** Clients MUST NOT send RTP packets before the WebRTC session is fully established (ICE connected + DTLS handshake complete). Packets sent before this point will be dropped by the transport layer. The WebRTC stack signals readiness via a connection state callback (e.g. `ICEConnectionStateConnected` or `PeerConnectionStateConnected`). On the plain RTP transport, readiness is the Binding Success response to the client's STUN request.
 - **Transport choice:** A client that can do DTLS-SRTP MUST use it and MUST NOT request the plain transport merely because it is simpler. The plain transport exists for platforms on which DTLS-SRTP is not implementable, not as a convenience.
+
+### Device Changes
+
+Switching the input device mid-call is invisible to the protocol: the client keeps sending the same RTP stream and sends no transaction. The client cannot announce a new stream, because only the server makes offers, so it MUST NOT start one.
+
+- **DTLS-SRTP:** keep the same sender and the SSRC declared in the most recent answer (see [Send SSRC Declaration](#send-ssrc-declaration)). In WebRTC this is `RTCRtpSender.replaceTrack`, not removing the track and adding a new one. The server attributes packets by the declared SSRC. A stream on any other SSRC is not attributed, and the call ends at the [media timeout](#session-timeout-and-failure) - to the user, switching microphones looks like the call dropping.
+- **Plain RTP:** the stream is identified by its bound source address, not its SSRC. The client SHOULD keep sending from the same address and port. If it must change them - for example, by reopening its UDP socket along with the sound device - it MUST [re-bind](#plain-rtp-transport) with an authenticated STUN Binding Request from the new address before sending media, since media from an address that has not bound is discarded.
+- **Either transport:** RTP sequence numbers and timestamps MUST continue across the change. The server forwards them unchanged, so a client that restarts its counters on the new device breaks every receiver's jitter buffer, however correct its SSRC. `replaceTrack` does this for a WebRTC client; a hand-rolled client has to. The stream also stays PCMU at 8000 Hz whatever the new device's native rate: the client resamples, as in [Audio capture](#client-behaviour) above.
+
+Changing the output device is local and has no effect on the protocol.
 
 ---
 
@@ -958,13 +981,13 @@ PCMU does not support DTX, so silent participants still consume full bandwidth. 
 
 - **SFU lifecycle:** The server creates a WebRTC peer connection per voice participant. When the participant leaves or disconnects, the peer connection is closed and resources freed.
 - **Track management:** When a participant joins, add a receive track for them on every existing participant's peer connection (renegotiation). When they leave, remove the track.
-- **Mute enforcement:** When a client's mute flag is set, the server MUST discard their incoming RTP packets rather than forwarding them. Do not rely on the client to stop sending. The server identifies the source of each RTP stream by the PeerConnection it arrives on (or, on the plain RTP transport, by the bound source address) — each participant has exactly one, so no SSRC-to-user mapping is required for attributing packets to users. (This does not relax the [send SSRC declaration](#send-ssrc-declaration) requirement: within a PeerConnection, the server's WebRTC stack still needs the answer's `a=ssrc` line to route inbound packets to the microphone track at all.) The server simply checks the mute state of the user associated with the receiving PeerConnection before forwarding each packet.
+- **Mute enforcement:** When a client's mute flag is set, the server MUST discard their incoming RTP packets rather than forwarding them. Do not rely on the client to stop sending. The server identifies the source of each RTP stream by the PeerConnection it arrives on (or, on the plain RTP transport, by the bound source address) - each participant has exactly one, so no SSRC-to-user mapping is required for attributing packets to users. (This does not relax the [send SSRC declaration](#send-ssrc-declaration) requirement: within a PeerConnection, the server's WebRTC stack still needs the answer's `a=ssrc` line to route inbound packets to the microphone track at all.) The server simply checks the mute state of the user associated with the receiving PeerConnection before forwarding each packet.
 - **Room cleanup:** When the last voice participant leaves a room, tear down all SFU state for that room.
 - **Resource limits:** Enforce `VoiceMaxPerRoom`. Reject Join Voice Room with an error if the limit is reached.
 - **Access control:** The server MUST check that the client has permission to be in the chat room before allowing voice join. If a user is kicked from a chat room, their voice session MUST also be terminated.
 - **No transcoding:** The server never decodes or re-encodes audio. It forwards RTP packets as-is.
 - **Codec enforcement:** The server offers only PCMU. Clients that do not support PCMU cannot join voice. Since PCMU is mandatory-to-implement in all WebRTC stacks (RFC 7874), this is not expected to be a compatibility issue. If a client's SDP answer does not include PCMU (payload type 0), the server MUST reject the answer and tear down the pending peer connection.
-- **Mute toggle debouncing:** Clients using push-to-talk may produce rapid mute/unmute transitions (key bouncing). The server SHOULD coalesce Voice Room Status (605) notifications rather than broadcasting every toggle — a debounce window of ~100 ms is RECOMMENDED before emitting a status update to other participants.
+- **Mute toggle debouncing:** Clients using push-to-talk may produce rapid mute/unmute transitions (key bouncing). The server SHOULD coalesce Voice Room Status (605) notifications rather than broadcasting every toggle - a debounce window of ~100 ms is RECOMMENDED before emitting a status update to other participants. A server MAY coalesce the 605s caused by video publications starting and stopping through the same window; each one carries the complete list, so nothing is lost.
 
 ---
 
@@ -977,4 +1000,4 @@ PCMU does not support DTX, so silent participants still consume full bandwidth. 
 - **Logging:** Voice join/leave events SHOULD be logged. Audio content MUST NOT be logged.
 - **Metrics:** Track active voice sessions, participants per room, and bandwidth usage via the existing metrics endpoint.
 - **Client implementation:** Client-side audio capture and playback (e.g. via PortAudio, miniaudio, or platform APIs) is outside the scope of this protocol document.
-- **Constrained clients without a WebRTC library:** the signaling is plain text over the existing connection and needs nothing beyond string handling; see [Hand-Rolled Signaling](#hand-rolled-signaling). The transport is where the cost is. On the plain RTP transport the whole media layer is a UDP socket, one STUN Binding Request (HMAC-SHA1 and CRC-32, a few hundred lines of C), RTP framing and G.711. With DTLS-SRTP the additional requirements are a DTLS 1.2 client with an X25519 key exchange, a self-signed certificate and one signature each way per join, and per-packet AES-128-CTR plus HMAC-SHA1 in both directions — roughly 100 packets a second in a two-person room. Portable C implementations exist (mbedTLS provides DTLS and the `use_srtp` extension; libsrtp provides the packet protection), and are the realistic path for a PowerPC client; on a 68k the per-packet cost is marginal on a 68040 and prohibitive below it, which is what the plain transport is for.
+- **Constrained clients without a WebRTC library:** the signaling is plain text over the existing connection and needs nothing beyond string handling; see [Hand-Rolled Signaling](#hand-rolled-signaling). The transport is where the cost is. On the plain RTP transport the whole media layer is a UDP socket, one STUN Binding Request (HMAC-SHA1 and CRC-32, a few hundred lines of C), RTP framing and G.711. With DTLS-SRTP the additional requirements are a DTLS 1.2 client with an X25519 key exchange, a self-signed certificate and one signature each way per join, and per-packet AES-128-CTR plus HMAC-SHA1 in both directions - roughly 100 packets a second in a two-person room. Portable C implementations exist (mbedTLS provides DTLS and the `use_srtp` extension; libsrtp provides the packet protection), and are the realistic path for a PowerPC client; on a 68k the per-packet cost is marginal on a 68040 and prohibitive below it, which is what the plain transport is for.
