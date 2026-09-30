@@ -1,6 +1,6 @@
 # Building a Hotline Instant Messenger Client
 
-> Last updated: August 9, 2026 - tracks the spec as of the same date.
+> Last updated: September 30, 2026 - tracks the spec as of the same date.
 > Status: implementation guide (informative). The normative wire
 > definitions live in
 > [Instant Messaging Extension](../Protocol/Capabilities-Messaging.md)
@@ -66,8 +66,8 @@ they apply to. If a section is unmarked, it applies to both.
    - 7.6 [ChaCha20-Poly1305 AEAD wire format (Modern)](#76-chacha20-poly1305-aead-wire-format-modern)
 8. [Messaging object & transaction reference](#8-messaging-object--transaction-reference)
 9. [Roster and friend management](#9-roster-and-friend-management)
-   - 9.1 [Roster sync on login - Get Roster (800)](#91-roster-sync-on-login--get-roster-800)
-   - 9.2 [Live deltas - Roster Entry (801)](#92-live-deltas--roster-entry-801)
+   - 9.1 [Roster sync on login - Get Roster (800)](#91-roster-sync-on-login---get-roster-800)
+   - 9.2 [Live deltas - Roster Entry (801)](#92-live-deltas---roster-entry-801)
    - 9.3 [Add Friend (802)](#93-add-friend-802)
    - 9.4 [Friend Request (804) and Friend Response (805)](#94-friend-request-804-and-friend-response-805)
    - 9.5 [Remove (803), Block (806), Unblock (807)](#95-remove-803-block-806-unblock-807)
@@ -76,6 +76,7 @@ they apply to. If a section is unmarked, it applies to both.
     - 10.1 [Find User (822)](#101-find-user-822)
     - 10.2 [User Search (823)](#102-user-search-823)
     - 10.3 [User profiles (825 / 826)](#103-user-profiles-825--826)
+    - 10.4 [Buddy icons (827 / 828)](#104-buddy-icons-827--828)
 11. [Presence](#11-presence)
     - 11.1 [Set Presence (808)](#111-set-presence-808)
     - 11.2 [Presence Changed (809)](#112-presence-changed-809)
@@ -87,22 +88,22 @@ they apply to. If a section is unmarked, it applies to both.
 13. [Offline delivery](#13-offline-delivery)
 14. [User-to-user file transfer](#14-user-to-user-file-transfer)
     - 14.1 [Signaling](#141-signaling)
-    - 14.2 [Relay path](#142-relay-path-both--the-only-path-legacy-uses)
+    - 14.2 [Relay path](#142-relay-path-both---the-only-path-legacy-uses)
     - 14.3 [Direct path (Modern, opt-in)](#143-direct-path-modern-opt-in)
     - 14.4 [Transfer-port encryption](#144-transfer-port-encryption)
 15. [Call signaling and voice (Modern)](#15-call-signaling-and-voice-modern)
     - 15.1 [Ring flow](#151-ring-flow)
-    - 15.2 [Media](#152-media-summary--see-the-voice-spec-for-the-full-detail)
+    - 15.2 [Media](#152-media-summary---see-the-voice-spec-for-the-full-detail)
 16. [Reason codes and error handling](#16-reason-codes-and-error-handling)
     - 16.1 [The shape of every reply](#161-the-shape-of-every-reply)
 17. [Recommended client model](#17-recommended-client-model)
 18. [Resilience: reconnect, idempotency, dedup](#18-resilience-reconnect-idempotency-dedup)
 19. [Security considerations for client authors](#19-security-considerations-for-client-authors)
 20. [Conformance checklist](#20-conformance-checklist)
-- [Appendix A - Enumerations](#appendix-a--enumerations)
-- [Appendix B - Field ID quick table](#appendix-b--field-id-quick-table)
-- [Appendix C - Transaction ID quick table](#appendix-c--transaction-id-quick-table)
-- [Appendix D - Worked byte-level example: IM Send](#appendix-d--worked-byte-level-example-im-send)
+- [Appendix A - Enumerations](#appendix-a---enumerations)
+- [Appendix B - Field ID quick table](#appendix-b---field-id-quick-table)
+- [Appendix C - Transaction ID quick table](#appendix-c---transaction-id-quick-table)
+- [Appendix D - Worked byte-level example: IM Send](#appendix-d---worked-byte-level-example-im-send)
 
 ---
 
@@ -445,7 +446,9 @@ else:
 ```
 
 Some transactions are **bidirectional** (IM Acknowledge 812, IM Typing 813,
-File Offer/Accept/Decline 814–816, Call Invite/Accept/Decline/Cancel 818–821):
+File Offer/Accept/Decline 814–816, Call Invite/Accept/Decline/Cancel 818–821,
+and Set Buddy Icon 827, whose notification form is the server telling your
+other sessions about an icon change - [§10.4](#104-buddy-icons-827--828)):
 the *same type* is a request when you send it and arrives as a notification when
 the server forwards a peer's. The is-reply flag and task-ID-0 rule disambiguate
 direction unambiguously - always trust them.
@@ -521,7 +524,7 @@ for this session**. Absent in the reply = treat as zero = standard mode.
 | 6 | 0x0040 | `CAPABILITY_MESSAGING` | **Both: master switch - required** |
 | 7 | 0x0080 | `CAPABILITY_DIRECT_TRANSFER` | Modern: P2P file path |
 | 8 | 0x0100 | `CAPABILITY_MESSENGER_SESSION` | **Both: set it - you are a pure messenger** |
-| 9 | 0x0200 | `CAPABILITY_MODERN_DATES` | Set it **only** once you *display* modern dates - see the note below. Neither reference messenger sets it |
+| 9 | 0x0200 | `CAPABILITY_MODERN_DATES` | Set it **only** once you *display* modern dates — see the note below. Neither reference messenger sets it |
 
 **Set bit 8.** It declares that this session will never join public chat, ask
 for the user list, or accept a classic private message - and a server that
@@ -543,7 +546,7 @@ Typical advertised values:
   what the Nyx reference client sends, minus voice on a build without an audio
   backend and minus text encoding when forced to Mac Roman.
 
-> **Bit 9 is not a free upgrade - a pure messenger almost certainly wants it
+> **Bit 9 is not a free upgrade — a pure messenger almost certainly wants it
 > clear.** `CAPABILITY_MODERN_DATES` selects a *wire format*, and it is the one
 > capability a server must never infer or grant on your behalf
 > ([spec](../Protocol/Capabilities.md#date-format-selection)). Set it
@@ -552,7 +555,7 @@ Typical advertised values:
 >
 > **Neither reference messenger sets it**, and the reason is the same for both
 > even though they are very different clients: a messenger has no Hotline date
-> on screen. This extension's own timestamps are `DATA_MESSAGE_TIMESTAMP` -
+> on screen. This extension's own timestamps are `DATA_MESSAGE_TIMESTAMP` —
 > plain Unix seconds, which this bit does not touch ([§8](#8-messaging-object--transaction-reference)).
 > Iris decodes no Hotline 8-byte date at all. Nyx decodes both encodings,
 > because parsing an FFO `INFO` fork requires it, and then never reads the
@@ -560,7 +563,7 @@ Typical advertised values:
 > download does not restore timestamps. Nothing a user sees comes from that
 > field, so the 1904 encoding's 2040-02-06 ceiling costs nothing.
 >
-> That is the test to apply to your own client - not "do I touch files?" but
+> That is the test to apply to your own client — not "do I touch files?" but
 > **"does a server-supplied date reach the screen or the filesystem?"** If it
 > does not, leave the bit clear. If it does, advertise it in the same change
 > that adds the rendering, never before.
@@ -745,6 +748,8 @@ The successful Login (107) reply (is-reply 1, error code 0) carries:
 | `DATA_MAX_MESSAGE_BYTES` | 0x0620 | `u32` - longest IM body this server accepts |
 | `DATA_MAX_ROSTER_SIZE` | 0x0621 | `u32` - most roster entries this account may hold |
 | `DATA_MAX_OFFLINE_QUEUE` | 0x0622 | `u32` - deepest offline queue per recipient |
+| `DATA_MAX_ICON_BYTES` | 0x0623 | `u32` - largest buddy icon the server stores; **its absence means no icon support** |
+| `DATA_MAX_ICON_DIMENSION` | 0x0624 | `u32` - largest icon width or height, in pixels |
 
 A non-zero error code means login failed (bad credentials, account locked,
 version floor not met, etc.); the payload carries `FieldError` (100) text to
@@ -761,6 +766,13 @@ Capture them at login and pre-validate against them.
 | Field absent | Use the default: 4096 bytes, 500 entries, 500 queued. A server predating this feature sends none of the three. |
 | Field present, value `0` | Not meaningful for these three - use the default. `0` means "unlimited" only for `MaxSessionsPerLogin`, which is not advertised. |
 | Sent only when messaging is confirmed | If bit 6 was not echoed, they will not appear. |
+
+**The two icon limits follow a different rule.** `DATA_MAX_ICON_BYTES` doubles
+as the feature flag for [buddy icons](#104-buddy-icons-827--828): absent means
+the server does not support them, so do not fall back to a default and offer
+the feature anyway. Present with `0` means the default, 16384; a value above
+65535 is treated as 65535, the most one field can carry. An absent or `0`
+`DATA_MAX_ICON_DIMENSION` means 64, the size every server accepts.
 
 They are advisory only in the sense that the server enforces them on every
 request regardless, so there is nothing to gain by ignoring them; treat them as
@@ -885,7 +897,7 @@ on what you must tolerate, not a target for what you emit. Chunk outbound writes
 at **256 KB or below**, for two reasons that outlive any particular server:
 
 - **A peer may enforce a lower ceiling than the specification names.** The
-  figure is a `should`, and an implementation is free to be stricter - the Janus
+  figure is a `should`, and an implementation is free to be stricter — the Janus
   reference server enforced 256 KB for exactly this stretch of its life. A
   sender that stays well under the limit interoperates with strict and permissive
   peers alike; one that emits 16 MiB frames is betting on every peer having read
@@ -893,7 +905,7 @@ at **256 KB or below**, for two reasons that outlive any particular server:
 - **A whole-fork frame defeats streaming.** A file transfer reuses this exact
   frame format ([§14.4](#144-transfer-port-encryption)), and an implementation
   that seals an entire DATA fork as one frame forces both ends to hold the whole
-  thing in memory before a byte can be decrypted - and gives the receiver no
+  thing in memory before a byte can be decrypted — and gives the receiver no
   progress to report. Chunking is what makes a transfer resumable-feeling and
   measurable, quite apart from any limit.
 
@@ -908,8 +920,8 @@ This same frame format, nonce rule, and 16 MiB cap also govern the encrypted
 ## 8. Messaging object & transaction reference
 
 The complete normative tables are in the spec (*Transaction Types*, *Data
-Objects*, *Enumerations*); Appendices [B](#appendix-b--field-id-quick-table) and
-[C](#appendix-c--transaction-id-quick-table) reproduce the IDs for quick lookup.
+Objects*, *Enumerations*); Appendices [B](#appendix-b---field-id-quick-table) and
+[C](#appendix-c---transaction-id-quick-table) reproduce the IDs for quick lookup.
 Two reused field families you will also touch:
 
 - **File metadata** in offers: `FieldFileName` (201, string),
@@ -942,11 +954,12 @@ of fields beginning with `DATA_FRIEND_LOGIN` (see
 |---|---|---|
 | `DATA_FRIEND_LOGIN` | 0x0600 | REQUIRED, first in each entry |
 | `DATA_FRIEND_NICKNAME` | 0x0601 | optional (your private alias) |
-| `DATA_ROSTER_STATE` | 0x0604 | the relationship state ([Appendix A](#appendix-a--enumerations)) |
+| `DATA_ROSTER_STATE` | 0x0604 | the relationship state ([Appendix A](#appendix-a---enumerations)) |
 | `DATA_PRESENCE_STATE` | 0x0602 | `Accepted` entries only, and only when the friend is visible |
 | `DATA_PRESENCE_STATUS_TEXT` | 0x0603 | `Accepted` entries only; present whenever the friend has a status, **even if they are offline** |
-| `DATA_FRIEND_CAPABILITIES` | 0x0613 | `Accepted` entries only, and only when the friend is online |
+| `DATA_FRIEND_CAPABILITIES` | 0x0613 | `Accepted` entries only, and only when the friend is online and not `Invisible` |
 | `FieldUserName` | 102 | `Accepted` entries only; **the name that friend goes by** - see below |
+| `DATA_BUDDY_ICON_HASH` | 0x061E | `Accepted` entries only, whenever the friend has a [buddy icon](#104-buddy-icons-827--828), **even if they are offline** |
 
 **Everything past the state is `Accepted`-only.** A `PendingOut`, `PendingIn` or
 `Blocked` row arrives as login + state and nothing else - no name, no presence,
@@ -958,7 +971,8 @@ missing name on those rows as a server that forgot to send one.
 and two do not.** Presence and capabilities describe a live session, so they
 are absent for a friend who is signed out or invisible. The status text and
 `FieldUserName` are stored against the *account*, so they arrive whether or not
-that friend is present - and the roster snapshot is the **only** place a client
+that friend is present (so does `DATA_BUDDY_ICON_HASH`, on a server with
+buddy icons) - and the roster snapshot is the **only** place a client
 learns them for a friend whose presence has not changed since it signed in.
 Store both on the entry; see the next section for why dropping the status here
 is the specific mistake that makes friends' statuses look like they never load.
@@ -989,6 +1003,14 @@ entry group.** Two things follow, and both have bitten implementations:
 Do not append the Login to either of the first two. It is an identifier, not
 part of anybody's name.
 
+**Key your state by the Login the server sends, not the one the user typed.**
+Logins are matched ignoring case - `John` signs in to the account stored as
+`john` - but everything the server returns uses the stored form. A client that
+keys its roster or its icon cache on the user's own spelling will fail to match
+its own records. From 2.0.17 the reference server accepts any case in a request
+and answers in the stored one; earlier releases matched requests exactly, so an
+own-icon lookup for `John` on the account `john` came back empty there.
+
 Any `PendingIn` entries (someone wants to add *you*) also arrive as separate
 **Friend Request (804)** notifications, including ones queued while you were
 offline. Surface these as actionable "X wants to add you" prompts.
@@ -1004,9 +1026,10 @@ relationship-state change, a presence change, or a removal.
   with it - not just the ones that changed. Store it in place of what you had.
 
 Required field: `DATA_FRIEND_LOGIN`, `DATA_ROSTER_STATE`. Optional: nickname,
-presence, status text, capabilities, `FieldUserName` (102) - an 801 entry group
+presence, status text, capabilities, `FieldUserName` (102), `DATA_BUDDY_ICON_HASH` -
+an 801 entry group
 is built the same way a snapshot entry is, so the `Accepted`-only rules from
-[§9.1](#91-roster-sync-on-login--get-roster-800) apply here too.
+[§9.1](#91-roster-sync-on-login---get-roster-800) apply here too.
 
 **Replace the entry; do not merge into it.** The group in an 801 is everything
 the server currently holds for that friend, so store it wholesale - "create if
@@ -1028,7 +1051,7 @@ means "applying it twice is the same as once", which overwriting already is. It
 is not an argument for merging.
 
 Because a snapshot entry and a delta for the same friend are byte-identical, one
-parse-and-store routine serves both [§9.1](#91-roster-sync-on-login--get-roster-800)
+parse-and-store routine serves both [§9.1](#91-roster-sync-on-login---get-roster-800)
 and this section. Writing two is how they drift apart.
 
 ### 9.3 Add Friend (802)
@@ -1056,8 +1079,14 @@ Show the friend as pending until a Roster Entry (801) flips them to `Accepted`.
 ### 9.4 Friend Request (804) and Friend Response (805)
 
 **Friend Request (804)** - inbound notification: someone added you. Fields:
-`DATA_FRIEND_LOGIN` (the requester), `DATA_FRIEND_CAPABILITIES` (optional),
-`DATA_REQUEST_NOTE` (optional). Present accept/reject UI.
+`DATA_FRIEND_LOGIN` (the requester), `DATA_REQUEST_NOTE` (optional). Present
+accept/reject UI.
+
+It carries **no capabilities**. You are not friends yet, and capabilities exist
+only while the requester is signed in, so sending them would tell a stranger
+that. Earlier revisions of the spec listed the field as optional; ignore it if
+an older server sends one. The requester's capabilities arrive with their roster
+entry once you accept.
 
 **Friend Response (805)** - request/reply you send to answer:
 - Accept: `DATA_FRIEND_LOGIN` + `DATA_ROSTER_STATE = Accepted` (3). Both sides
@@ -1179,8 +1208,9 @@ Login is not part of it - that is the permanent identity and cannot change.
 
 **Get User Info (825)** - request/reply. Request: `DATA_FRIEND_LOGIN`. The reply
 always carries the public card (`DATA_FRIEND_LOGIN`, `FieldUserName`);
-`DATA_FRIEND_CAPABILITIES` and the `DATA_PROFILE_*` fields are added **only when
-you are accepted friends** (or you are asking about yourself). Otherwise you get
+`DATA_FRIEND_CAPABILITIES`, the `DATA_PROFILE_*` fields and
+`DATA_BUDDY_ICON_HASH` are added **only when you are accepted friends** (or you
+are asking about yourself - which is how you learn your own icon's hash). Otherwise you get
 `DATA_REASON_CODE` = `NotFriends` (6) on an *otherwise successful* reply - that
 is not an error, it is the server telling you why the panel is empty so you can
 offer "add as friend" instead of showing a blank card.
@@ -1211,6 +1241,71 @@ a discoverable account's nickname, first name and last name on substring. Gender
 birth date, country, postcode and languages are **not** searchable, and e-mail
 matches **in full only** - a substring match would let anyone walk the directory
 and confirm addresses a fragment at a time.
+
+### 10.4 Buddy icons (827 / 828)
+
+An account MAY publish a small picture, often an animated GIF, that its accepted
+friends see - the AIM buddy icon. The normative definition is the
+[Buddy Icons extension](../Protocol/Capabilities-Buddy-Icons.md); this is what a client needs from it.
+
+**Support.** There is no capability bit. The server supports icons exactly when
+its login reply carries `DATA_MAX_ICON_BYTES` ([§7.4](#74-reading-the-login-reply)).
+Without it, send neither transaction and hide the feature.
+
+**Where the hash comes from.** An icon is identified by `DATA_BUDDY_ICON_HASH`
+(0x061E): the first 16 bytes of the SHA-256 of the stored picture. It rides on
+data you already handle:
+
+| Carried by | When |
+|---|---|
+| Roster entries (800 / 801) | `Accepted` entries whose friend has an icon, online or not |
+| Presence Changed (809) | Every 809, whatever prompted it, while the friend has an icon |
+| Get User Info (825) | Friends, and yourself |
+
+**Absent means "no icon", everywhere.** None of these treat a missing hash as
+"unchanged" - drop the picture you were showing. The hash is never sent empty.
+
+**Fetching - Get Buddy Icon (828).** Request: `DATA_FRIEND_LOGIN`. A friend
+(or you) with an icon gets `DATA_BUDDY_ICON` and its hash; a friend without one
+gets neither; anyone else gets `DATA_REASON_CODE` = `NotFriends` on a successful
+reply, indistinguishable from a block or a missing account. Build for it:
+
+- **Cache by hash, on disk.** The same hash is the same picture, whoever uses it
+  and however often you restart. Fetch only when a hash is new to you.
+- **Fetch lazily and one at a time.** A roster of changed icons can run to
+  megabytes. Fetch what is on screen - Nyx fetches only when a window that shows
+  the icon opens - and never poll.
+- **On `RateLimited`, back off and retry.** The server may limit 828; the
+  reference server allows a burst of 50 and 5 a second.
+
+**Setting yours - Set Buddy Icon (827).** Request: `DATA_BUDDY_ICON` with GIF,
+PNG or JPEG bytes; **empty** clears it. The reply carries the hash the server
+stored, which may not be the hash of what you sent: servers MAY re-encode, and
+the reference server does, to strip metadata. Prepare the picture first so it is
+not refused:
+
+- Scale to **48 x 48** (the classic size, recommended), never beyond
+  `DATA_MAX_ICON_DIMENSION`.
+- Keep animations to **32 frames**, which every server accepts.
+- Stay within `DATA_MAX_ICON_BYTES`, at most 65535.
+
+Refusals: `MessageTooLong` (13) for size, `InvalidImage` (14) for everything
+else, `RateLimited` (10); show the `FieldError` text, which says why.
+
+**Your other sessions.** After a change, the server sends each of your *other*
+sessions an 827 **notification** (task ID 0) carrying only the new hash, or no
+hash when you cleared it. Compare it with your cache and fetch with 828 on a
+mismatch. A session that signs on later learns your hash from 825 on yourself.
+Your own icon never arrives as an 809 - that transaction is only ever about a
+friend.
+
+**Invisible.** While you are `Invisible` your friends are not told of an icon
+change - an update from someone who looks signed out would give them away - and
+learn it from their next roster instead. Your own sessions still get the 827.
+
+**Rendering.** A picture from another user is untrusted input: cap the decoded
+size and frame count, and show nothing rather than an error for a format you
+cannot draw. Scale down to 48 x 48 for display, and let animated GIFs animate.
 
 ---
 
@@ -1250,7 +1345,8 @@ implementation always sends the field, empty when there is nothing to say.
 Server-initiated notification when an accepted friend's presence changes
 (including going online/offline). Fields: `DATA_FRIEND_LOGIN` (REQUIRED),
 `DATA_PRESENCE_STATE` (REQUIRED), `DATA_PRESENCE_STATUS_TEXT` (optional),
-`DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional).
+`DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional),
+`DATA_BUDDY_ICON_HASH` (optional; [§10.4](#104-buddy-icons-827--828)).
 
 809 is also how a friend's **name change** reaches you: when someone edits their
 profile ([§10.3](#103-user-profiles-825--826)) the server announces it as a
@@ -1264,6 +1360,20 @@ it names and leaves the relationship state and your alias alone. Assign the
 fields it carries - including a `DATA_PRESENCE_STATUS_TEXT` that is absent,
 which is how a cleared status reaches you.
 
+**The same goes for capabilities and the icon hash.** A friend who goes offline
+or `Invisible` arrives as an 809 with no `DATA_FRIEND_CAPABILITIES`, because
+capabilities describe a live session; set theirs to none. A client that only
+copies capabilities when the field is present keeps offering calls and direct
+transfers to someone who can no longer take them - Nyx shipped exactly that
+bug. Likewise an 809 without `DATA_BUDDY_ICON_HASH` means the friend has no
+icon.
+
+**An `Invisible` friend is silent.** Once the server has reported a friend
+`Offline` because they went `Invisible`, it sends no further 809 for them until
+they are visible again - a status or name change, an icon change, even their
+last session disconnecting. Those changes reach you in your next roster
+snapshot, or in the 809 that announces them visible.
+
 Presence is **aggregated** across the friend's sessions (most-available wins:
 `Online` > `Busy` > `Away`). A friend who disconnected **or** who is `Invisible`
 is reported identically as `Offline` (0) - the two are indistinguishable by
@@ -1276,7 +1386,7 @@ reaches whoever is signed in at that moment - nobody else. If Alice sets a
 status while you are offline and then leaves it alone, no 809 will ever carry it
 to you: there is nothing left to change.
 
-The other route is the [Get Roster (800)](#91-roster-sync-on-login--get-roster-800)
+The other route is the [Get Roster (800)](#91-roster-sync-on-login---get-roster-800)
 snapshot, which carries the current text for every accepted friend. That is what
 closes the gap, and it is why the status text is worth storing on the roster
 entry rather than treating it as something that rides along with a presence
@@ -1429,7 +1539,7 @@ by fixed-size extension blocks that the flags declare:
 |---:|---:|---|
 | 0 | 4 | `"HTXF"` (`48 54 58 46`) |
 | 4 | 4 | `u32` reference number - the `DATA_FILE_RELAY_REF` you were handed |
-| 8 | 4 | `u32` transfer length, 32-bit (the uploader's DATA length; `0` for the downloader) |
+| 8 | 4 | `u32` transfer length, 32-bit - the uploader's **whole flattened object** (headers and every fork, not just the file); `0` for the downloader |
 | 12 | 4 | `u32` **flags** - `0` for an ordinary transfer; see the flag table further down |
 | 16 | 8 | *only when* `HTXF_FLAG_SIZE64` - `u64` transfer length |
 
@@ -1467,7 +1577,15 @@ able to parse what you write.
 |---|---|---|
 | `HTXF_FLAG_LARGE_FILE` | `0x00000001` | Only if **both** peers negotiated `CAPABILITY_LARGE_FILES`; otherwise the server refuses the transfer. It cannot strip the flag (that would not change the bytes you write) and cannot ignore it (the relay never parses the payload, so it would never find out). |
 | `HTXF_FLAG_SIZE64` | `0x00000002` | Same condition - the large-file extension makes it valid only alongside `HTXF_FLAG_LARGE_FILE`. Appends the 8-byte length at offset 16, and the 32-bit length at offset 8 is then set to `0` rather than clamped. |
+| `HTXF_FLAG_FFO` | `0x00000008` | **REQUIRED on the uploader's handshake whenever `HTXF_FLAG_LARGE_FILE` is set**, under the same both-peers condition; the server refuses `LARGE_FILE` without it. On an upload, `LARGE_FILE` alone announces a bare data fork, which the recipient cannot parse - a relayed payload is always a flattened object, and this flag is how you say so. The **downloader** MUST NOT set it: its connection carries no payload of its own. Adds no extension block. |
 | `HTXF_FLAG_RESUME` | `0x00000004` | **Always refused**, however capable both peers are. A relay is a live pipe between two online peers: nothing is spooled, so there is no partial and no offset to continue from. Resuming an interrupted user-to-user transfer means a **fresh offer**, not a resumed handshake. (Its 40-byte digest block therefore never appears on a relay handshake, which is why the table above stops at offset 16.) |
+
+Put together, a large-file relay upload sets `LARGE_FILE | FFO` (`0x09`), or
+`LARGE_FILE | SIZE64 | FFO` (`0x0B`) when the object is over 4 GiB, and the
+download side sets `LARGE_FILE` (`0x01`). A client written against the
+large-file extension alone - which lets an upload be raw - sets `LARGE_FILE`
+without `FFO`, and every relayed file over 4 GiB is then refused at the
+handshake.
 
 The server decides whether large-file mode is permitted once, at File Accept
 (815), and applies that to both handshakes - so the answer cannot change between
@@ -1498,7 +1616,7 @@ a pure rendezvous broker:
    `DATA_FRIEND_LOGIN` of the originating peer).
 2. Both peers attempt a direct (hole-punched) connection.
 3. **On any failure** (symmetric NAT, timeout) both peers MUST fall back to the
-   [relay path](#142-relay-path-both--the-only-path-legacy-uses). The relay ref
+   [relay path](#142-relay-path-both---the-only-path-legacy-uses). The relay ref
    issued at accept time remains valid as the fallback, so a failed hole-punch is
    transparent.
 
@@ -1550,7 +1668,7 @@ Sequence for an AEAD-protected relay transfer:
 
 1. Open TCP to the transfer port (`base + 1`).
 2. Send the HTXF handshake (`"HTXF"` + ref + size + flags, plus any block those
-   flags declare - [§14.2](#142-relay-path-both--the-only-path-legacy-uses))
+   flags declare - [§14.2](#142-relay-path-both---the-only-path-legacy-uses))
    **in plaintext**.
 3. Both ends derive `transfer_key` from the ref number.
 4. Initialise ChaCha20-Poly1305 with `transfer_key`.
@@ -1696,7 +1814,8 @@ friend, IM, call, and transfer flows. Map each to clear UI:
 | 10 | `RateLimited` | back off; "Slow down." |
 | 11 | `NotDiscoverable` | search returned nothing for that account |
 | 12 | `RosterFull` | "Your buddy list is full." |
-| 13 | `MessageTooLong` | "That message is too long." - offer to split or trim |
+| 13 | `MessageTooLong` | "That message is too long." - offer to split or trim. Also a buddy icon over `DATA_MAX_ICON_BYTES`. |
+| 14 | `InvalidImage` | a buddy icon the server would not take (format, dimensions, frames); show the `FieldError` text |
 
 ### 16.1 The shape of every reply
 
@@ -1834,9 +1953,11 @@ Dispatch table for inbound notifications (task ID 0):
   reverse-engineer block state, and do not present "you are blocked" - present
   "no such user".
 - **So is the online state of anyone who is not your friend.** Discovery never
-  reports it, and `DATA_FRIEND_CAPABILITIES` is withheld from non-friends
-  precisely because its presence or absence would answer the question by
-  implication ([§10](#10-user-discovery-and-profiles)). Do not infer presence
+  reports it, and `DATA_FRIEND_CAPABILITIES` is withheld from non-friends -
+  in discovery, in profiles and in Friend Request (804) - precisely because its
+  presence or absence would answer the question by implication
+  ([§10](#10-user-discovery-and-profiles)). It is withheld for `Invisible`
+  friends too, for the same reason. Do not infer presence
   from which fields a discovery result happens to carry, and do not build a UI
   that hints at it.
 - **Validate the HOPE session-key address** (§7.3) to detect MITM/NAT
@@ -1909,8 +2030,17 @@ A client is a conforming messenger when it:
       with the correct transfer-port protection for its transport (plaintext /
       AEAD per-transfer key / TLS to `tlsPort + 1`).
 - [ ] Refuses `HTXF_FLAG_RESUME` on a relay, sets `HTXF_FLAG_LARGE_FILE` /
-      `HTXF_FLAG_SIZE64` only when both peers hold `CAPABILITY_LARGE_FILES`, and
-      declines an offer it cannot frame instead of failing at the handshake.
+      `HTXF_FLAG_SIZE64` only when both peers hold `CAPABILITY_LARGE_FILES`, sets
+      `HTXF_FLAG_FFO` alongside `HTXF_FLAG_LARGE_FILE` when uploading (never when
+      downloading), puts the whole flattened object's length in the handshake,
+      and declines an offer it cannot frame instead of failing at the handshake.
+- [ ] Replaces a friend's capabilities and icon hash from each 809 rather than
+      keeping old values when the field is absent.
+- [ ] *(If it implements buddy icons)* offers them only when the login reply
+      carries `DATA_MAX_ICON_BYTES`, prepares uploads within the advertised
+      limits, caches pictures by hash, fetches lazily with backoff on
+      `RateLimited`, learns its own hash from 825 on itself, and handles the 827
+      notification from its other sessions.
 - [ ] **(Modern)** Implements at least one real transport - TLS (verified) or
       HOPE AEAD (ChaCha20-Poly1305 frames + nonce discipline) - plus UTF-8,
       direct transfer with relay fallback, and voice/conference calls (818–821
@@ -1979,9 +2109,13 @@ Messaging fields (0x0600 block):
 | 0x061A | 1562 | `DATA_PROFILE_COUNTRY` | string (ISO 3166-1 alpha-2) |
 | 0x061B | 1563 | `DATA_PROFILE_POSTCODE` | string |
 | 0x061C | 1564 | `DATA_PROFILE_LANGUAGE` | string (ISO 639-1, repeated ×3 max) |
+| 0x061D | 1565 | `DATA_BUDDY_ICON` | binary (GIF / PNG / JPEG, ≤ 65535) |
+| 0x061E | 1566 | `DATA_BUDDY_ICON_HASH` | bytes[16] |
 | 0x0620 | 1568 | `DATA_MAX_MESSAGE_BYTES` | u32 (login reply only) |
 | 0x0621 | 1569 | `DATA_MAX_ROSTER_SIZE` | u32 (login reply only) |
 | 0x0622 | 1570 | `DATA_MAX_OFFLINE_QUEUE` | u32 (login reply only) |
+| 0x0623 | 1571 | `DATA_MAX_ICON_BYTES` | u32 (login reply only; absent = no buddy icons) |
+| 0x0624 | 1572 | `DATA_MAX_ICON_DIMENSION` | u32 (login reply only) |
 
 Reused base/extension fields:
 
@@ -2049,6 +2183,8 @@ Messaging (800 block):
 | 824 | 0x0338 | Set Friend Nickname | C→S (req/reply) |
 | 825 | 0x0339 | Get User Info | C→S (req/reply) |
 | 826 | 0x033A | Set User Info | C→S (req/reply) |
+| 827 | 0x033B | Set Buddy Icon | C→S (req/reply); S→C (notify, to your other sessions) |
+| 828 | 0x033C | Get Buddy Icon | C→S (req/reply) |
 
 Reused: Login **107**, Show Agreement **109**, Agreed **121**; Join/Leave Voice
 Room **600/601**, Voice SDP Offer/Answer **602/603**, Voice ICE **604**, Voice
