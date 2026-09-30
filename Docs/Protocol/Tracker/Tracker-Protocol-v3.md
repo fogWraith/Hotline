@@ -1,4 +1,6 @@
-# Hotline Tracker Protocol — Version 3
+# Hotline Tracker Protocol - Version 3
+
+> Last updated: September 30, 2026
 
 **A modernized tracker protocol for the Hotline Connect ecosystem**
 
@@ -122,7 +124,7 @@ When a v3 server registers with a v1 tracker:
 ```
 
 Key differences from v1:
-- Registration is optionally **acknowledged** — the tracker MAY send a UDP response.
+- Registration is optionally **acknowledged** - the tracker MAY send a UDP response.
 - Listing supports **text search** and **pagination**.
 - Server records include **structured metadata** via TLV fields.
 - **IPv6** addresses in server records (alongside IPv4 and hostnames).
@@ -195,7 +197,9 @@ The handshake is variable-length: 6 bytes for v1/v2, 8 bytes for v3. Both sides 
 3. If version is `0x0003`, read **2 more bytes** for the feature flags.
 4. If version is `0x0001` or `0x0002`, the handshake is complete at 6 bytes.
 
-**v1/v2 fallback:** If a v3 client sends 8 bytes to a v1 or v2 tracker, the tracker reads 6 bytes and responds with its version. The extra 2 bytes from the client remain in the TCP receive buffer and are harmless — the tracker immediately begins sending the server list (v1) or auth challenge (v2), and the connection closes after the listing is complete.
+**v1/v2 fallback:** If a v3 client sends 8 bytes to a v1 or v2 tracker, the tracker reads 6 bytes and responds with its version. The extra 2 bytes from the client remain in the TCP receive buffer and are harmless - the tracker immediately begins sending the server list (v1) or auth challenge (v2), and the connection closes after the listing is complete.
+
+**Older trackers that hang up:** Clients MUST NOT rely on every older tracker answering this way. Some v1 trackers close the connection without writing a byte when the hello is anything other than `HTRK\x00\x01` (hltracker.com does this for both v3 and v2 hellos). A client whose v3 hello is met with a closed connection, before any handshake reply, SHOULD retry with a v1 hello on a new connection, and MAY remember the tracker's version so that it does not probe it again on every refresh. This is the same "retry without" step as the TLS fallback in [TLS for TCP](#tls-for-tcp). The rule for v3 trackers is unchanged: they MUST answer v1 and v2 hellos in those formats.
 
 ### Version Negotiation
 
@@ -223,7 +227,7 @@ Feature flags negotiate capabilities for the TCP listing session. They are trans
 
 **Notes:**
 - TLV metadata in server records is **mandatory** in v3, not a negotiated flag. If you're speaking v3, TLV is supported.
-- `FEAT_REG_ACK` and `FEAT_HMAC` are informational — they communicate what the tracker supports for UDP registration. They do not affect the TCP listing session directly but allow clients to display tracker capabilities.
+- `FEAT_REG_ACK` and `FEAT_HMAC` are informational - they communicate what the tracker supports for UDP registration. They do not affect the TCP listing session directly but allow clients to display tracker capabilities.
 - Bits 5–15 are reserved for future use. Implementations MUST set them to 0 and MUST ignore unknown flag bits.
 
 ### Feature Discovery
@@ -348,7 +352,7 @@ The v3 registration datagram extends the v1 format by appending a TLV extension 
 
 **Version field:** Set to `0x0003` to indicate a v3 registration.
 
-**Extension magic:** The 2-byte value `0x4833` (`"H3"`) marks the start of the v3 extension block. This magic MUST only be parsed after confirming the version field is `0x0003` — the version field is the primary v3 discriminator. The extension magic serves as a secondary validation to guard against malformed data.
+**Extension magic:** The 2-byte value `0x4833` (`"H3"`) marks the start of the v3 extension block. This magic MUST only be parsed after confirming the version field is `0x0003` - the version field is the primary v3 discriminator. The extension magic serves as a secondary validation to guard against malformed data.
 
 **Extension count:** The number of TLV fields that follow.
 
@@ -410,7 +414,7 @@ All fields are optional. A minimal v3 registration contains only the v1-compatib
 
 ### Registration Acknowledgment
 
-When a v3 tracker receives a valid v3 registration, it MAY send a UDP response back to the source address. Acknowledgments are **optional** — the protocol MUST function correctly if the server never receives one.
+When a v3 tracker receives a valid v3 registration, it MAY send a UDP response back to the source address. Acknowledgments are **optional** - the protocol MUST function correctly if the server never receives one.
 
 | Offset | Size | Field              | Type  | Description                                  |
 |--------|------|--------------------|-------|----------------------------------------------|
@@ -442,7 +446,7 @@ When a v3 tracker receives a valid v3 registration, it MAY send a UDP response b
 
 **Design principle:** Nothing in the protocol depends on the server receiving an acknowledgment:
 - If the server receives a `REG_TOKEN`, it SHOULD include it in subsequent heartbeats for anti-hijacking protection.
-- If no `REG_TOKEN` is received (ack lost, v1 tracker, or acks disabled), heartbeats work normally — the tracker identifies the server by IP:port.
+- If no `REG_TOKEN` is received (ack lost, v1 tracker, or acks disabled), heartbeats work normally - the tracker identifies the server by IP:port.
 - The heartbeat interval defaults to 300 seconds if no ack is received.
 
 **v1/v2 servers** do not expect acknowledgments and will ignore any UDP response. The tracker MUST NOT send acknowledgments for v1 or v2 registrations.
@@ -487,7 +491,7 @@ v3 supports HMAC-based authentication alongside the legacy v1 plaintext password
 
 ### Listing Handshake
 
-After the v3 handshake (6 bytes + 2 more after version check), the client sends a **listing request**. In v1, the tracker immediately sends the server list after the handshake — no explicit request is needed. In v3, the client sends a request that may include search parameters.
+After the v3 handshake (6 bytes + 2 more after version check), the client sends a **listing request**. In v1, the tracker immediately sends the server list after the handshake - no explicit request is needed. In v3, the client sends a request that may include search parameters.
 
 ### Listing Request
 
@@ -507,11 +511,11 @@ The client sends:
 | 0x1010   | `PAGE_OFFSET` | u16    | Pagination: skip this many records               |
 | 0x1011   | `PAGE_LIMIT`  | u16    | Pagination: return at most this many records     |
 
-A request with `Field count = 0` is equivalent to a v1 listing request — the tracker returns all servers.
+A request with `Field count = 0` is equivalent to a v1 listing request - the tracker returns all servers.
 
 When `SEARCH_TEXT` is provided, the tracker returns only servers matching the search string as a case-insensitive substring. Trackers MUST match against all four of: the server **name**, its **description**, its **hostname** (`HOSTNAME`, when present) and its **published address** as rendered for display.
 
-The address fields are included because "which servers are on example.com" is an ordinary thing to want and there is no other way to ask it — every one of these values is already visible in the listing the client is filtering, so matching them discloses nothing new. They are a `MUST` rather than a `MAY` so that a client can rely on the behaviour: an optional search field is one a client cannot offer a user, since it would work against some trackers and silently return nothing against others.
+The address fields are included because "which servers are on example.com" is an ordinary thing to want and there is no other way to ask it - every one of these values is already visible in the listing the client is filtering, so matching them discloses nothing new. They are a `MUST` rather than a `MAY` so that a client can rely on the behaviour: an optional search field is one a client cannot offer a user, since it would work against some trackers and silently return nothing against others.
 
 Client-side filtering is adequate for more complex queries at typical tracker scales (fewer than a few hundred servers).
 
@@ -546,7 +550,7 @@ For hostname addresses, the address field is encoded as a 2-byte big-endian leng
 - Address type byte allows IPv4, IPv6, and hostname addresses in the same listing.
 - Name and description use 2-byte length prefixes (up to 65535 bytes).
 - TLV metadata block appended per record.
-- The v1 "Flags/Reserved" field is removed — its purpose is served by TLV metadata.
+- The v1 "Flags/Reserved" field is removed - its purpose is served by TLV metadata.
 
 ### Listing Response
 
@@ -555,13 +559,13 @@ The tracker responds with:
 | Offset | Size | Field          | Type     | Description                                |
 |--------|------|----------------|----------|--------------------------------------------|
 | 0      | 2    | Response type  | u16      | `0x0001` = server list                     |
-| 2      | 4    | Total size     | u32      | Total response payload size in bytes       |
+| 2      | 4    | Total size     | u32      | Size in bytes of the server records that follow this header (the header's 10 bytes are not counted) |
 | 6      | 2    | Total servers  | u16      | Total matching server count                |
 | 8      | 2    | Record count   | u16      | Number of server records in this message   |
 | 10     | var  | Server records | record[] | Serialized server records                  |
 
 **Key differences from v1:**
-- `Total size` is u32 (4 bytes) instead of u16 — supports larger response payloads.
+- `Total size` is u32 (4 bytes) instead of u16 - supports larger response payloads.
 - The response is a single logical message. TCP framing handles arbitrary sizes.
 
 ### Pagination
@@ -687,12 +691,24 @@ These fields convey content statistics about the server. They may be included by
 | 0x0454   | `LAST_NEWS_TIMESTAMP` | u32 | Unix timestamp of newest news article (`0` = never) |
 | 0x0455   | `LAST_CHAT_TIMESTAMP` | u32 | Unix timestamp of most recent **public-room** chat broadcast |
 
+**`TOTAL_FILE_SIZE` is 64-bit, and was widened from `u32` after implementation
+experience.** A 32-bit byte count tops out at 4,294,967,295 - **4 GiB** - which
+is not a large Hotline file server, it is a small one. The field was unusable as
+originally specified for anything but a trivial archive, and the two independent
+implementations that met it both routed around it rather than emitting a wrong
+value: one widened the field to 64 bits, the other kept 32 bits and silently
+changed the unit to mebibytes. Neither was wrong about the problem and neither
+could interoperate with the other.
+
 Implementations MUST send 8 bytes, big-endian, **in bytes**. A reader
 encountering a 4-byte value is talking to an implementation that predates this
-correction.
+correction; it MAY interpret it as a 32-bit byte count, but MUST NOT assume the
+megabyte convention, which was never specified and is not distinguishable on the
+wire from a small byte count.
 
 The three count fields (`0x0450`–`0x0452`) remain `u32`. Four billion articles,
-posts or files is a bound very few is going to reach.
+posts or files is a bound nobody is going to reach, and unlike a byte total it
+does not scale with disk prices.
 
 When injected by the tracker, these fields are populated from an external content indexing service and cached with a configurable TTL. When provided by the server in a v3 registration, the server-declared values are used unless the tracker has a more authoritative source.
 
@@ -744,7 +760,7 @@ Servers that have never broadcast a public chat message SHOULD omit the TLV (rat
 
 ### Tracker-Injected Fields
 
-These fields are set by the tracker, not by the registering server. They MUST NOT appear in registration datagrams — the tracker ignores them if received.
+These fields are set by the tracker, not by the registering server. They MUST NOT appear in registration datagrams - the tracker ignores them if received.
 
 | Field ID | Name               | Type | Description                                |
 |----------|--------------------|------|--------------------------------------------|
@@ -797,7 +813,7 @@ The tracker MAY issue a **registration token** (`REG_TOKEN`) in the acknowledgme
 3. Server includes the `REG_TOKEN` in subsequent heartbeats.
 4. Tracker validates the token before accepting heartbeat updates.
 
-**Graceful degradation:** If the server never receives the ack (packet loss, NAT issues), it continues sending heartbeats without a token. The tracker MUST accept tokenless heartbeats from the original source IP — the token enhances security but is not required for basic operation.
+**Graceful degradation:** If the server never receives the ack (packet loss, NAT issues), it continues sending heartbeats without a token. The tracker MUST accept tokenless heartbeats from the original source IP - the token enhances security but is not required for basic operation.
 
 ### Rate Limiting
 
@@ -865,7 +881,7 @@ Recommended log events (in addition to v1 recommendations):
 
 1. Continue sending v1 registrations to v1 trackers.
 2. For v3 trackers: set version to `0x0003`, append the extension magic `0x4833`, and include desired TLV metadata fields.
-3. Handle acknowledgment responses (optional — ignore if not needed).
+3. Handle acknowledgment responses (optional - ignore if not needed).
 4. Implement HMAC signing when the tracker requires it.
 5. Support explicit deregistration via `DEREGISTER` TLV.
 
@@ -925,17 +941,17 @@ Server → Tracker (UDP, 76 bytes):
   48 33                                 H3 magic (0x4833)
   00 03                                 Extension count = 3
 
-  TLV Field 1 — SERVER_SOFTWARE:
+  TLV Field 1 - SERVER_SOFTWARE:
   02 00                                 Field ID = 0x0200
   00 0A                                 Length = 10
   4A 61 6E 75 73 2F 33 2E 30 2E        "Janus/3.0."
 
-  TLV Field 2 — TAGS:
+  TLV Field 2 - TAGS:
   03 10                                 Field ID = 0x0310
   00 0A                                 Length = 10
   63 68 61 74 2C 72 65 74 72 6F        "chat,retro"
 
-  TLV Field 3 — SUPPORTS_HOPE:
+  TLV Field 3 - SUPPORTS_HOPE:
   03 01                                 Field ID = 0x0301
   00 01                                 Length = 1
   01                                    Value = true
@@ -953,13 +969,13 @@ Tracker → Server (UDP, 37 bytes):
   01 2C                                 Heartbeat interval = 300 seconds
   00 02                                 Extension count = 2
 
-  TLV Field 1 — REG_TOKEN:
+  TLV Field 1 - REG_TOKEN:
   08 00                                 Field ID = 0x0800
   00 10                                 Length = 16
   A1 B2 C3 D4 E5 F6 07 18              Token (16 random bytes)
   29 3A 4B 5C 6D 7E 8F 90
 
-  TLV Field 2 — TRACKER_NAME:
+  TLV Field 2 - TRACKER_NAME:
   08 11                                 Field ID = 0x0811
   00 05                                 Length = 5
   41 72 67 75 73                        "Argus"
@@ -988,12 +1004,12 @@ Server → Tracker (UDP, 42 bytes):
   48 33                                 H3 magic
   00 02                                 Extension count = 2
 
-  TLV Field 1 — DEREGISTER:
+  TLV Field 1 - DEREGISTER:
   00 10                                 Field ID = 0x0010
   00 01                                 Length = 1
   01                                    Value = true
 
-  TLV Field 2 — REG_TOKEN:
+  TLV Field 2 - REG_TOKEN:
   08 00                                 Field ID = 0x0800
   00 10                                 Length = 16
   A1 B2 C3 D4 E5 F6 07 18              Token received from ack
@@ -1010,12 +1026,12 @@ Client → Tracker (after handshake):
   00 01                                 Request type = 0x0001 (list servers)
   00 02                                 Field count = 2
 
-  TLV Field 1 — SEARCH_TEXT:
+  TLV Field 1 - SEARCH_TEXT:
   10 01                                 Field ID = 0x1001
   00 05                                 Length = 5
   72 65 74 72 6F                        "retro"
 
-  TLV Field 2 — PAGE_LIMIT:
+  TLV Field 2 - PAGE_LIMIT:
   10 11                                 Field ID = 0x1011
   00 02                                 Length = 2
   00 19                                 Value = 25
@@ -1045,17 +1061,17 @@ Tracker → Client:
   57 65 6C 63 6F 6D 65                  "Welcome"
   00 03                                 TLV count = 3
 
-  TLV Field 1 — SERVER_SOFTWARE:
+  TLV Field 1 - SERVER_SOFTWARE:
   02 00                                 Field ID = 0x0200
   00 0A                                 Length = 10
   4A 61 6E 75 73 2F 33 2E 30 2E        "Janus/3.0."
 
-  TLV Field 2 — TAGS:
+  TLV Field 2 - TAGS:
   03 10                                 Field ID = 0x0310
   00 0A                                 Length = 10
   63 68 61 74 2C 72 65 74 72 6F        "chat,retro"
 
-  TLV Field 3 — SUPPORTS_HOPE:
+  TLV Field 3 - SUPPORTS_HOPE:
   03 01                                 Field ID = 0x0301
   00 01                                 Length = 1
   01                                    true
@@ -1069,9 +1085,9 @@ Tracker → Client:
 
 | Constant            | Value       | Description                                |
 |---------------------|-------------|--------------------------------------------|
-| `HTRK_MAGIC`       | `0x4854524B` | ASCII `"HTRK"` — handshake magic          |
-| `H3_MAGIC`         | `0x4833`    | ASCII `"H3"` — v3 extension block magic    |
-| `HTFD_MAGIC`       | `0x48544644` | ASCII `"HTFD"` — federation magic         |
+| `HTRK_MAGIC`       | `0x4854524B` | ASCII `"HTRK"` - handshake magic          |
+| `H3_MAGIC`         | `0x4833`    | ASCII `"H3"` - v3 extension block magic    |
+| `HTFD_MAGIC`       | `0x48544644` | ASCII `"HTFD"` - federation magic         |
 | `TCP_PORT`         | `5498`      | Default TCP listing port                   |
 | `UDP_PORT`         | `5499`      | Default UDP registration port              |
 | `VERSION_V1`       | `0x0001`    | Protocol version 1                         |
@@ -1156,7 +1172,7 @@ Tracker → Client:
 | `0x0601` | `FIRST_SEEN`       | u32    | Tracker-injected | Tracker only   |
 | `0x0602` | `LAST_HEARTBEAT`   | u32    | Tracker-injected | Tracker only   |
 | `0x0603` | `VERIFIED_ONLINE`  | bool   | Tracker-injected | Tracker only   |
-| `0x0700`–`0x07FF` | *(reserved for Federation — see [Tracker-Federation.md](Tracker-Federation.md))* | — | Federation | Tracker (fed) |
+| `0x0700`–`0x07FF` | *(reserved for Federation - see [Tracker-Federation.md](Tracker-Federation.md))* | - | Federation | Tracker (fed) |
 | `0x0800` | `REG_TOKEN`        | bytes  | Security         | Tracker (ack)  |
 | `0x0801` | `HMAC_SHA256`      | bytes  | Security         | Server (reg)   |
 | `0x0802` | `NONCE`            | bytes  | Security         | Server (reg)   |
@@ -1176,6 +1192,6 @@ The following companion specifications extend v3 with optional capabilities. Eac
 
 | Specification | Document | Description | TLV Range |
 |---------------|----------|-------------|-----------|
-| Content Index | — | Content statistics (news, files, message boards) injected by a content indexing service | 0x0400–0x04FF |
-| Federation | [tracker-federation.md](Tracker-Federation.md) | HTFD protocol for tracker-to-tracker server list exchange with trust and identity controls | 0x0700–0x07FF |
-| HTTP/REST API | [tracker-http-api.md](Tracker-HTTP-API.md) | JSON API for programmatic read-only access to tracker data | — |
+| Content Index | - | Content statistics (news, files, message boards) injected by a content indexing service | 0x0400–0x04FF |
+| Federation | [Tracker-Federation.md](Tracker-Federation.md) | HTFD protocol for tracker-to-tracker server list exchange with trust and identity controls | 0x0700–0x07FF |
+| HTTP/REST API | [Tracker-HTTP-API.md](Tracker-HTTP-API.md) | JSON API for programmatic read-only access to tracker data | - |
