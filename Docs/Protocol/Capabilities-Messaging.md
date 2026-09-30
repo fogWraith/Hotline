@@ -205,6 +205,7 @@ These exist because the caps are configurable and every one of them is otherwise
 The values are advisory in the sense that the server still enforces them on every request - a client cannot gain anything by ignoring them - but clients SHOULD treat them as authoritative for pre-validation.
 
 - Clients MUST tolerate any of these fields being absent and fall back to the defaults in the table above. A server predating this section sends none of them.
+- The exceptions are the fields defined by the [Buddy Icons](Capabilities-Buddy-Icons.md) extension: the absence of `DATA_MAX_ICON_BYTES` (`0x0623`) means the server does not support buddy icons, and an absent `DATA_MAX_ICON_DIMENSION` (`0x0624`) means 64.
 - Servers MUST NOT advertise a value larger than they will accept. Advertising a *tighter* value than the live configuration is permitted, which is how an operator throttles clients ahead of a planned reduction.
 - Servers MUST NOT send these fields when `CAPABILITY_MESSAGING` was not confirmed.
 - A value of `0` means the corresponding cap is unlimited **only where the setting itself defines `0` that way** - `MaxSessionsPerLogin` is the sole such setting, and it is not advertised. For the three fields above, `0` is not a meaningful value and a client receiving one MUST use the default instead.
@@ -255,8 +256,10 @@ All transaction IDs are chosen from the free 800-block (`0x0320`+), which does n
 | 824 | `0x0338` | Set Friend Nickname | Client → Server | Set the caller's local alias for a friend |
 | 825 | `0x0339` | Get User Info | Client → Server | Read a Login's profile |
 | 826 | `0x033A` | Set User Info | Client → Server | Set the caller's own profile |
+| 827 | `0x033B` | Set Buddy Icon | Client → Server; Server → Client | Set or clear the caller's buddy icon; echoed as a notification to the caller's other sessions. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
+| 828 | `0x033C` | Get Buddy Icon | Client → Server | Fetch a friend's (or one's own) buddy icon. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 
-Transaction IDs 827–839 are reserved for future messaging growth.
+Transaction IDs 829–839 are reserved for future messaging growth.
 
 ---
 
@@ -295,11 +298,15 @@ All fields are carried using standard Hotline field framing. Field IDs are chose
 | `0x061A` | 1562 | `DATA_PROFILE_COUNTRY` | String | ISO 3166-1 alpha-2 |
 | `0x061B` | 1563 | `DATA_PROFILE_POSTCODE` | String | Post/ZIP code |
 | `0x061C` | 1564 | `DATA_PROFILE_LANGUAGE` | String | ISO 639-1; **repeated**, at most 3 |
+| `0x061D` | 1565 | `DATA_BUDDY_ICON` | Binary (≤ 65535) | An account's buddy icon: GIF, PNG or JPEG bytes. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
+| `0x061E` | 1566 | `DATA_BUDDY_ICON_HASH` | Binary (16) | First 16 bytes of the SHA-256 of the stored icon. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 | `0x0620` | 1568 | `DATA_MAX_MESSAGE_BYTES` | UInt32 | Server's effective `Messaging.MaxMessageBytes`. Login reply only |
 | `0x0621` | 1569 | `DATA_MAX_ROSTER_SIZE` | UInt32 | Server's effective `Messaging.MaxRosterSize`. Login reply only |
 | `0x0622` | 1570 | `DATA_MAX_OFFLINE_QUEUE` | UInt32 | Server's effective `Messaging.MaxOfflinePerRecipient`. Login reply only |
+| `0x0623` | 1571 | `DATA_MAX_ICON_BYTES` | UInt32 | Server's effective `Messaging.MaxIconBytes`, never above 65535. Login reply only; absent when buddy icons are not supported. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
+| `0x0624` | 1572 | `DATA_MAX_ICON_DIMENSION` | UInt32 | Server's effective `Messaging.MaxIconDimension`, never below 64. Login reply only. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 
-Field IDs `0x061D`–`0x061F` are reserved for future messaging fields, and `0x0623`–`0x0627` for further server limits. The limits are given their own sub-block rather than the next free general IDs because there are only three of those left, and a server's configurable caps are the category most likely to grow.
+Field ID `0x061F` is reserved for a future messaging field, and `0x0625`–`0x0627` for further server limits. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension.
 
 Existing fields reused by this extension: `FieldUserID` (103), `FieldUserName` (102), the `FieldFile*` family (200–213) for file metadata in offers, and the `FieldVoice*` family (`0x01F5`–`0x01F9`) for SDP/ICE during a call.
 
@@ -378,7 +385,8 @@ repeat count times:
 | 10 | `RateLimited` | Caller exceeded a per-account rate limit |
 | 11 | `NotDiscoverable` | Target is unlisted; not returned by directory search |
 | 12 | `RosterFull` | Caller's roster is at `MaxRosterSize`, counting entries in every state - a roster can be full of people the caller has blocked |
-| 13 | `MessageTooLong` | Encoded body exceeds `MaxMessageBytes` |
+| 13 | `MessageTooLong` | Encoded body exceeds `MaxMessageBytes`, or a buddy icon exceeds `MaxIconBytes` |
+| 14 | `InvalidImage` | A buddy icon is not an accepted format, cannot be decoded, or exceeds the server's dimension or frame limits (see [Buddy Icons](Capabilities-Buddy-Icons.md)) |
 
 `MessageTooLong` exists because it is the one refusal a client can act on precisely: it knows exactly which message was rejected and can offer to split or trim it, where a generic failure leaves it able only to report that something went wrong. Servers predating this code return a failure with `FieldError` text and no reason code, so clients MUST treat an oversize body as rejected on the error code alone and use the reason code only to improve the message they show.
 
@@ -386,10 +394,10 @@ repeat count times:
 
 ## Transaction Semantics
 
-This extension uses standard Hotline transaction framing (see [Hotline.md](Hotline.md)). Two patterns are used, following the convention established by the voice extension:
+This extension uses standard Hotline transaction framing (see [Hotline.md](../Hotline.md)). Two patterns are used, following the convention established by the voice extension:
 
-- **Request/reply** (800, 802, 803, 805, 806, 807, 808, 810, 812, 822, 823, 824, 825, 826): the client sends with a unique non-zero task ID and the *is-reply* flag unset; the server replies with the same task ID and the *is-reply* flag set. A server MAY leave the reply's *type* field zero - the reference server does - so clients MUST match a reply to its request by task ID and MUST NOT key off the reply's type.
-- **Server-initiated notification** (801, 804, 809, 811, and the relayed halves of 814–821): the server sends asynchronously with task ID `0` and the *is-reply* flag unset. The client does not reply at the transaction layer; application-level acknowledgement (where required) is a separate transaction (e.g. 812).
+- **Request/reply** (800, 802, 803, 805, 806, 807, 808, 810, 812, 822, 823, 824, 825, 826, 827, 828): the client sends with a unique non-zero task ID and the *is-reply* flag unset; the server replies with the same task ID and the *is-reply* flag set. A server MAY leave the reply's *type* field zero - the reference server does - so clients MUST match a reply to its request by task ID and MUST NOT key off the reply's type.
+- **Server-initiated notification** (801, 804, 809, 811, the relayed halves of 814–821, and the 827 echo to a caller's other sessions): the server sends asynchronously with task ID `0` and the *is-reply* flag unset. The client does not reply at the transaction layer; application-level acknowledgement (where required) is a separate transaction (e.g. 812).
 
 All multi-byte integers are big-endian. Clients MUST ignore unrecognised fields and MUST NOT reject a transaction solely because it carries unknown fields.
 
@@ -418,11 +426,13 @@ Within an `Accepted` entry the four are not gated alike:
 - `DATA_PRESENCE_STATE` and `DATA_FRIEND_CAPABILITIES` describe a *live session*, so both are omitted for a friend who is offline or `Invisible`.
 - `DATA_PRESENCE_STATUS_TEXT` and `FieldUserName` are stored against the *account*, so a server MUST send them whenever it holds a value, whether or not that friend is present. They are the two things about a friend that outlive the session.
 
+A server that supports [Buddy Icons](Capabilities-Buddy-Icons.md) adds a third: `DATA_BUDDY_ICON_HASH` is account state too, and follows the same rule.
+
 **A server MUST include the status text it holds for each accepted friend.** [Presence Changed (809)](#presence-changed-809) is not sufficient on its own: it fires when the status *owner* changes something, so it reaches whoever is signed in at that moment and nobody else. A friend who signs in afterwards has already missed it, and the next 809 may never come - a status set once and left alone generates no further traffic. The roster snapshot is the only point at which such a client can learn the current text, so a server that omits it here leaves the status permanently invisible to everyone who was not online when it was set.
 
 **Request fields:** none.
 
-**Reply fields (repeated per entry):** `DATA_FRIEND_LOGIN`, `DATA_FRIEND_NICKNAME` (optional), `DATA_ROSTER_STATE`, `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional - the name the friend goes by; see [Display name precedence](#display-name-precedence)).
+**Reply fields (repeated per entry):** `DATA_FRIEND_LOGIN`, `DATA_FRIEND_NICKNAME` (optional), `DATA_ROSTER_STATE`, `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional - the name the friend goes by; see [Display name precedence](#display-name-precedence)), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)).
 
 Because Hotline transactions carry a flat field list, repeated entries are delimited by `DATA_FRIEND_LOGIN`: every field following a `DATA_FRIEND_LOGIN`, up to the next `DATA_FRIEND_LOGIN` (or the end of the transaction), belongs to that entry. `DATA_FRIEND_LOGIN` therefore MUST be the first field of each entry. This governs the **reused** fields too - `FieldUserName` (102) inside an entry is that entry's friend's name. A client that scans the whole transaction for field 102 instead of the current group gives one friend's name to every row in the list. The same delimiting rule governs the repeated results of [User Search (823)](#user-search-823). A server MAY instead deliver the snapshot as a sequence of individual [Roster Entry (801)](#roster-entry-801) notifications following the reply; clients MUST accept either form.
 
@@ -430,7 +440,7 @@ Because Hotline transactions carry a flat field list, repeated entries are delim
 
 Server-initiated notification carrying a single roster delta: an addition, a relationship-state change, a presence change, or a removal. A removal is encoded with `DATA_ROSTER_STATE` = `Removed` (value `0`) and only `DATA_FRIEND_LOGIN`.
 
-**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_ROSTER_STATE` (REQUIRED), `DATA_FRIEND_NICKNAME` (optional), `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional).
+**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_ROSTER_STATE` (REQUIRED), `DATA_FRIEND_NICKNAME` (optional), `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)).
 
 #### An entry group is complete, not incremental
 
@@ -591,7 +601,7 @@ The simplest conforming client always sends the field, empty when the user has n
 
 Server-initiated notification sent to a client when one of its accepted friends changes presence (including going online/offline). A friend who has disconnected or is in the `Invisible` state is reported with `DATA_PRESENCE_STATE` = `Offline` (`0`), so the two are indistinguishable to the recipient. Presence is aggregated across the friend's sessions: the reported state is the most-available session's (online > busy > away), and `Offline` only when no session is visible.
 
-**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_PRESENCE_STATE` (REQUIRED), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional).
+**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_PRESENCE_STATE` (REQUIRED), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)).
 
 `DATA_FRIEND_CAPABILITIES` follows the rule for roster entries: it describes a live session, so it MUST be omitted whenever the reported state is `Offline` - including for a friend who is `Invisible`.
 
@@ -828,7 +838,7 @@ Request/reply. Reads a Login's profile.
 
 **Request fields:** `DATA_FRIEND_LOGIN` (REQUIRED).
 
-**Reply fields:** `DATA_FRIEND_LOGIN` and `FieldUserName` always; plus `DATA_FRIEND_CAPABILITIES` and the `DATA_PROFILE_*` fields when the caller is an accepted friend (or is the subject), or `DATA_REASON_CODE` = `NotFriends` when not. Servers MUST rate-limit this alongside the other discovery transactions.
+**Reply fields:** `DATA_FRIEND_LOGIN` and `FieldUserName` always; plus `DATA_FRIEND_CAPABILITIES`, the `DATA_PROFILE_*` fields and `DATA_BUDDY_ICON_HASH` (see [Buddy Icons](Capabilities-Buddy-Icons.md)) when the caller is an accepted friend (or is the subject), or `DATA_REASON_CODE` = `NotFriends` when not. Servers MUST rate-limit this alongside the other discovery transactions.
 
 ### Set User Info (826)
 
@@ -856,7 +866,7 @@ Results carry no profile detail whatsoever: finding someone is not the same as b
 
 This section is informative; the on-disk representation is a server implementation detail. A conforming server MUST persist the friend graph and undelivered messages across restarts. Presence, typing, calls, and in-flight transfers are live-only.
 
-A server SHOULD also persist, per account: the discovery preference (`DATA_DISCOVERABLE`), the published [profile](#user-profiles), and the last self-set status text, restoring them on login.
+A server SHOULD also persist, per account: the discovery preference (`DATA_DISCOVERABLE`), the published [profile](#user-profiles), the last self-set status text, and the buddy icon with its hash (see [Buddy Icons](Capabilities-Buddy-Icons.md)), restoring them on login.
 
 Three account-lifecycle events reach into the friend graph, and each MUST leave it consistent:
 
