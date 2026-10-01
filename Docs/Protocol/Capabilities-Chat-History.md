@@ -2,9 +2,9 @@
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
-This document describes the chat history extension to the Hotline protocol. It adds server-side persistence of chat messages with cursor-based pagination, allowing clients to retrieve historical messages in batches — similar to how Discord loads channel history as a user scrolls. The extension is entirely optional for both server and client, uses the standard capability negotiation mechanism, and is designed to be storage-agnostic so that any Hotline server implementation can adopt it regardless of backend technology.
+This document describes the chat history extension to the Hotline protocol. It adds server-side persistence of chat messages with cursor-based pagination, allowing clients to retrieve historical messages in batches - similar to how Discord loads channel history as a user scrolls. The extension is entirely optional for both server and client, uses the standard capability negotiation mechanism, and is designed to be storage-agnostic so that any Hotline server implementation can adopt it regardless of backend technology.
 
-For the general capability negotiation mechanism, see [DATA_CAPABILITIES](https://github.com/fogWraith/Hotline/blob/main/Docs/Protocol/Capabilities.md).
+For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
 ## Table of Contents
 
@@ -48,7 +48,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](https:
 
 ## Background
 
-The standard Hotline protocol treats chat as a real-time stream — messages are broadcast to connected clients and then forgotten. A user who connects to a busy server sees nothing before their arrival. If they disconnect and reconnect, the conversation is gone.
+The standard Hotline protocol treats chat as a real-time stream - messages are broadcast to connected clients and then forgotten. A user who connects to a busy server sees nothing before their arrival. If they disconnect and reconnect, the conversation is gone.
 
 Some clients (notably Hotline Navigator) compensate by storing chat history locally in an encrypted vault. This works for a single device, but the history is invisible to other clients, other devices, and new installations. There is no shared record of the conversation.
 
@@ -57,7 +57,7 @@ The chat history extension moves persistence to the server. When enabled, the se
 The extension is designed with three priorities:
 
 1. **Backward compatibility.** Clients that do not support chat history see no change. The live chat broadcast path (`TRAN_CHAT_MSG`, type 106) is completely unchanged.
-2. **Adoption simplicity.** The wire protocol follows established Hotline patterns — TLV fields, packed binary entries, capability bitmask negotiation. The spec does not prescribe a storage backend, so implementers can use SQLite, flat files, or anything else.
+2. **Adoption simplicity.** The wire protocol follows established Hotline patterns - TLV fields, packed binary entries, capability bitmask negotiation. The spec does not prescribe a storage backend, so implementers can use SQLite, flat files, or anything else.
 3. **Future extensibility.** The entry format includes a mini-TLV mechanism for optional sub-fields, and the channel ID namespace reserves space for Discord-style named channels in a future version.
 
 ---
@@ -68,10 +68,10 @@ The extension is designed with three priorities:
 
 Hotline has two kinds of multi-user conversation:
 
-- **Public chat** — a single global room that all connected users share. Messages are broadcast to everyone with read-chat permission.
-- **Private chats** — ephemeral rooms created on the fly via invitation. They have a 4-byte chat ID, and they vanish when the last member leaves.
+- **Public chat** - a single global room that all connected users share. Messages are broadcast to everyone with read-chat permission.
+- **Private chats** - ephemeral rooms created on the fly via invitation. They have a 4-byte chat ID, and they vanish when the last member leaves.
 
-This extension introduces a third concept: **channels**. A channel is a persistent, named conversation space — like a Discord channel. Channel 0 is always the public chat. Channels 1+ are reserved for future named channels (e.g., `#general`, `#dev`, `#music`).
+This extension introduces a third concept: **channels**. A channel is a persistent, named conversation space - like a Discord channel. Channel 0 is always the public chat. Channels 1+ are reserved for future named channels (e.g., `#general`, `#dev`, `#music`).
 
 Channels and private chats use **separate ID namespaces** to avoid ambiguity:
 
@@ -81,7 +81,7 @@ Channels and private chats use **separate ID namespaces** to avoid ambiguity:
 | Named channels (future) | `DATA_CHANNEL_ID` = 1+ | Permanent | Server-side (this extension) |
 | Private chats | `DATA_CHATID` (0x0072) | Ephemeral | Client-side only |
 
-The distinction is intentional. Private chats carry an expectation of transience — users pull others aside for a temporary conversation. Server-side logging of those conversations would violate that expectation. See [Private Chat Privacy](#private-chat-privacy).
+The distinction is intentional. Private chats carry an expectation of transience - users pull others aside for a temporary conversation. Server-side logging of those conversations would violate that expectation. See [Private Chat Privacy](#private-chat-privacy).
 
 ### Cursor-Based Pagination
 
@@ -93,22 +93,22 @@ This approach has several advantages over offset-based pagination (page 1, page 
 - **Efficient for append-heavy workloads.** The server can use the cursor to seek directly to the right position, regardless of storage backend.
 - **Stateless.** The server doesn't track where each client is in their scroll position. The cursor in each request is self-contained.
 
-Clients maintain cursors locally — typically by remembering the message ID of the oldest or newest message they've seen, and using it as the cursor in the next request.
+Clients maintain cursors locally - typically by remembering the message ID of the oldest or newest message they've seen, and using it as the cursor in the next request.
 
 ### Message IDs
 
-Every persisted message receives a **message ID** — a 64-bit unsigned integer assigned by the server. The only guarantee is that IDs are **monotonically increasing**: a newer message always has a higher ID than an older one.
+Every persisted message receives a **message ID** - a 64-bit unsigned integer assigned by the server. The only guarantee is that IDs are **monotonically increasing**: a newer message always has a higher ID than an older one.
 
-Message IDs are **opaque**. Clients MUST NOT interpret their values — they could be sequential counters, timestamp-derived snowflakes, or any other scheme. Different server implementations will use different generation strategies. The client's only valid operations on a message ID are:
+Message IDs are **opaque**. Clients MUST NOT interpret their values - they could be sequential counters, timestamp-derived snowflakes, or any other scheme. Different server implementations will use different generation strategies. The client's only valid operations on a message ID are:
 
 - Comparing two IDs to determine relative ordering (higher = newer)
 - Passing an ID back to the server as a pagination cursor
 
 ### Legacy Broadcast
 
-When a client connects without advertising chat history support (bit 4 not set), the server MAY still send recent messages — but using the existing `TRAN_CHAT_MSG` (106) transactions. To the client, these look identical to live chat messages. This is the "legacy broadcast" path.
+When a client connects without advertising chat history support (bit 4 not set), the server MAY still send recent messages - but using the existing `TRAN_CHAT_MSG` (106) transactions. To the client, these look identical to live chat messages. This is the "legacy broadcast" path.
 
-The legacy broadcast is entirely implementation-defined — the server decides whether to send it, how many messages to include, and when to send them. Some clients (like Hotline Navigator) have heuristics to detect and label these replayed messages. Other clients will simply display them as if 30 people all typed at once.
+The legacy broadcast is entirely implementation-defined - the server decides whether to send it, how many messages to include, and when to send them. Some clients (like Hotline Navigator) have heuristics to detect and label these replayed messages. Other clients will simply display them as if 30 people all typed at once.
 
 This is a pragmatic bridge, not a first-class feature. Clients that want a good history experience should implement the full extension.
 
@@ -122,7 +122,7 @@ This is a pragmatic bridge, not a first-class feature. Clients that want a good 
 |---|---|---|---|
 | 4 | `0x0010` | `CAPABILITY_CHAT_HISTORY` | Client supports server-side chat history retrieval |
 
-This bit is defined in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](https://github.com/fogWraith/Hotline/blob/main/Docs/Protocol/Capabilities.md) for the general negotiation flow.
+This bit is defined in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities.md) for the general negotiation flow.
 
 **Negotiation:**
 
@@ -130,7 +130,7 @@ This bit is defined in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DA
 2. Server checks its configuration. If chat history is enabled, it echoes bit 4 in the login reply.
 3. If the server does not echo bit 4, chat history is unavailable. The client MUST NOT send `TRAN_GET_CHAT_HISTORY` (700) transactions.
 
-Clients that do not set bit 4 are unaffected — they participate in live chat normally and never receive history-related fields.
+Clients that do not set bit 4 are unaffected - they participate in live chat normally and never receive history-related fields.
 
 When multiple extensions are active (e.g., large files + text encoding + chat history), the capability bitmask combines the bits: `0x0013` = bits 0, 1, and 4.
 
@@ -143,7 +143,7 @@ The server MAY include retention policy hints in the login reply alongside the e
 | `DATA_HISTORY_MAX_MSGS` | `0x0F07` | uint32 | Maximum number of messages the server retains. `0` = unlimited. |
 | `DATA_HISTORY_MAX_DAYS` | `0x0F08` | uint32 | Maximum number of days the server retains messages. `0` = unlimited. |
 
-These fields are **informational only**. They tell the client what the server's retention policy is — not how many messages currently exist. A server configured for "30 days" might have only 2 days of history if it was recently set up.
+These fields are **informational only**. They tell the client what the server's retention policy is - not how many messages currently exist. A server configured for "30 days" might have only 2 days of history if it was recently set up.
 
 Clients MAY use these values for UI hints (e.g., "This server keeps 30 days of chat history") but MUST NOT depend on them for correctness. The authoritative signal for "no more messages" is `DATA_HISTORY_HAS_MORE = 0` in a Get Chat History reply.
 
@@ -178,7 +178,7 @@ All new data objects use field IDs in the `0x0F01`–`0x0F1F` range, following t
 | `0x0F06` | 3846 | `DATA_HISTORY_HAS_MORE` | uint8 | `1` if more messages exist beyond this batch, `0` otherwise. |
 | `0x0F07` | 3847 | `DATA_HISTORY_MAX_MSGS` | uint32 | Server retention policy: maximum messages. `0` = unlimited. Login reply only. |
 | `0x0F08` | 3848 | `DATA_HISTORY_MAX_DAYS` | uint32 | Server retention policy: maximum days. `0` = unlimited. Login reply only. |
-| `0x0F09`–`0x0F1F` | 3849–3871 | *Reserved* | — | Reserved for future channel management fields (e.g., channel name, topic, channel list entries). |
+| `0x0F09`–`0x0F1F` | 3849–3871 | *Reserved* | - | Reserved for future channel management fields (e.g., channel name, topic, channel list entries). |
 
 ---
 
@@ -187,11 +187,11 @@ All new data objects use field IDs in the `0x0F01`–`0x0F1F` range, following t
 | ID | Name | Direction | Description |
 |---|---|---|---|
 | 700 | Get Chat History | Client → Server | Request a batch of historical messages |
-| 701 | *Get Chat History Info* | — | Reserved: query channel listing, metadata, or retention details |
-| 702 | *Channel Management* | — | Reserved: create, delete, or modify named channels |
-| 703 | *Delete Chat History Message* | — | Reserved: administrator removal of a message (tombstone) |
-| 704 | *Edit Chat History Message* | — | Reserved: administrator or user editing of a message |
-| 705–709 | *Unassigned* | — | Reserved: future chat history extensions |
+| 701 | *Get Chat History Info* | - | Reserved: query channel listing, metadata, or retention details |
+| 702 | *Channel Management* | - | Reserved: create, delete, or modify named channels |
+| 703 | *Delete Chat History Message* | - | Reserved: administrator removal of a message (tombstone) |
+| 704 | *Edit Chat History Message* | - | Reserved: administrator or user editing of a message |
+| 705–709 | *Unassigned* | - | Reserved: future chat history extensions |
 
 Transaction IDs 700–709 are chosen to avoid collision with existing Hotline transaction types (base protocol: 101–355, keepalive: 500, voice: 600–606, GIF icons: 1861–1864).
 
@@ -222,10 +222,10 @@ oldest                                              newest
 
 | Cursor(s) Present | Behaviour | Typical Use Case |
 |---|---|---|
-| Neither | Return the most recent messages (up to limit) | Initial load — "show me what's been happening" |
-| `BEFORE` only | Messages older than the cursor | Scrolling back — "show me older messages" |
-| `AFTER` only | Messages newer than the cursor | Catching up — "what did I miss since I was last here?" |
-| Both | Messages in the range (AFTER, BEFORE) | Range query — "fill in this gap in my local cache" |
+| Neither | Return the most recent messages (up to limit) | Initial load - "show me what's been happening" |
+| `BEFORE` only | Messages older than the cursor | Scrolling back - "show me older messages" |
+| `AFTER` only | Messages newer than the cursor | Catching up - "what did I miss since I was last here?" |
+| Both | Messages in the range (AFTER, BEFORE) | Range query - "fill in this gap in my local cache" |
 
 ```
 Example: BEFORE=600, AFTER=200, LIMIT=50
@@ -244,7 +244,7 @@ Example: BEFORE=600, AFTER=200, LIMIT=50
 | History Entry | `0x0F05` | binary | Repeated (0–N) | One field per message, packed binary. See [History Entry Format](#history-entry-format). |
 | Has More | `0x0F06` | uint8 | Yes | `1` if more messages exist beyond this batch, `0` otherwise. |
 
-Reply entries are always ordered **oldest-first** (ascending message ID) regardless of which cursor was used. This simplifies client rendering — messages can be appended directly to the chat view in the order received.
+Reply entries are always ordered **oldest-first** (ascending message ID) regardless of which cursor was used. This simplifies client rendering - messages can be appended directly to the chat view in the order received.
 
 If no messages match the query, the reply contains zero `DATA_HISTORY_ENTRY` fields and `DATA_HISTORY_HAS_MORE` = 0.
 
@@ -257,7 +257,7 @@ If no messages match the query, the reply contains zero `DATA_HISTORY_ENTRY` fie
 | `AFTER` only | Newer messages exist after the newest returned entry |
 | Both cursors (range) | More messages exist within the specified range |
 
-**Limit clamping:** Servers MAY enforce a maximum limit (e.g., 200) regardless of the client's requested value. When the server reduces the limit, it simply returns fewer entries than requested — no error is raised. Clients MUST NOT assume the number of returned entries equals their requested limit; always check `DATA_HISTORY_HAS_MORE`.
+**Limit clamping:** Servers MAY enforce a maximum limit (e.g., 200) regardless of the client's requested value. When the server reduces the limit, it simply returns fewer entries than requested - no error is raised. Clients MUST NOT assume the number of returned entries equals their requested limit; always check `DATA_HISTORY_HAS_MORE`.
 
 **Error conditions:**
 
@@ -271,7 +271,7 @@ If no messages match the query, the reply contains zero `DATA_HISTORY_ENTRY` fie
 
 ## History Entry Format
 
-Each `DATA_HISTORY_ENTRY` (field `0x0F05`) contains a single chat message in packed binary format. The format follows the same conventions as other packed structures in the Hotline protocol (e.g., `DATA_FILE_NAME_WITH_INFO`, user info payloads) — fixed-size header fields followed by length-prefixed variable data.
+Each `DATA_HISTORY_ENTRY` (field `0x0F05`) contains a single chat message in packed binary format. The format follows the same conventions as other packed structures in the Hotline protocol (e.g., `DATA_FILE_NAME_WITH_INFO`, user info payloads) - fixed-size header fields followed by length-prefixed variable data.
 
 ### Fixed Fields
 
@@ -307,32 +307,54 @@ Each sub-field is encoded as:
 
 Clients determine whether sub-fields exist by comparing bytes consumed against the field's total data length (known from the outer TLV field header). If bytes remain after parsing the message body, those bytes are sub-fields.
 
-**Parsing rule:** Clients MUST skip sub-fields with unrecognised Sub-Type values, using Sub-Length to advance to the next sub-field. This ensures forward compatibility — a v1 client safely ignores v2 sub-fields.
+**Parsing rule:** Clients MUST skip sub-fields with unrecognised Sub-Type values, using Sub-Length to advance to the next sub-field. This ensures forward compatibility - a v1 client safely ignores v2 sub-fields.
 
-**No sub-field types are defined in this version.** The mechanism is reserved for future use. Possible future sub-fields include:
+#### Allocated sub-field types
+
+| Sub-Type | Name | Size | Description |
+|---|---|---|---|
+| `0x0010` | `MEDIA_HANDLE` | variable | UTF-8 handle of an inline-media attachment - see the [inline media extension](Capabilities-Inline-Media.md) |
+| `0x0011` | `MEDIA_MIME` | variable | UTF-8 MIME type of the attachment |
+| `0x0012` | `MEDIA_WIDTH` | 4 | uint32 pixel width, omitted when unknown |
+| `0x0013` | `MEDIA_HEIGHT` | 4 | uint32 pixel height, omitted when unknown |
+| `0x0014` | `MEDIA_BYTES` | 4 | uint32 size of the attachment in bytes |
+
+These carry an inline-media attachment alongside a persisted message, so a
+client scrolling back through history sees the image rather than a gap where
+one was. They are sent **only** to a recipient that negotiated
+`CAPABILITY_INLINE_MEDIA`; a recipient without it receives the entry with
+`[image]` substituted for an otherwise-empty message body, which is what makes
+the attachment degrade rather than vanish.
+
+Ranges: `0x0001`–`0x000F` are reserved for core chat-history sub-fields,
+`0x0010`–`0x001F` for the inline-media extension. Sub-types outside a range a
+reader knows are skipped by Sub-Length, per the parsing rule above.
+
+#### Proposed, not allocated
+
+The following are illustrative of what the mechanism is for. They are **not**
+commitments and nothing should emit them:
 
 | Sub-Type (proposed) | Name | Size | Description |
 |---|---|---|---|
-| `0x0001` | Nick Color | 4 | `0x00RRGGBB` — sender's nickname color |
+| `0x0001` | Nick Color | 4 | `0x00RRGGBB` - sender's nickname color |
 | `0x0002` | Reply-To ID | 8 | Message ID of the message being replied to |
 | `0x0003` | Account Login | variable | The sender's account login name (vs display nick) |
-
-These are illustrative examples, not commitments. Actual sub-field types will be defined in future revisions of this specification.
 
 ### Flags
 
 | Bit | Mask | Name | Description |
 |---|---|---|---|
-| 0 | `0x0001` | `is_action` | Message was a `/me` emote (displayed as `*** nick does something`). Corresponds to `DATA_CHATOPTIONS` (`0x006E`) value `1` on the live chat path — the server sets this flag when recording an emote. |
+| 0 | `0x0001` | `is_action` | Message was a `/me` emote (displayed as `*** nick does something`). Corresponds to `DATA_CHATOPTIONS` (`0x006E`) value `1` on the live chat path - the server sets this flag when recording an emote. |
 | 1 | `0x0002` | `is_server_msg` | Message originated from the server (e.g., admin broadcast), not a user. |
 | 2 | `0x0004` | `is_deleted` | Message has been removed by an administrator (tombstone). See below. |
-| 3–15 | — | *Reserved* | MUST be zero. Clients MUST ignore unknown flag bits. |
+| 3–15 | - | *Reserved* | MUST be zero. Clients MUST ignore unknown flag bits. |
 
-**Tombstoned entries** (bit 2 set): The message has been deleted by an administrator. The `message_id` and `timestamp` are preserved — this is critical for cursor stability, as removing entries entirely would break pagination for clients mid-scroll. The `nick` and `message` fields MAY have zero length. Clients SHOULD display a placeholder such as "[message removed]" and SHOULD NOT attempt to recover or display the original content.
+**Tombstoned entries** (bit 2 set): The message has been deleted by an administrator. The `message_id` and `timestamp` are preserved - this is critical for cursor stability, as removing entries entirely would break pagination for clients mid-scroll. The `nick` and `message` fields MAY have zero length. Clients SHOULD display a placeholder such as "[message removed]" and SHOULD NOT attempt to recover or display the original content.
 
 ### Text Encoding
 
-The `nick` and `message` fields are encoded in the text encoding negotiated for the requesting connection — either Mac Roman or UTF-8, matching the `CAPABILITY_TEXT_ENCODING` (bit 1) negotiation.
+The `nick` and `message` fields are encoded in the text encoding negotiated for the requesting connection - either Mac Roman or UTF-8, matching the `CAPABILITY_TEXT_ENCODING` (bit 1) negotiation.
 
 Servers store messages in their internal encoding and transcode on retrieval, exactly as they do for live `TRAN_CHAT_MSG` (106) broadcasts. A UTF-8 client receives UTF-8 history entries; a Mac Roman client receives Mac Roman entries, regardless of what encoding the original sender used.
 
@@ -389,11 +411,11 @@ function parse_history_entry(data, data_len):
 
 ### Channel 0: Public Chat
 
-Channel 0 is the public chat room — the same global conversation that `TRAN_CHAT_MSG` (106) broadcasts to. Every server that enables chat history MUST support channel 0.
+Channel 0 is the public chat room - the same global conversation that `TRAN_CHAT_MSG` (106) broadcasts to. Every server that enables chat history MUST support channel 0.
 
 When a client sends `TRAN_GET_CHAT_HISTORY` with `DATA_CHANNEL_ID = 0`, the server returns history for the public chat.
 
-**Note:** The existing live chat broadcast (`TRAN_CHAT_MSG`, type 106) does not carry a `DATA_CHANNEL_ID` field — it implicitly targets channel 0. If a future specification introduces named channels, the broadcast path will need to include `DATA_CHANNEL_ID` so that capable clients can associate incoming messages with the correct channel.
+**Note:** The existing live chat broadcast (`TRAN_CHAT_MSG`, type 106) does not carry a `DATA_CHANNEL_ID` field - it implicitly targets channel 0. If a future specification introduces named channels, the broadcast path will need to include `DATA_CHANNEL_ID` so that capable clients can associate incoming messages with the correct channel.
 
 ### Named Channels (Future)
 
@@ -410,7 +432,7 @@ The reserved transaction types 701–702 and field IDs `0x0F09`–`0x0F1F` are i
 
 ### Private Chat Privacy
 
-Ephemeral private chats (those created via `TRAN_INVITE_NEW_CHAT` and identified by `DATA_CHATID` / `0x0072`) carry an expectation of privacy. When a user creates a private chat, they are pulling others aside for a transient conversation — like a meeting room with a whiteboard that gets erased when everyone leaves.
+Ephemeral private chats (those created via `TRAN_INVITE_NEW_CHAT` and identified by `DATA_CHATID` / `0x0072`) carry an expectation of privacy. When a user creates a private chat, they are pulling others aside for a transient conversation - like a meeting room with a whiteboard that gets erased when everyone leaves.
 
 **Servers MUST NOT persist chat history for ephemeral private chats.** This is a deliberate design constraint, not an implementation shortcut. Server-side logging of private conversations would violate the trust model that Hotline users expect.
 
@@ -422,16 +444,16 @@ Clients MAY store private chat history locally at the user's discretion. This is
 
 | Bit | Name | Description |
 |---|---|---|
-| 56 | `accessReadChatHistory` | User may request chat history via Get Chat History (700) |
+| 56 | `AccessReadChatHistory` | User may request chat history via Get Chat History (700) |
 
-Bit 56 is the next available bit after `accessVoiceChat` (bit 55).
+Bit 56 is the next available bit after `AccessVoiceChat` (bit 55).
 
 **Behaviour:**
 
 - Servers SHOULD check bit 56 when processing `TRAN_GET_CHAT_HISTORY`. If the bit is not set, the server replies with an error.
-- If the server's access system does not assign semantic meaning to bit 56 (e.g., older server implementations or account schemas that predate this extension), the server SHOULD fall back to checking `ACCESS_READ_CHAT` (bit 9) — the standard chat read permission.
+- If the server's access system does not assign semantic meaning to bit 56 (e.g., older server implementations or account schemas that predate this extension), the server SHOULD fall back to checking `ACCESS_READ_CHAT` (bit 9) - the standard chat read permission.
 - The fallback ensures that simple implementations can reuse the existing permission, while servers with granular access control can differentiate "can read live chat" from "can read history."
-- The `CAPABILITY_CHAT_HISTORY` bit (bit 4 in `DATA_CAPABILITIES`) is still echoed in the login reply regardless of the user's privilege — the capability indicates server support, not user permission. This allows clients to display a history UI in a disabled state (e.g., "Chat history requires permission") rather than hiding it entirely.
+- The `CAPABILITY_CHAT_HISTORY` bit (bit 4 in `DATA_CAPABILITIES`) is still echoed in the login reply regardless of the user's privilege - the capability indicates server support, not user permission. This allows clients to display a history UI in a disabled state (e.g., "Chat history requires permission") rather than hiding it entirely.
 
 ---
 
@@ -446,7 +468,7 @@ The following details are entirely **implementation-defined**:
 - When to send them (e.g., after the client requests the user list, indicating it's "ready")
 - How to format them (whether to embed timestamps in the message text, whether to include delimiters like "--- Chat History ---")
 
-Servers SHOULD NOT send legacy broadcasts to clients that have negotiated `CAPABILITY_CHAT_HISTORY` — those clients will use `TRAN_GET_CHAT_HISTORY` (700) to retrieve history at their own pace.
+Servers SHOULD NOT send legacy broadcasts to clients that have negotiated `CAPABILITY_CHAT_HISTORY` - those clients will use `TRAN_GET_CHAT_HISTORY` (700) to retrieve history at their own pace.
 
 ---
 
@@ -460,7 +482,7 @@ This specification deliberately does not prescribe a storage backend. The server
 2. **Support cursor-based queries.** Given a cursor (before/after) and a limit, return the matching messages in ascending ID order.
 3. **Enforce retention policy.** Remove messages that exceed the configured maximum count or age.
 
-Beyond these, the server may use any technology: SQLite, JSONL flat files, a custom binary log, an in-memory ring buffer, PostgreSQL, or anything else. This flexibility is the key adoption enabler — a server implementer can start with the simplest approach that works for their platform and scale.
+Beyond these, the server may use any technology: SQLite, JSONL flat files, a custom binary log, an in-memory ring buffer, PostgreSQL, or anything else. This flexibility is the key adoption enabler - a server implementer can start with the simplest approach that works for their platform and scale.
 
 ### Encryption at Rest
 
@@ -494,9 +516,9 @@ The following transaction type IDs are reserved for future extensions to the cha
 - **Message recording hook.** The simplest integration point is in the existing `handle_chat_send` handler. After the server formats the message for broadcast, it passes the same data to the history storage layer. This ensures the persisted message matches exactly what was broadcast.
 - **Retention enforcement.** Servers should prune expired messages periodically (e.g., on a timer or after every N inserts), not on every read request. Pruning on reads adds latency to client-facing queries.
 - **Default limit.** When `DATA_HISTORY_LIMIT` is absent from a request, the recommended default is 50 messages. Servers MAY enforce a maximum limit (e.g., 200) to prevent excessively large responses.
-- **Empty nick and message.** Both `nick_len` and `msg_len` may be zero — this is expected for tombstoned entries (flag bit 2). Parsers MUST handle zero-length strings.
+- **Empty nick and message.** Both `nick_len` and `msg_len` may be zero - this is expected for tombstoned entries (flag bit 2). Parsers MUST handle zero-length strings.
 - **Sub-field forward compatibility.** Even though no sub-field types are defined in v1, implementations SHOULD write the parsing logic now (skip unknown sub-types using sub-length). This avoids a compatibility gap when v2 sub-fields are introduced.
-- **Concurrent writes during pagination.** New messages arriving while a client paginates backward do not affect correctness — new messages have higher IDs than any cursor the client is using. The cursor is stable.
+- **Concurrent writes during pagination.** New messages arriving while a client paginates backward do not affect correctness - new messages have higher IDs than any cursor the client is using. The cursor is stable.
 - **Icon ID accuracy.** The icon ID is captured at the time the message is recorded. If a user changes their icon later, historical messages still show the original icon. This matches the behaviour of other messaging platforms.
 - **Server messages and broadcasts.** Admin broadcasts (`TRAN_USER_BROADCAST`, type 355) and server messages (`TRAN_SERVER_MSG`, type 104) MAY be recorded with the `is_server_msg` flag (bit 1) set. The `nick` field for server messages SHOULD be empty or set to the server name.
 - **Rate limiting.** Servers SHOULD enforce rate limits on `TRAN_GET_CHAT_HISTORY` to prevent abuse. A reasonable default is 10 requests per second per client. Servers MAY respond with an error or silently drop excessive requests. This is implementation-defined and not part of the wire protocol.
@@ -684,5 +706,4 @@ The client merges these messages into its local view seamlessly.
 
 ---
 
-Author: [Greg Gant](https://github.com/fuzzywalrus)  
 Status: draft; subject to refinement.
