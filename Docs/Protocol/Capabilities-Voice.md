@@ -487,7 +487,7 @@ The client requests to join voice chat in a specific room.
 Standard error reply with `DATA_ERROR_TEXT` (field 100). Error strings are human-readable and not intended for programmatic parsing. Clients SHOULD display the error text to the user as-is. Common error conditions include:
 - Room is full (`VoiceMaxPerRoom` exceeded)
 - Voice is disabled on the server
-- Insufficient privileges (`accessVoiceChat` not set)
+- Insufficient privileges (`AccessVoiceChat` not set)
 - Plain RTP requested but not allowed (`VoiceAllowPlainRTP` is off), or an unknown transport value
 
 A transport the server will not provide is refused **before** any room state changes: the client is neither added to the requested room nor removed from one it is already in. The server MUST NOT substitute a different transport for the one requested - a client that asks for plain RTP has no DTLS stack to fall back to.
@@ -673,6 +673,8 @@ a=recvonly
 `{UID}` is the decimal string representation of the user's Hotline user ID (a `uint16`). Valid values are `1` through `65535`. Leading zeros MUST NOT be used (e.g. `user-5`, not `user-05`). User ID `0` is reserved and MUST NOT appear in a `mid` value.
 
 Clients parse the `mid` labels to associate incoming audio tracks with users. The user IDs correspond to the standard Hotline user IDs visible in the chat room user list.
+
+**A `mid` MUST NOT exceed 16 bytes**, in this extension and in any extension that adds to its grammar. Mainstream WebRTC stacks negotiate the MID RTP header extension (`urn:ietf:params:rtp-hdrext:sdes:mid`), and its one-byte header form ([RFC 8285](https://datatracker.ietf.org/doc/html/rfc8285)) carries at most 16 bytes, so a longer `mid` cannot be represented. The labels defined here are well inside it (`user-65535` is 10 bytes), and the [Video Chat Extension](Capabilities-Video.md)'s longest, `scr-user-65535`, is 14. Implementations SHOULD reject a longer `mid` rather than truncate it.
 
 A `mid` is a property of the SDP, not of the packets: RTP packets carry no `mid` unless the RTP MID header extension (RFC 8843 §15) is negotiated, and this specification does not negotiate it. What a packet does carry is its SSRC, so **every `user-{UID}` section of the server's offer MUST declare, with `a=ssrc:<ssrc> cname:<cname>`, the SSRC the client will observe on packets carrying that user's audio**, and the server MUST stamp forwarded packets with exactly that SSRC - rewriting the source's own SSRC if they differ. A WebRTC library performs the SSRC → `mid` step internally; a client that reads RTP itself performs it from the offer. A renegotiation offer MAY change a section's declared SSRC (for instance when a user leaves and rejoins), and the client MUST use the mapping from the most recent offer it has answered.
 
@@ -910,17 +912,17 @@ Hotline uses a fine-grained access privilege bitmask (see the base protocol's Ac
 
 | Bit | Name | Description |
 |---|---|---|
-| 55 | `accessVoiceChat` | User may join voice chat rooms |
+| 55 | `AccessVoiceChat` | User may join voice chat rooms |
 
 Bit 55 is the first available bit after the GLoarbLine extended privileges (bits 41–54). See the base protocol's Access Privileges section for the full bit map.
 
 ### Room Membership
 
-A voice room is addressed by a bare `DATA_CHATID` and carries no membership of its own, so **the privilege bit alone is not an authorization model**. A server that checks only `accessVoiceChat` will let any voice-capable client join any room whose ID it can name or guess. Servers MUST additionally enforce:
+A voice room is addressed by a bare `DATA_CHATID` and carries no membership of its own, so **the privilege bit alone is not an authorization model**. A server that checks only `AccessVoiceChat` will let any voice-capable client join any room whose ID it can name or guess. Servers MUST additionally enforce:
 
 | Room | Who may join |
 |---|---|
-| Public chat (`DATA_CHATID` = `0`) | Any client holding `accessVoiceChat` |
+| Public chat (`DATA_CHATID` = `0`) | Any client holding `AccessVoiceChat` |
 | A private chat's room | That chat's current members |
 | A messenger call's room | Only the parties to that call - see [Instant Messaging](Capabilities-Messaging.md#call-invite-818) |
 
@@ -929,10 +931,10 @@ The last row matters even for servers that do not implement the messaging extens
 This is not hypothetical. A classic Hotline client with voice support has no concept of the messaging extension at all, and without these rules could join a private call between two messenger users simply by naming its identifier.
 
 **Behaviour:**
-- If `accessVoiceChat` is **not set**, the server rejects Join Voice Room (600) with an error: `"You are not allowed to join voice chat."`
+- If `AccessVoiceChat` is **not set**, the server rejects Join Voice Room (600) with an error: `"You are not allowed to join voice chat."`
 - The privilege says a user may join voice rooms; it does **not** say *which*. See [Room Membership](#room-membership).
 - The `CAPABILITY_VOICE` bit is still echoed in the login reply regardless of the user's privilege - the capability indicates server support, not user permission. This allows clients to display voice UI in a disabled state with a tooltip ("Voice chat requires permission") rather than hiding it entirely.
-- Administrators and operators should have `accessVoiceChat` set by default.
+- Administrators and operators should have `AccessVoiceChat` set by default.
 - Servers that do not implement access privilege checking for voice may treat the bit as always set (allowing all users).
 
 ---
