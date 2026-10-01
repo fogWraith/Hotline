@@ -1,6 +1,6 @@
 # Hotline Tracker Protocol - Version 3
 
-> Last updated: September 30, 2026
+> Last updated: October 1, 2026
 
 **A modernized tracker protocol for the Hotline Connect ecosystem**
 
@@ -395,6 +395,7 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0305   | `SUPPORTS_VOICE`   | bool   | Server supports the voice chat extension             |
 | 0x0306   | `SUPPORTS_LARGE_FILES` | bool | Server supports 64-bit (>4 GiB) file transfers    |
 | 0x0307   | `SUPPORTS_IPV6`    | bool   | Server is reachable over IPv6 (explicit; complements `ADDRESS_IPV6`) |
+| 0x0308   | `SUPPORTS_VIDEO`   | bool   | Server supports the video chat extension (camera and screen sharing in voice rooms). Implies `SUPPORTS_VOICE` |
 | 0x0309   | `HOPE_CIPHERS`     | string | Comma-separated HOPE cipher canonical names, server-preference order (e.g., `"CHACHA20-POLY1305,RC4,BLOWFISH"`) |
 | 0x0310   | `TAGS`             | string | Comma-separated tags (e.g., `"chat,files,retro"`)   |
 | 0x0450   | `NEWS_COUNT`       | u32    | Number of news articles on the server                |
@@ -676,6 +677,7 @@ The vocabulary is closed: implementations MUST treat unknown values as `0` (gene
 | 0x0305   | `SUPPORTS_VOICE`   | bool | Server supports the voice chat extension  |
 | 0x0306   | `SUPPORTS_LARGE_FILES` | bool | Server supports 64-bit (>4 GiB) transfers |
 | 0x0307   | `SUPPORTS_IPV6`    | bool | Server is reachable over IPv6 (explicit)  |
+| 0x0308   | `SUPPORTS_VIDEO`   | bool | Server supports the video chat extension  |
 | 0x0309   | `HOPE_CIPHERS`     | string | Comma-separated HOPE cipher canonical names, server-preference order |
 
 ### Content Index Fields
@@ -1157,6 +1159,7 @@ Tracker → Client:
 | `0x0305` | `SUPPORTS_VOICE`   | bool   | Capability       | Server (reg)   |
 | `0x0306` | `SUPPORTS_LARGE_FILES` | bool | Capability     | Server (reg)   |
 | `0x0307` | `SUPPORTS_IPV6`    | bool   | Capability       | Server (reg)   |
+| `0x0308` | `SUPPORTS_VIDEO`   | bool   | Capability       | Server (reg)   |
 | `0x0309` | `HOPE_CIPHERS`     | string | Capability       | Server (reg)   |
 | `0x0310` | `TAGS`             | string | Capability       | Server (reg)   |
 | `0x0450` | `NEWS_COUNT`       | u32    | Content Index    | Tracker/Server |
