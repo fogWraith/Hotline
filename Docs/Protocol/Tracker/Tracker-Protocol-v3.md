@@ -387,6 +387,7 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0210   | `MIN_PROTOCOL_VERSION` | u16 | Operator-declared minimum client Hotline protocol version (e.g., `0x0210`); clients below this are rejected at login |
 | 0x0211   | `PEAK_24H`         | u16    | Peak concurrent users observed in the rolling 24-hour window (omitted during warmup) |
 | 0x0212   | `AVG_24H`          | u16    | Mean concurrent users over the rolling 24-hour window (omitted during warmup)        |
+| 0x0213   | `LINKED_USERS`     | u16    | Users from [linked servers](Capabilities-Server-Link.md) currently shown in this server's user list. Not included in the listing's user count, which counts this server's own users only. Omitted when zero |
 | 0x0300   | `PROTOCOL_VERSION` | u16    | Hotline protocol version supported (e.g., `0x0197`)  |
 | 0x0301   | `SUPPORTS_HOPE`    | bool   | Server supports HOPE encryption                      |
 | 0x0302   | `SUPPORTS_TLS`     | bool   | Server supports TLS connections                      |
@@ -397,6 +398,7 @@ Servers MAY include any of the following TLV fields in the extension block:
 | 0x0307   | `SUPPORTS_IPV6`    | bool   | Server is reachable over IPv6 (explicit; complements `ADDRESS_IPV6`) |
 | 0x0308   | `SUPPORTS_VIDEO`   | bool   | Server supports the video chat extension (camera and screen sharing in voice rooms). Implies `SUPPORTS_VOICE` |
 | 0x0309   | `HOPE_CIPHERS`     | string | Comma-separated HOPE cipher canonical names, server-preference order (e.g., `"CHACHA20-POLY1305,RC4,BLOWFISH"`) |
+| 0x030A   | `SUPPORTS_SERVER_LINKING` | bool | Server takes part in [server linking](Capabilities-Server-Link.md): linking is enabled and at least one peer is configured, so users of other servers can appear in its user list. Says nothing about which servers it is linked with |
 | 0x0310   | `TAGS`             | string | Comma-separated tags (e.g., `"chat,files,retro"`)   |
 | 0x0450   | `NEWS_COUNT`       | u32    | Number of news articles on the server                |
 | 0x0451   | `MSGBOARD_COUNT`   | u32    | Number of message board posts                        |
@@ -652,6 +654,7 @@ These fields are always present in the server record fixed header (not TLV):
 | 0x0210   | `MIN_PROTOCOL_VERSION` | u16 | Operator-declared minimum client protocol version |
 | 0x0211   | `PEAK_24H`        | u16    | Peak concurrent users in the rolling 24h window |
 | 0x0212   | `AVG_24H`         | u16    | Mean concurrent users in the rolling 24h window |
+| 0x0213   | `LINKED_USERS`    | u16    | Users from linked servers currently shown (not in the user count) |
 | 0x0310   | `TAGS`            | string | Comma-separated tags                         |
 
 #### `MATURITY` Vocabulary
@@ -679,6 +682,7 @@ The vocabulary is closed: implementations MUST treat unknown values as `0` (gene
 | 0x0307   | `SUPPORTS_IPV6`    | bool | Server is reachable over IPv6 (explicit)  |
 | 0x0308   | `SUPPORTS_VIDEO`   | bool | Server supports the video chat extension  |
 | 0x0309   | `HOPE_CIPHERS`     | string | Comma-separated HOPE cipher canonical names, server-preference order |
+| 0x030A   | `SUPPORTS_SERVER_LINKING` | bool | Server takes part in server linking |
 
 ### Content Index Fields
 
@@ -1151,6 +1155,7 @@ Tracker → Client:
 | `0x0210` | `MIN_PROTOCOL_VERSION` | u16 | Descriptive      | Server (reg)   |
 | `0x0211` | `PEAK_24H`         | u16    | Descriptive      | Server (reg)   |
 | `0x0212` | `AVG_24H`          | u16    | Descriptive      | Server (reg)   |
+| `0x0213` | `LINKED_USERS`     | u16    | Descriptive      | Server (reg)   |
 | `0x0300` | `PROTOCOL_VERSION` | u16    | Capability       | Server (reg)   |
 | `0x0301` | `SUPPORTS_HOPE`    | bool   | Capability       | Server (reg)   |
 | `0x0302` | `SUPPORTS_TLS`     | bool   | Capability       | Server (reg)   |
@@ -1161,6 +1166,7 @@ Tracker → Client:
 | `0x0307` | `SUPPORTS_IPV6`    | bool   | Capability       | Server (reg)   |
 | `0x0308` | `SUPPORTS_VIDEO`   | bool   | Capability       | Server (reg)   |
 | `0x0309` | `HOPE_CIPHERS`     | string | Capability       | Server (reg)   |
+| `0x030A` | `SUPPORTS_SERVER_LINKING` | bool | Capability   | Server (reg)   |
 | `0x0310` | `TAGS`             | string | Capability       | Server (reg)   |
 | `0x0450` | `NEWS_COUNT`       | u32    | Content Index    | Tracker/Server |
 | `0x0451` | `MSGBOARD_COUNT`   | u32    | Content Index    | Tracker/Server |
