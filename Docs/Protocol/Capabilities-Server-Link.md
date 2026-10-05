@@ -1,16 +1,18 @@
 # Server Linking Extension
 
-> Last updated: October 4, 2026
+> Last updated: October 5, 2026
 
 > **Status:** Accepted, Implemented by the reference server, Janus, from 2.0.18.
 
 > **Developer Note:** This is only the beginning, see [Future Work](#future-work).
 
+> **Revised:** October 5, 2026, after review by another server's developer. See [Changes](#changes) for what changed since the first published version.
+
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This document describes linking independently operated Hotline servers into a **network**, so that their users share one community: every server's users appear in every other server's user list, talk in one public chat, and can send each other private messages. The servers keep their own accounts, files, news and administration. The link joins people, not servers.
 
-**A linked server connects to its peer as a special client.** It dials the peer's ordinary Hotline port, logs in with an account the peer's operator created for it, and declares itself a link with a capability bit. Everything after that rides that session. There is no new listener, no new port and no new framing, and a link works when only one of the two servers can accept inbound connections.
+**A linked server connects to its peer as a special client.** It dials the peer's ordinary Hotline port, logs in with an account the peer's operator created for it, and declares itself a link with a capability bit. Everything after that rides that session. There is no new listener, no new port and no new framing, and a link works when only one of the two servers can accept inbound connections. A link may equally ride any other transport on which the peer offers the classic protocol, such as a WebSocket carrying it, provided the session is [protected](#protecting-the-link).
 
 **Links relay.** A server passes on what it learns from one link to its other links, so a chain or a hub reaches everyone: if B links to A and A links to C, the users of all three servers appear on all three. Links form a tree; a link that would close a loop is refused.
 
@@ -33,6 +35,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
 - [Trust Model](#trust-model)
 - [Compatibility and Negotiation](#compatibility-and-negotiation)
   - [Capability Bit](#capability-bit)
+  - [Text on a Link](#text-on-a-link)
   - [Authorizing a Link](#authorizing-a-link)
   - [Protecting the Link](#protecting-the-link)
   - [Link Session Restrictions](#link-session-restrictions)
@@ -87,6 +90,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
 - [Server Behaviour](#server-behaviour)
 - [Future Work](#future-work)
 - [Implementation Notes](#implementation-notes)
+- [Changes](#changes)
 
 ---
 
@@ -171,6 +175,8 @@ Relaying across a server is consensual: it happens only when **both** links invo
 
 Each server therefore keeps, per link, a table from *peer ID* to *ghost ID*, and a transaction relayed across several servers has its user IDs translated at each hop. No server needs to know the IDs any other server uses, and every ID on the wire is an ordinary 16-bit Hotline user ID. An ID is meaningful only together with the exporting server's [epoch](#interruption-and-resynchronisation).
 
+**A server MUST NOT reuse a user ID it has exported over a link until at least 5 minutes after the user it named stopped being exported over every link**, whether by [Link User Gone](#link-user-gone-903), [Link Server Gone](#link-server-gone-914) or the end of the link. This applies to local users and to ghosts alike, since a relaying server exports ghosts under its own IDs. The user list itself stays correct without it, because 903 and 902 for the same ID arrive in order on one stream. Requests do not: a private message, kick or ban naming an ID can already be on its way, possibly across several hops, when that ID's user leaves, and without the quarantine it lands on whoever holds the ID next. Five minutes is well beyond the time a request can spend in transit (10 seconds per hop, across the [recommended maximum of 8 hops](#loop-prevention)). An allocator that counts upward through the ID space and skips IDs in use meets the rule unless it wraps within the quarantine. A new epoch starts a new ID space, so the rule does not reach across a restart.
+
 Users are additionally attributed to their **home server** by [server ID](#server-id), which every hop passes along unchanged. The home server is what a client is shown, what moderation is routed to, and what [exclusion](#exclusion) is expressed in.
 
 ### Topology: a Tree
@@ -211,6 +217,24 @@ A dialer sets bit 11 in its Login (107). It MUST also set `CAPABILITY_TEXT_ENCOD
 A dialer that does not see bit 11 confirmed in the login reply MUST disconnect without sending any further transaction. It SHOULD report the condition to its operator as a configuration error rather than retrying at its ordinary reconnect rate.
 
 A client that is not a server MUST NOT set bit 11.
+
+### Text on a Link
+
+All strings on a link are UTF-8, and each server converts them to and from whatever its own clients use. A few further rules keep every copy of a line identical across the network:
+
+- **Line endings are CR** (`0x0D`), as on the Hotline wire and as most clients send them. A server converts LF and CR LF from its own clients to CR before sending text over a link, and converts from CR when it delivers to a client that expects something else. This applies to chat lines, private messages, quoted messages and user info text.
+- **Lengths are bounded in bytes on the link**, after encoding as UTF-8:
+
+  | Text | Maximum |
+  |---|---|
+  | User name (`FieldUserName`) | 255 bytes |
+  | Chat line (904 `FieldData`) | 8192 bytes |
+  | Private message (905 `FieldData`, and `FieldQuotingMsg`) | 8192 bytes each |
+
+  A server MUST NOT originate a string longer than its maximum. It refuses the user's action locally, or shortens the text before it is shown anywhere, so that every copy is the same. A user whose name exceeds the maximum is not exported until the name changes. A receiver MUST drop, never truncate, a transaction carrying a longer one; a user group with a name over the maximum is dropped like any other group it cannot accept. A server whose own clients accept less than these maximums shortens the text for its own display only, and relays the original. Truncating on the link would make one line read differently on every server it passes.
+- **Text is passed on unchanged.** A relaying server forwards the bytes it received. Only the server delivering text to its own clients converts or shortens it.
+
+Names are compared as described under [Display Name](#display-name).
 
 ### Authorizing a Link
 
@@ -298,8 +322,9 @@ Field IDs are allocated from the free `0x0630`-block.
 | `0x063C` | 1596 | `DATA_LINK_HOPS` | UInt16 | Links between the sender and the server described; `0` for the sender itself |
 | `0x063D` | 1597 | `DATA_LINK_EXCLUDE` | Binary (8) | A server ID at which this user must not be shown. **Repeated** |
 | `0x063E` | 1598 | `DATA_LINK_REQUESTER` | Binary (8) | The server ID on whose behalf a moderation request is made |
+| `0x063F` | 1599 | `DATA_LINK_LINE_ID` | Binary (20) | A network-unique identifier for a public chat line; see [Link Chat](#link-chat-904) |
 
-Field IDs `0x063F`–`0x064F` are reserved for future link growth.
+Field IDs `0x0640`–`0x064F` are reserved for future link growth.
 
 Existing fields reused by this extension: `FieldError` (100), `FieldData` (101), `FieldUserName` (102), `FieldUserIconID` (104), `FieldChatOptions` (109), `FieldUserFlags` (112), `FieldOptions` (113), `FieldQuotingMsg` (214), and `DATA_COLOR` (`0x0500`) from [Colored Nicknames](Colored-Nicknames.md).
 
@@ -343,6 +368,7 @@ User sharing, topology, moderation and the lifecycle transactions are not featur
 | 8 | `Unreachable` | replies | The server the request is for is not currently reachable |
 | 9 | `Excluded` | replies | The sender or recipient is [excluded](#exclusion) at the other's server |
 | 10 | `Banned` | 903 | The user was [banned from the network](#link-ban-908) and disconnected |
+| 11 | `InvalidRequester` | 907–909 replies | The request's `DATA_LINK_REQUESTER` is not a server that lies behind the link it arrived on ([Moderation](#moderation)) |
 | 16 | `Shutdown` | 911 | The sender is stopping and expects to return; keep what it sent for the grace period |
 | 17 | `Unlinked` | 911 | The sender's operator removed this link; discard what it sent now |
 | 18 | `ProtocolError` | 911 | The sender received something it could not accept |
@@ -573,7 +599,7 @@ Notification carrying the complete set of users exported over this link, as repe
 
 **Fields:** repeated user groups; `DATA_LINK_MORE` = `1` on every part except the last.
 
-A sender MAY split a large snapshot across several transactions. The receiver MUST treat all parts, up to the one without `DATA_LINK_MORE`, as one snapshot, and MUST NOT reconcile until it has the last. A sender MUST NOT send any other user or server transaction between the parts.
+A sender MAY split a large snapshot across several transactions. The receiver MUST treat all parts, up to the one without `DATA_LINK_MORE`, as one snapshot, and MUST NOT reconcile until it has the last. **Between the parts, a sender MUST NOT send any link transaction other than Link Ping (910), Link Close (911) and replies to requests it received.** A user or server transaction would change state the snapshot has not finished describing, and a chat line, private message or other request could name a user the receiver has not been given yet, and be dropped.
 
 An empty snapshot (one transaction, no groups, no `DATA_LINK_MORE`) is valid.
 
@@ -603,7 +629,7 @@ By default a ghost is shown under **the user's own name, unchanged**, and is dis
 
 Two rules apply in either mode:
 
-- **A ghost's name MUST NOT duplicate another user's name** in the receiving server's user list, compared case-insensitively. If it would, the server appends the tag to that ghost (`bob@hl2`), whatever the option says. Local users always keep their own names, and it is always the ghost that is tagged:
+- **A ghost's name MUST NOT duplicate another user's name** in the receiving server's user list, compared case-insensitively. A server SHOULD compare names after NFC normalization and Unicode simple case folding, so that names differing only in the case of a non-ASCII letter (`Ärger`, `ärger`) also count as duplicates. Tags are ASCII, so this concerns names only. If it would, the server appends the tag to that ghost (`bob@hl2`), whatever the option says. Local users always keep their own names, and it is always the ghost that is tagged:
   - If a local user later takes a name that an untagged ghost already has, the server tags the ghost and announces the change with 301.
   - If two ghosts collide, the one announced later is tagged.
   - A ghost tagged this way keeps its tag until its own name next changes.
@@ -676,7 +702,9 @@ When `LINK_FEATURE_PUBLIC_CHAT` is negotiated, public chat (chat ID `0`) is shar
 
 Notification carrying one public chat line.
 
-**Fields:** `DATA_LINK_USER_ID` (REQUIRED, the speaker, as the sender identifies them), `FieldData` (REQUIRED, the text as the speaker sent it, UTF-8), `FieldChatOptions` (optional, `1` for an emote, as in Send Chat (105)).
+**Fields:** `DATA_LINK_USER_ID` (REQUIRED, the speaker, as the sender identifies them), `FieldData` (REQUIRED, the text as the speaker sent it, UTF-8), `FieldChatOptions` (optional, `1` for an emote, as in Send Chat (105)), `DATA_LINK_LINE_ID` (optional, see below).
+
+**Line ID.** `DATA_LINK_LINE_ID` names one line across the whole network: the speaker's home server ID (8 bytes), that server's current [epoch](#interruption-and-resynchronisation) (8 bytes), and a UInt32 sequence number the home server increments for every line it originates during that epoch. The home server SHOULD include it when it originates a line. A relaying server MUST copy it unchanged when present and MUST NOT add one. Receivers MUST NOT require it. This version defines no transaction that uses it. It is assigned now so that a later version can redact or deduplicate a line by naming it, without depending on every relay having been upgraded first. A receiver MAY record it with the line in its chat history.
 
 **Originating.** When a local, exported user sends a public chat line that the server accepts and broadcasts locally, the server sends Link Chat over each link that negotiated the feature. It sends the **raw text** the user typed, never the formatted line its own clients receive.
 
@@ -691,7 +719,7 @@ A server MUST NOT originate or relay Link Chat for:
 
 **Receiving.** The receiver validates that the speaker is a current ghost from that link and that the line is within its [limits](#limits), then **formats and delivers it exactly as it would a line from a local user**, with the ghost's display name. It does this unless the speaker is [excluded](#exclusion) here, in which case it only relays. Formatting at the receiver is what makes remote lines look like local ones: the same layout, the same encoding conversion for each client and the same chat history. It also means no server needs to know how another formats chat.
 
-**Local filtering affects local display only.** A server may filter chat with its own rules: word filters, anti-spam, plugins. Applied to a line from a ghost, such a filter decides whether *this* server shows the line, and never whether the line is relayed onward. Every server applies its own filters to what it shows, which is the same principle as [exclusion](#exclusion). Applied to a line from a local user, a filter that rejects the line rejects it outright, as today: a rejected line is never accepted, so it is never originated over a link.
+**Local filtering affects local display only.** A server may filter chat with its own rules: word filters, anti-spam, plugins. Applied to a line from a ghost, such a filter decides whether *this* server shows the line, and never whether the line is relayed onward. Every server applies its own filters to what it shows, which is the same principle as [exclusion](#exclusion). The same holds for a server's per-user [rate limits](#limits). Applied to a line from a local user, a filter that rejects the line rejects it outright, as today: a rejected line is never accepted, so it is never originated over a link.
 
 A receiver SHOULD record ghost lines in its chat log and chat history as it records local lines. Each server's history is therefore the chat **it saw**: lines from before a link existed, or from while it was split from part of the network, are not backfilled. A receiver MAY pass ghost lines to its own bridges (an IRC bridge, for instance), which are local outputs rather than links.
 
@@ -755,7 +783,9 @@ Both are carried out by **the user's home server**, because only the home server
 
 A moderator acts through the ordinary tools: Disconnect User (110) on a ghost (with the ban options for a ban), or the server's administrative interface. The privilege required is the moderator's ordinary disconnect privilege **on their own server**. A user's privileges on their home server, including any protection from being disconnected, do not shield them from a moderator elsewhere. Granting someone the disconnect privilege on a linked server makes them a moderator of the network, and operators should grant it with that in mind.
 
-Kick and ban requests are [relayed](#routing) hop by hop toward the user's home server. They carry `DATA_LINK_REQUESTER`, set by the server where the moderator acted, and every relaying server passes it on unchanged. The home server MUST accept the requester's identity as relayed. This is the [trust model](#trust-model) at work: the requester was vouched for by the servers in between.
+Kick and ban requests are [relayed](#routing) hop by hop toward the user's home server. They carry `DATA_LINK_REQUESTER`, set by the server where the moderator acted, and every relaying server passes it on unchanged.
+
+**Every server receiving a Link Kick (907), Link Ban (908) or Link Unban (909), whether it relays the request or is its destination, MUST check that the requester lies behind the link the request arrived on**: that it is the peer itself, or a server learned over that link. Otherwise it MUST refuse the request with `InvalidRequester` and SHOULD log it. This is the rule that already applies to users ([The User Group](#the-user-group)): a peer can speak only for the part of the network behind it. Because each hop checks, a forged requester is caught at the first honest server it reaches. A requester that passes the check at the destination is accepted as relayed. It has been vouched for by the servers in between, which is the [trust model](#trust-model) at work. A dishonest server that is genuinely on the requester's path can still forge in its name; preventing that would need signed requests (see [Future Work](#future-work)).
 
 A ban a server places on one of its own local users needs nothing from this section. The user can no longer connect to their home server, so they are gone from the network too.
 
@@ -765,9 +795,9 @@ Request/reply. The requester asks the user's home server to remove one session f
 
 **Request fields:** `DATA_LINK_TARGET_ID` (REQUIRED, the user, as the receiving server identifies them), `DATA_LINK_REQUESTER` (REQUIRED), `FieldData` (optional, a reason for the home server's log).
 
-**Reply fields:** `DATA_LINK_REASON`: `OK`, `UnknownUser` or `Unreachable`.
+**Reply fields:** `DATA_LINK_REASON`: `OK`, `UnknownUser`, `InvalidRequester` or `Unreachable`.
 
-- The requesting server hides the ghost immediately, without waiting for the reply, and keeps it hidden until the exclusion arrives or the user is gone.
+- The requesting server hides the ghost immediately, without waiting for the reply, and keeps it hidden until the exclusion arrives or the user is gone. **If the kick fails** (`Unreachable`, or no reply), the exclusion will never arrive, and the requesting server MUST keep that session hidden for the rest of the session, as it does for a [failed ban](#link-ban-908). A home server's restart ends the session, so a ghost re-used for the user's next session (see [Interruption and Resynchronisation](#interruption-and-resynchronisation)) is shown again. It SHOULD tell the moderator that the kick was applied here only.
 - The home server MUST add the requester to that session's [exclusions](#exclusion) for as long as the session lasts, and send the updated user group. The user **stays connected to their home server** and visible everywhere else.
 - The home server SHOULD tell the user, with a server message naming the requesting server, so a kicked user knows why that server's users vanished.
 
@@ -779,12 +809,12 @@ Request/reply. The requester asks the user's home server to ban this person from
 
 **Request fields:** `DATA_LINK_TARGET_ID` (REQUIRED), `DATA_LINK_REQUESTER` (REQUIRED), `DATA_LINK_DURATION` (REQUIRED; `0` = permanent), `FieldData` (optional, a reason).
 
-**Reply fields:** `DATA_LINK_BAN_ID` and `DATA_LINK_REASON` = `OK`; or a failure with `UnknownUser` or `Unreachable`.
+**Reply fields:** `DATA_LINK_BAN_ID` and `DATA_LINK_REASON` = `OK`; or a failure with `UnknownUser`, `InvalidRequester` or `Unreachable`.
 
 - The requesting server hides the ghost immediately, without waiting for the reply.
-- **If the ban fails** (`Unreachable`, `UnknownUser`, or no reply), the requesting server MUST keep that session hidden for the rest of the session, as though it had been [kicked](#link-kick-907), and MUST tell the moderator that the ban was not applied. It MUST NOT queue the ban for later delivery. A ban is applied against the person as their home server sees them at the moment it acts, and a queued ban could land on whoever holds that user ID by then. The moderator can ban again once the home server is reachable.
+- **If the ban fails** (`Unreachable`, `UnknownUser`, `InvalidRequester`, or no reply), the requesting server MUST keep that session hidden for the rest of the session, as though it had been [kicked](#link-kick-907), and MUST tell the moderator that the ban was not applied. It MUST NOT queue the ban for later delivery. A ban is applied against the person as their home server sees them at the moment it acts, and a queued ban could land on whoever holds that user ID by then: the [ID quarantine](#user-ids-on-a-link) covers requests in transit, not requests held back for later. The moderator can ban again once the home server is reachable.
 - The home server MUST ban the person **exactly as if its own operator had**. It disconnects every matching session and refuses matching logins for the duration. Their departure crosses the network as [Link User Gone](#link-user-gone-903) with reason `Banned`, and every server removes them.
-- The home server MUST record the ban against **the most stable identifier it has for that person**: the account, for an account one person uses, and the connection address for a shared account such as `guest`. It records the ban together with the requester's server ID, the reason and the duration. It MUST persist the ban across restarts, and MUST NOT reveal the identifier to anyone.
+- The home server MUST record the ban against **the identifier its own operator's bans would use for that person**. Typically that is the account for an account one person uses, and the connection address for a shared account such as `guest`, but a home server that bans by something more precise, such as a key fingerprint, or that avoids address bans behind shared addresses, applies the same judgement here as it would to its own bans. It records the ban together with the requester's server ID, the reason and the duration. It MUST persist the ban across restarts, and MUST NOT reveal the identifier to anyone.
 - The home server MUST record the ban where its own operator can see it, with the requesting server's tag and name. A home operator needs to know why one of their regulars can no longer connect.
 - The home server SHOULD tell the user, in the disconnect message, that they were banned from the network and by which server.
 - The home server returns an opaque, unguessable `DATA_LINK_BAN_ID`. The requester stores it with the home server's ID and what it knew at the time (the ghost's display name, the reason, the time and the duration). That is what its operator sees when listing bans.
@@ -797,7 +827,7 @@ Request/reply, routed by server ID to the ban's home server.
 
 **Request fields:** `DATA_LINK_BAN_ID` (REQUIRED), `DATA_LINK_SERVER_ID` (REQUIRED, the home server that issued the ban), `DATA_LINK_REQUESTER` (REQUIRED).
 
-**Reply fields:** `DATA_LINK_REASON`: `OK`, `UnknownBan` or `Unreachable`.
+**Reply fields:** `DATA_LINK_REASON`: `OK`, `UnknownBan`, `InvalidRequester` or `Unreachable`.
 
 The home server MUST honour an unban from the requester that made the ban, and answers `UnknownBan` to any other requester. The home server's own operator MAY also lift any ban on its users through its local tools, because it is a ban on their server. When they do, the home server SHOULD tell nobody: the requester's stored ban ID simply stops matching anything, and a later unban from the requester answers `UnknownBan`. Matching logins are accepted again from the moment a ban is lifted. An expired ban is removed by the home server without any message.
 
@@ -807,9 +837,11 @@ The home server MUST honour an unban from the requester that made the ban, and a
 
 A receiver applies its own limits to everything arriving over a link, and MUST NOT rely on the sender's. A peer's flood control protects the peer; the receiver protects itself.
 
-- **Ghosts per link.** A server SHOULD bound the number of ghosts it holds from each link, counting every user behind it, relayed or not. Users beyond the bound are not represented, and traffic naming them is dropped. The server SHOULD log when the bound is reached.
+- **Ghosts per link.** A server SHOULD bound the number of ghosts it holds from each link, counting every user behind it, relayed or not. Users beyond the bound are not represented, and traffic naming them is dropped. The server SHOULD log when the bound is reached. Ghosts draw user IDs from the same 16-bit space as local users, so the bounds across all links SHOULD leave ample room for local users.
 - **Network depth.** See [Loop Prevention](#loop-prevention).
-- **Chat and messages.** A server SHOULD rate-limit Link Chat and Link Private Message per ghost and per link, at the same thresholds it applies to local users, and MUST bound their length as it does for local users. A line dropped by a limit is not relayed either.
+- **Chat.** A server SHOULD rate-limit Link Chat per ghost, at the same thresholds it applies to local users. **A per-ghost limit, like a [local filter](#public-chat), decides whether this server shows the line, never whether it is relayed.** Every server beyond applies its own limits, and a line dropped in the middle would vanish for everyone behind that server without anyone being able to tell why. A server MAY also bound the total chat volume it accepts from each link, to protect itself; a line beyond that bound is dropped and not relayed, and the server SHOULD log when it happens.
+- **Private messages.** A server SHOULD rate-limit Link Private Message per ghost and per link, at the same thresholds it applies to local users. A message over a limit is refused with `RateLimited`, so the sender learns of it.
+- **Lengths.** Text on a link is bounded as described in [Text on a Link](#text-on-a-link).
 - **Server capacity.** Ghosts MUST NOT count toward the server's connection limit or per-address limits. They consume user IDs and nothing else.
 - **Tracker listings and the info port.** A server SHOULD NOT count ghosts in the user count it reports to trackers, or in `users.connected` on the [info port](Hotline-Info-Port.md). A user is connected to one server, and counting them on every server in the network inflates every listing. A server MAY report the number of ghosts it currently shows as `users.linked` on the info port, and that it links and how many ghosts it shows as `SUPPORTS_SERVER_LINKING` and `LINKED_USERS` in a [v3 tracker registration](Tracker-Protocol-v3.md).
 
@@ -819,7 +851,7 @@ A receiver applies its own limits to everything arriving over a link, and MUST N
 
 - **The link password is the keys to the user list.** Anyone holding it can place users on the peer's server under any name, attributed to any server behind them. It MUST be random ([Protecting the Link](#protecting-the-link)), SHOULD be unique per peer, and SHOULD be rotated when an operator leaves. Closing a link is always unilateral, so revoking it requires nothing from the other side.
 - **Peer authentication is mutual** on every link. With HOPE AEAD, both servers prove knowledge of the link password before any link traffic is accepted.
-- **Trust is transitive, by design.** A server cannot verify what a peer says about servers behind it. A dishonest server in the middle of a network could invent users from a server it relays, or drop a ban request. This is the price of relaying, and it is why the [trust model](#trust-model) treats joining a network as vouching for it, and why transit is a per-link choice.
+- **Trust is transitive, by design.** A server cannot verify what a peer says about servers behind it. A dishonest server in the middle of a network could invent users from a server it relays, drop a ban request, or make a moderation request in the name of a server behind it. It cannot do so in the name of a server elsewhere in the network, because [every hop checks the requester](#moderation). This is the price of relaying, and it is why the [trust model](#trust-model) treats joining a network as vouching for it, and why transit is a per-link choice.
 - **Identity assertions are scoped.** A peer can present only users homed behind it, can speak only for users it exported, and can address only users it was shown. Every transaction naming a user or a server is checked against those sets.
 - **Privilege never crosses.** The admin flag is cleared by every sender and every receiver, ghosts hold no access privileges, and user info is built as for an unprivileged requester.
 - **No personal data crosses.** No address, login or account detail is ever sent. Bans work without them because home servers enforce them. A user's exclusions do reveal which servers have kicked them to every server they are relayed through; operators who link have accepted that.
@@ -849,15 +881,16 @@ A conforming server:
 4. Exports its own visible local users, and relays ghosts and servers between transit links, never back over the link they came from. It announces every server before any of its users, and never sends addresses, logins or privileges.
 5. Sends Hello first and nothing before it, then its server list, and its users only once it has accepted the peer's server list. It closes a link whose peer never sends Hello, and one that sends server or user state it cannot parse.
 6. Presents ghosts with an allocated user ID, their home server's color, flags filtered as specified, and a display name that never duplicates another user's.
-7. Validates every incoming reference. A user must be homed behind the link they arrived on, a sender must be a current ghost from that link, and a target must be a user exported over that link.
+7. Validates every incoming reference. A user must be homed behind the link they arrived on, a moderation requester must lie behind that link, a sender must be a current ghost from that link, and a target must be a user exported over that link.
 8. Formats remote chat lines locally, from raw text, as it would a local line.
 9. Relays private messages, user-info requests and moderation requests hop by hop, translating IDs, and passes replies back.
 10. Applies local privilege checks before translating anything, refuses every transaction naming a ghost that this document does not translate, and keeps ghosts out of messaging, voice and every other extension.
 11. As a home server: honours kick, ban and unban requests for its own users from any server in the network. It enforces kicks through exclusions and bans by disconnecting and refusing the person as its own ban would, persists bans, shows them to its operator, and never reveals the banned identifier.
 12. Hides users excluded at itself while still relaying them.
 13. Absorbs link interruptions for a grace period, reconciles against the next snapshot using the epoch, and relays Server Gone when the grace period expires.
-14. Applies its own limits to link traffic, and excludes ghosts from connection limits and tracker counts.
+14. Applies its own limits to link traffic, without dropping relayed chat for per-user limits, and excludes ghosts from connection limits and tracker counts.
 15. Publishes nothing about its network's membership: not which servers it links with, nor their tags or IDs.
+16. Quarantines user IDs it has exported before reusing them, sends text with CR line endings and within the link's length bounds, and drops rather than truncates text over them.
 
 ---
 
@@ -873,11 +906,12 @@ Each item below would be a new [link feature](#link-features) bit, or a new tran
 - **File transfer** between users on different servers.
 - **Messaging.** Bringing the [instant messaging](Capabilities-Messaging.md) roster and presence across links, so users on different servers can be friends.
 - **Bans at every door.** A network-wide ban is enforced at the banned user's home server, so it does not recognise the same person arriving at another server. Recognising them everywhere would require an identifier to cross links: an account, or an address. A keyed hash does not help here, since the IPv4 space is small enough to search. Revisit if networks find evasion to be a real problem.
+- **Server keys.** A server ID derived from a key the server holds, with server groups and moderation requests signed by it. A server in the middle could then no longer invent servers behind it or make requests in their name, and a requester would be verifiable end to end rather than [hop by hop](#moderation).
 - **Server-scoped bans.** A ban that, like a kick, removes someone from one server only but persists across their sessions. The exclusion mechanism already carries it; it needs only a lifetime longer than a session.
 
 ## Implementation Notes
 
-- **Allocations.** Capability bit 11, transactions 900–914 (915–919 reserved), fields `0x0630`–`0x063E` (`0x063F`–`0x064F` reserved) and reason codes 0–10 and 16–24 are assigned, as shipped in Janus 2.0.18. Interoperation has been exercised between Janus servers only.
+- **Allocations.** Capability bit 11, transactions 900–914 (915–919 reserved), fields `0x0630`–`0x063F` (`0x0640`–`0x064F` reserved) and reason codes 0–11 and 16–24 are assigned. Janus 2.0.18 shipped all of them except `DATA_LINK_LINE_ID` and `InvalidRequester`, which Janus 2.0.19 (in development) adds. Interoperation has been exercised between Janus servers only.
 - **Peer configuration.** The Janus reference design identifies a peer by a configuration entry. A dialing entry carries the peer's address and the credentials the peer issued; an accepting entry names the local account the peer logs in with. Features and the ghost bound are per entry. The server's own tag, its suggested color, the tag-display option and color overrides by tag are server-wide settings.
 - **The ghost sink.** A reference server delivers transactions to users through a per-recipient outbox, and every broadcast loop (chat lines, user-list notifications) will reach ghosts through it. The outbox MUST **drop** every transaction addressed to a ghost. The translations above happen earlier: in the handlers for 108, 303 and 110, which recognise a ghost target before building any outbound transaction, and in the chat handler, which sends the raw text over links rather than forwarding the formatted 106 that the broadcast produced. A sink that drops everything is one choke point that is easy to keep closed. A sink that tried to translate whatever reached it would forward the formatted copy of every broadcast.
 - **Hidden ghosts.** A user excluded at this server is still allocated an ID and kept in the per-link table so it can be relayed. It is a ghost with a "not listed" mark, handled by the same code that already keeps invisible users out of the list.
@@ -885,3 +919,23 @@ Each item below would be a new [link feature](#link-features) bit, or a new tran
 - **Joined, not connected.** The reference server marks a session as joined at the moment it announces the user to the user list (301), after the login reply and, where the server waits for one, after Agreed (121), and exports it from then on, as [Who Is Exported](#who-is-exported) requires. Until its login reply has been sent, a session is sent nothing at all, which also keeps chat from linked servers from reaching a client whose text encoding the server has not settled yet.
 - **Operator state.** The server ID lives in its own file in the server's data directory (`server-id`), apart from the configuration an operator copies between servers, and `janus link reset-id` replaces it. Suspended links and trusted addresses are kept in `link-state.json`; bans a server enforces for others and bans it has placed on other servers' users are kept in separate files, so lifting one never touches the other.
 - **Optional behaviour left out.** The reference server does not mark ghosts away during a grace period and does not post a chat notice when a link is lost. Both are MAYs.
+
+---
+
+## Changes
+
+### October 5, 2026
+
+The first revision, made after outside review. Allocations are additive; a server implementing the first version still interoperates.
+
+- **Moderation requesters are checked.** Every server receiving a kick, ban or unban refuses it unless the requester lies behind the link it arrived on. New reason code `InvalidRequester` (11). See [Moderation](#moderation).
+- **User IDs are quarantined.** An ID exported over a link is not reused for 5 minutes after its user stopped being exported, so a request already in transit cannot reach whoever takes the ID next. See [User IDs on a Link](#user-ids-on-a-link).
+- **Text on a link.** New section: CR line endings, byte maximums for names, chat lines and private messages, and over-long text dropped rather than truncated. See [Text on a Link](#text-on-a-link).
+- **Chat limits no longer stop relaying.** A per-user rate limit decides only whether a server shows a line, as a local filter does. A per-link volume bound may still drop lines. See [Limits](#limits).
+- **Snapshot parts.** Only Link Ping, Link Close and replies may be sent between the parts of a snapshot. See [Link Snapshot (901)](#link-snapshot-901).
+- **Chat line IDs.** New optional field `DATA_LINK_LINE_ID` (`0x063F`) in Link Chat, copied unchanged by relays, for later use. See [Link Chat (904)](#link-chat-904).
+- **Ban identifier.** A home server bans by whatever identifier its own operator's bans would use. See [Link Ban (908)](#link-ban-908).
+- **Failed kicks.** A kick the home server never confirms keeps the user hidden at the requesting server for the rest of their session. See [Link Kick (907)](#link-kick-907).
+- **Name comparison.** The display-name collision rule SHOULD compare after NFC normalization and Unicode simple case folding. See [Display Name](#display-name).
+- **Transport.** A link may ride any transport that carries the classic protocol, provided it is protected.
+- **Smaller additions.** Ghost bounds SHOULD leave room for local users, and server keys were added to [Future Work](#future-work).
