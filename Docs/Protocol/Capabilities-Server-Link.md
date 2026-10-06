@@ -6,13 +6,13 @@
 
 > **Developer Note:** This is only the beginning, see [Future Work](#future-work).
 
-> **Revised:** October 5, 2026, after review by another server's developer. See [Changes](#changes) for what changed since the first published version.
+> **Revised:** October 5, 2026, after review by Misha Nasledov ([@mishan](https://github.com/mishan)). See [Changes](#changes) for what changed since the first published version.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This document describes linking independently operated Hotline servers into a **network**, so that their users share one community: every server's users appear in every other server's user list, talk in one public chat, and can send each other private messages. The servers keep their own accounts, files, news and administration. The link joins people, not servers.
 
-**A linked server connects to its peer as a special client.** It dials the peer's ordinary Hotline port, logs in with an account the peer's operator created for it, and declares itself a link with a capability bit. Everything after that rides that session. There is no new listener, no new port and no new framing, and a link works when only one of the two servers can accept inbound connections. A link may equally ride any other transport on which the peer offers the classic protocol, such as a WebSocket carrying it, provided the session is [protected](#protecting-the-link).
+**A linked server connects to its peer as a special client.** It dials the peer's ordinary Hotline port, logs in with an account the peer's operator created for it, proving either the link password or its [server key](#server-keys-over-tls), and declares itself a link with a capability bit. Everything after that rides that session. There is no new listener, no new port and no new framing, and a link works when only one of the two servers can accept inbound connections. A link may equally ride any other transport on which the peer offers the classic protocol, such as a WebSocket carrying it, provided the session is [protected](#protecting-the-link).
 
 **Links relay.** A server passes on what it learns from one link to its other links, so a chain or a hub reaches everyone: if B links to A and A links to C, the users of all three servers appear on all three. Links form a tree; a link that would close a loop is refused.
 
@@ -38,6 +38,8 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [Text on a Link](#text-on-a-link)
   - [Authorizing a Link](#authorizing-a-link)
   - [Protecting the Link](#protecting-the-link)
+  - [Server Keys over TLS](#server-keys-over-tls)
+  - [The Key Proof](#the-key-proof)
   - [Link Session Restrictions](#link-session-restrictions)
 - [Transaction Types](#transaction-types)
 - [Data Objects](#data-objects)
@@ -45,9 +47,11 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [Link Features](#link-features)
   - [Link Reason Codes](#link-reason-codes)
 - [Transaction Semantics](#transaction-semantics)
+- [Relaying Fields](#relaying-fields)
 - [Server Identity](#server-identity)
   - [The Server Group](#the-server-group)
   - [Server ID](#server-id)
+  - [Server Key](#server-key)
   - [Tag](#tag)
 - [Link Lifecycle](#link-lifecycle)
   - [Link Hello (900)](#link-hello-900)
@@ -90,6 +94,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
 - [Server Behaviour](#server-behaviour)
 - [Future Work](#future-work)
 - [Implementation Notes](#implementation-notes)
+- [Acknowledgements](#acknowledgements)
 - [Changes](#changes)
 
 ---
@@ -234,7 +239,6 @@ All strings on a link are UTF-8, and each server converts them to and from whate
   A server MUST NOT originate a string longer than its maximum. It refuses the user's action locally, or shortens the text before it is shown anywhere, so that every copy is the same. A user whose name exceeds the maximum is not exported until the name changes. A receiver MUST drop, never truncate, a transaction carrying a longer one; a user group with a name over the maximum is dropped like any other group it cannot accept. A server whose own clients accept less than these maximums shortens the text for its own display only, and relays the original. Truncating on the link would make one line read differently on every server it passes.
 - **Text is passed on unchanged.** A relaying server forwards the bytes it received. Only the server delivering text to its own clients converts or shortens it.
 
-Names are compared as described under [Display Name](#display-name).
 
 ### Authorizing a Link
 
@@ -253,16 +257,66 @@ Authorization is evaluated continuously, not only at login:
 
 ### Protecting the Link
 
-A link carries a password that lets its holder place users in the peer's user list. **An acceptor MUST NOT confirm bit 11 on an unprotected session**, and a dialer MUST NOT send link traffic over one. The session MUST be protected in one of two ways:
+A link carries a password or a server key that lets its holder place users in the peer's user list. **An acceptor MUST NOT confirm bit 11 on an unprotected session**, and a dialer MUST NOT send link traffic over one. The session MUST be protected in one of three ways:
 
 | Protection | Requirements |
 |---|---|
 | **HOPE with AEAD** (RECOMMENDED) | [HOPE secure login](HOPE-Secure-Login.md) with the [ChaCha20-Poly1305 transport](HOPE-ChaCha20-Poly1305.md). The dialer MUST abort if the acceptor selects any other transport cipher, or none |
 | **TLS** | The dialer MUST verify the acceptor's certificate, either against the system trust store for the name it dialed, or against a fingerprint its operator pinned |
+| **Server keys over TLS** | TLS 1.3, negotiated and terminated by the server process itself. The certificate need not be verified: each side proves its [server key](#server-key) during login, bound to the TLS session ([The Key Proof](#the-key-proof)), and each side MUST verify the other's proof against the key its operator configured for that peer |
 
-HOPE with AEAD is recommended because it **authenticates both ends** without any certificate. The transport keys are derived from the link password, so a server that does not know the password cannot produce a single valid frame, and the dialer detects an impostor on the first transaction it receives. TLS without certificate verification authenticates neither end, and the HOPE stream ciphers do not protect against an active attacker. Neither is acceptable for a link.
+HOPE with AEAD is recommended because it **authenticates both ends** without any certificate. The transport keys are derived from the link password, so a server that does not know the password cannot produce a single valid frame, and the dialer detects an impostor on the first transaction it receives. TLS without certificate verification authenticates neither end, unless server keys are proven over it, and the HOPE stream ciphers do not protect against an active attacker. Neither is acceptable for a link on its own.
+
+Protection is chosen for each link by the operators at its two ends, and concerns nobody else. A server may link to one neighbour by HOPE, to another by TLS and to a third by server keys, and what crosses the links is the same whichever is used.
 
 HOPE's login step necessarily exposes a password-derived MAC to whoever answers the dialer's connection, which permits an offline guessing attack on the link password. **Link passwords MUST therefore be randomly generated, with at least 128 bits of entropy**, and never chosen by a person. Implementations SHOULD generate them.
+
+### Server Keys over TLS
+
+With server keys, the two servers authenticate each other by keys they hold, and no secret is shared between their operators. Operators exchange public keys, and compare their [fingerprints](#server-key) some other way, as they would an SSH host key.
+
+The proof is what makes an unverified certificate acceptable here. It is bound to this TLS session's exporter value, which depends on the whole handshake, so a man in the middle holding two TLS sessions cannot carry a proof from one into the other.
+
+- Both sides MUST refuse key mode unless TLS 1.3 was negotiated. Login (107) MUST NOT be sent as 0-RTT early data, and the early exporter MUST NOT be used.
+- Key mode cannot work behind a proxy that terminates TLS on the server's behalf (stunnel, or a reverse proxy in front of a WebSocket carrying the classic protocol), because the server has no exporter for a session it did not terminate. A link through such a proxy uses a password.
+- A dialing entry in key mode carries the peer's address, the account name the peer issued, and the peer's public key. An accepting entry names the local account the peer logs in with and the peer's public key. **An accepting entry with a key accepts that key and nothing else**: a correct password for the account never makes a link.
+- **A key-mode link account can never log in with a password.** It is stored with a password that matches nothing (not an empty one), so that it stays closed to ordinary logins even if its accepting entry is later removed and the account left behind.
+- If an operator changes the key configured for a peer while its link is up, the server closes the link with `ProtocolError`, and the link returns by itself once both sides agree (see the retry rule under [The Key Proof](#the-key-proof)). Until then, the side still holding the old key reports a possible impersonation; operators rotating a key should expect that.
+
+Because the certificate is not verified, the dialer reveals its key, its account name and the fact that it links to whoever answers its connection, before that party has proven anything. An impostor learns no secret, but it does learn of the link. Operators to whom that matters can use a certificate their peer verifies, in addition to the key proof.
+
+### The Key Proof
+
+Each side computes the TLS 1.3 exporter value for the session (RFC 8446 section 7.5) with label `EXPERIMENTAL-hotline-link-key-proof`, an empty context (in TLS 1.3, the same as none) and a length of 32 bytes, and signs:
+
+```
+"hotline-link-key-proof-v1" || 0x00 || role || exporter || signer_key || peer_key
+```
+
+| Item | Size | Value |
+|---|---|---|
+| `role` | 1 | `0x01` when the dialer signs, `0x02` when the acceptor signs |
+| `exporter` | 32 | The exporter value |
+| `signer_key` | 32 | The signer's public key |
+| `peer_key` | 32 | The public key the signer expects at the other end |
+
+`role` keeps either side from reflecting the other's proof back. `peer_key` binds the proof to the server the signer meant to reach. A verifier rebuilds the bytes from the other side's role, its own exporter value, the key configured for the peer as `signer_key` and its own key as `peer_key`. It never takes them from the wire, and it verifies with that configured key, already checked as described under [Server Key](#server-key).
+
+**Login (107)** from a key-mode dialer carries, alongside `DATA_CAPABILITIES` with bit 11 set, `DATA_LINK_SERVER_KEY` (the dialer's public key) and `DATA_LINK_KEY_PROOF` (the dialer's proof). The password field is empty.
+
+The acceptor confirms bit 11 only when all of the following hold:
+
+1. the account is the link account of an accepting entry in key mode;
+2. that entry's configured key equals `DATA_LINK_SERVER_KEY`;
+3. the proof verifies.
+
+Otherwise, including when a valid proof arrives on a login that does not set bit 11, it refuses the login like any failed login, and does not check the password field. A key login SHOULD NOT count toward account lockout: a proof cannot be guessed, and failures by someone without the key must not lock the real peer out. A successful login reply carries the acceptor's `DATA_LINK_SERVER_KEY` and its own proof.
+
+The dialer MUST verify that the acceptor's key equals the key configured for that peer and that its proof verifies. If either check fails, or the reply lacks either field, it MUST disconnect without sending any further transaction, and SHOULD report it to its operator as a possible impersonation, not a configuration error.
+
+**Retrying.** A failed key check on either side is not final, whether the acceptor refuses the dialer's login or the dialer refuses the acceptor's proof. The dialer keeps retrying at its slowest pace, as for `Suspended`, and keeps reporting each failure to its operator. This overrides the advice under [Capability Bit](#capability-bit) not to retry a login that did not confirm bit 11. A key rotation staged on both sides then completes on its own.
+
+**Hello.** On a key-mode link, the server ID in a received [Link Hello](#link-hello-900) MUST be the one derived from the key its sender proved at login. A Hello with any other server ID closes the link with `ProtocolError`.
 
 ### Link Session Restrictions
 
@@ -270,8 +324,8 @@ Once bit 11 is confirmed, the session is a link and is no longer a user:
 
 - The acceptor MUST NOT send the agreement (109) and MUST NOT wait for Agreed (121). The link is established by the login reply.
 - The link session MUST NOT appear in Get User Name List (300), and MUST NOT cause Notify Change User (301) or Notify Delete User (302).
-- **The acceptor MUST refuse every transaction on a link session other than those defined in this document**, regardless of the link account's access privileges. Ordinary transactions - chat, file listing, news, account administration - are not meaningful from a link and MUST be refused with an error, never silently processed.
-- The dialer likewise MUST refuse any transaction from the acceptor that this document does not define.
+- **The acceptor MUST refuse every transaction on a link session other than those defined in this document**, or in a published extension of it that the acceptor implements and the link negotiated, or in a draft being tried under [Trying out a draft](#data-objects), regardless of the link account's access privileges. Ordinary transactions - chat, file listing, news, account administration - are not meaningful from a link and MUST be refused with an error, never silently processed.
+- The dialer likewise MUST refuse any transaction from the acceptor that neither this document, nor such an extension, nor a draft being tried defines.
 
 ---
 
@@ -297,7 +351,7 @@ All transaction IDs are allocated from the free 900-block (`0x0384`+). They are 
 | 913 | `0x0391` | Link Server Update | Notification | A server became reachable through the sender, or changed |
 | 914 | `0x0392` | Link Server Gone | Notification | A server, and all its users, are no longer reachable through the sender |
 
-Transaction IDs 915–919 (`0x0393`–`0x0397`) are reserved for future link growth.
+Transaction ID 915 (`0x0393`) is reserved for the [user keys draft](Server-Link-User-Keys.md), which is not adopted. Transaction IDs 916–919 (`0x0394`–`0x0397`) are reserved for future link growth.
 
 ---
 
@@ -323,8 +377,14 @@ Field IDs are allocated from the free `0x0630`-block.
 | `0x063D` | 1597 | `DATA_LINK_EXCLUDE` | Binary (8) | A server ID at which this user must not be shown. **Repeated** |
 | `0x063E` | 1598 | `DATA_LINK_REQUESTER` | Binary (8) | The server ID on whose behalf a moderation request is made |
 | `0x063F` | 1599 | `DATA_LINK_LINE_ID` | Binary (20) | A network-unique identifier for a public chat line; see [Link Chat](#link-chat-904) |
+| `0x0640` | 1600 | `DATA_LINK_SERVER_KEY` | Binary (32) | An Ed25519 [server key](#server-key), in a key-mode Login (107) and its reply |
+| `0x0641` | 1601 | `DATA_LINK_KEY_PROOF` | Binary (64) | A [key proof](#the-key-proof) signature, in a key-mode Login (107) and its reply |
 
-Field IDs `0x0640`–`0x064F` are reserved for future link growth.
+Field IDs `0x0642`–`0x0644` are reserved for the [user keys draft](Server-Link-User-Keys.md), which is not adopted. Field IDs `0x0645`–`0x064F` are reserved for future link growth.
+
+**Fields are allocated by this document.** A field may appear in a link transaction or group only where a published document defines it there: this one, or a published extension of it. A **published extension** is one this document adopts. A draft kept beside it, such as the user keys draft, is not one until it is adopted.
+
+**Trying out a draft.** Numbers this document reserves for a draft may be used to try that draft out, but only between servers whose operators have chosen to. Those numbers are not used for anything else, and anything that carries them is handled like any other field or transaction outside the baseline. A trial MUST NOT change what a server that has not opted in is asked to do. A draft's new transaction crosses only links that negotiated the draft's feature bit, and its new fields only ride where [Relaying Fields](#relaying-fields) would carry any field. A server MUST NOT send a field anywhere no published document defines it. Relays pass on fields they do not know ([Relaying Fields](#relaying-fields)), and this rule keeps "a field the relay does not know" meaning "a field defined somewhere the relay has not caught up with", not one invented by some server.
 
 Existing fields reused by this extension: `FieldError` (100), `FieldData` (101), `FieldUserName` (102), `FieldUserIconID` (104), `FieldChatOptions` (109), `FieldUserFlags` (112), `FieldOptions` (113), `FieldQuotingMsg` (214), and `DATA_COLOR` (`0x0500`) from [Colored Nicknames](Colored-Nicknames.md).
 
@@ -343,7 +403,7 @@ Existing fields reused by this extension: `FieldError` (100), `FieldData` (101),
 | 2 | `0x0004` | `LINK_FEATURE_USER_INFO` | User info requests cross the link ([Link User Info (906)](#link-user-info-906)) |
 | 3 | `0x0008` | `LINK_FEATURE_TRANSIT` | Servers and users learned over this link may be relayed to the receiver's other transit links, and vice versa |
 
-Bits 4–31 are reserved and MUST be sent as zero and ignored on receipt.
+Bit 4 is reserved for the [user keys draft](Server-Link-User-Keys.md), which is not adopted. Bits 4–31 MUST be sent as zero, except a bit that a published extension defines and the sender implements, or that a draft being tried under [Trying out a draft](#data-objects) defines, and a receiver ignores any bit it does not implement.
 
 A feature is available between two servers only if every link on the path between them negotiated it. Each server applies its own links' features as it relays, so this follows without any server knowing the whole path.
 
@@ -369,6 +429,8 @@ User sharing, topology, moderation and the lifecycle transactions are not featur
 | 9 | `Excluded` | replies | The sender or recipient is [excluded](#exclusion) at the other's server |
 | 10 | `Banned` | 903 | The user was [banned from the network](#link-ban-908) and disconnected |
 | 11 | `InvalidRequester` | 907–909 replies | The request's `DATA_LINK_REQUESTER` is not a server that lies behind the link it arrived on ([Moderation](#moderation)) |
+| 12 | `RefusedFields` | replies | The request carried a field that never crosses a link, or more fields than a link carries ([Relaying Fields](#relaying-fields)) |
+| 13 | | | Reserved for the [user keys draft](Server-Link-User-Keys.md) |
 | 16 | `Shutdown` | 911 | The sender is stopping and expects to return; keep what it sent for the grace period |
 | 17 | `Unlinked` | 911 | The sender's operator removed this link; discard what it sent now |
 | 18 | `ProtocolError` | 911 | The sender received something it could not accept |
@@ -385,16 +447,80 @@ A kick is not a departure reason: it takes effect as [exclusion](#exclusion), wh
 
 ## Transaction Semantics
 
-Link transactions use standard Hotline framing (see [Hotline.md](Hotline.md)). Unlike the client/server protocol, **either end may originate any of them**:
+Link transactions use standard Hotline framing (see [Hotline.md](../Hotline.md)). Unlike the client/server protocol, **either end may originate any of them**:
 
 - **Request/reply** (905–910): the originator sends with a unique non-zero task ID and the *is-reply* flag unset, and the other end replies with the same task ID and the *is-reply* flag set. Task IDs are scoped to their originator, so the two ends' task ID spaces are independent and may overlap. A failure reply has a non-zero error code, SHOULD carry `DATA_LINK_REASON`, and MAY carry `FieldError` text for operator logs.
 - **Notification** (900–904, 911–914): sent with task ID `0` and no reply.
 
-**Relayed requests.** A server that cannot answer a request itself - a private message for a user who is a ghost here, for example - forwards it over the link toward the server that can, with IDs translated, and answers the original request with the reply it receives. Each forwarding server SHOULD time out a forwarded request after 10 seconds and answer it with `Unreachable`.
+**Relayed requests.** A server that cannot answer a request itself - a private message for a user who is a ghost here, for example - forwards it over the link toward the server that can, with IDs translated, and answers the original request with the reply it receives. Both the request and the reply keep their fields as described in [Relaying Fields](#relaying-fields). Each forwarding server SHOULD time out a forwarded request after 10 seconds and answer it with `Unreachable`.
 
-All multi-byte integers are big-endian. Receivers MUST ignore unrecognised fields.
+All multi-byte integers are big-endian. A receiver MUST NOT act on a field that is not defined where it appears, and a relay passes such fields on ([Relaying Fields](#relaying-fields)).
 
 A receiver that cannot accept a transaction - an undefined type, a malformed group, an ID it was never given - SHOULD log it and drop it. It SHOULD close the link with `ProtocolError` only when it can no longer trust its picture of the peer's side of the network, for example a server or user update that could not be parsed. Dropping one unparseable chat line is better for everyone on both sides than splitting the network.
+
+---
+
+## Relaying Fields
+
+**A relay passes on what it relays whole.** A field added by a later version or by an extension then works between any two servers that understand it, whatever runs between them, instead of only once every server on the path has upgraded.
+
+**The rule.** A server that relays a transaction copies every field of it, unchanged and in the order received, into the copy it sends on, including fields this document does not define for that transaction or group. A relay changes only the fields this document tells it to translate or recompute at each hop: user IDs (`DATA_LINK_USER_ID`, `DATA_LINK_TARGET_ID`), `DATA_LINK_HOPS`, and user flags (`FieldUserFlags`).
+
+The test is whether a field is *defined for that transaction or group*, not whether the relay recognises it. A later version may use a field a relay already knows in a new place, such as `DATA_LINK_EPOCH` in a server group or `FieldUserName` in a kick, and a relay that decided by field ID alone would drop or misread it.
+
+The rule applies to:
+
+- Link Snapshot, User Update and User Gone (901–903), Link Chat, Private Message, User Info, Kick, Ban and Unban (904–909), and Link Servers, Server Update and Server Gone (912–914);
+- the replies a server relays back for requests it forwarded;
+- relayed transactions that later published documents define, and their relayed replies, with the baselines those documents give them. A document that defines one gives its baseline fields in a table like the one under Size below, and that baseline is then as fixed as this one;
+- the server group in Link Hello. Peers keep it and announce it onward in Link Servers and Server Update, so it keeps its fields like any other group.
+
+It does not apply to Link Ping and Link Close (910, 911) or to the rest of Link Hello, which are hop-local. Nor does it apply to a reply a server makes itself (`Unreachable` on a timeout, `InvalidRequester` at a middle hop, and so on), which carries only its own fields.
+
+**Fields stay with their group.** In a transaction that carries groups, a field belongs to the group it sits in. A relay keeps it in that group, in order. A relay may split a snapshot or server list into parts differently; it MUST NOT move a field into another group.
+
+**Relays keep fields with what they describe.** A relay sends a group again later, as when a ghost's user group goes into the snapshot for a newly established link. It therefore keeps each user's and each server's group with all of its fields, not only the ones it uses. A group is complete, so a later group without a field removes that field.
+
+**Size.** The bound counts every field that is not in the **baseline** below, field headers included. The baseline is the set of fields this revision defines for each group and transaction, and it is fixed: later revisions never add to it, so a field they define counts toward the bound just as an extension's field does. Every relay then counts the same bytes, whatever version it runs. Measured against each version's own definitions, a relay on an older version would count more than a newer one and drop what the newer one passes.
+
+| Group or transaction | Baseline fields |
+|---|---|
+| Server group (in 900, 912, 913) | `DATA_LINK_SERVER_ID`, `DATA_LINK_TAG`, `DATA_LINK_SERVER_NAME`, `DATA_LINK_HOPS`, `DATA_COLOR` |
+| User group (in 901, 902) | `DATA_LINK_USER_ID`, `DATA_LINK_SERVER_ID`, `FieldUserName`, `FieldUserIconID`, `FieldUserFlags`, `DATA_COLOR`, `DATA_LINK_EXCLUDE` |
+| Link User Gone (903) | `DATA_LINK_USER_ID`, `DATA_LINK_REASON` |
+| Link Chat (904) | `DATA_LINK_USER_ID`, `FieldData`, `FieldChatOptions`, `DATA_LINK_LINE_ID` |
+| Link Private Message (905) | `DATA_LINK_USER_ID`, `DATA_LINK_TARGET_ID`, `FieldData`, `FieldQuotingMsg`, `FieldOptions` |
+| Link User Info (906) | `DATA_LINK_TARGET_ID` |
+| Link Kick (907) | `DATA_LINK_TARGET_ID`, `DATA_LINK_REQUESTER`, `FieldData` |
+| Link Ban (908) | `DATA_LINK_TARGET_ID`, `DATA_LINK_REQUESTER`, `DATA_LINK_DURATION`, `FieldData` |
+| Link Unban (909) | `DATA_LINK_BAN_ID`, `DATA_LINK_SERVER_ID`, `DATA_LINK_REQUESTER` |
+| Link Server Gone (914) | `DATA_LINK_SERVER_ID` |
+| A relayed reply | `DATA_LINK_REASON`, `FieldError`, `DATA_LINK_BAN_ID`, `FieldData` |
+
+`DATA_LINK_MORE` in 901 and 912 belongs to the transaction, not to a group, and is not relayed with any group.
+
+The fields outside the baseline total at most:
+
+| Where | Maximum |
+|---|---|
+| A server group or user group, and any relayed transaction other than 905 | 1024 bytes |
+| Link Private Message (905) | 17,408 bytes (2 × 8192 + 1024) |
+
+The larger bound for 905 leaves room for an extension that carries a message and its quote in another form, encrypted for example. **These bounds are permanent.** Raising them later would make every older relay drop what newer servers send, so they are the whole budget for every field later revisions and extensions add to a group or transaction. A design that needs more, such as carrying a document of its own, uses a transaction of its own with its own bound. The server that adds fields MUST stay within these bounds. A receiver that gets a group or transaction over them drops it whole, the group or the transaction, as it does over-long text. It never removes only the extra fields: a signed group or request with fields removed would look, to every server beyond, exactly like one that had been tampered with. A request dropped this way is answered with `RefusedFields`. A dropped user or server update leaves the receiver's previous copy in place.
+
+**Fields that never cross.** These fields carry what a link must never carry, and a server MUST NOT send any of them in a link transaction:
+
+| Field | Carries |
+|---|---|
+| `FieldUserLogin` (105) | An account login |
+| `FieldUserPassword` (106) | Password material |
+| `FieldUserAccess` (110) | Account privileges |
+| `DATA_FRIEND_LOGIN` (`0x0600`) | A [messaging](Capabilities-Messaging.md) Login |
+| `0x0E00`–`0x0EFF` | [HOPE](HOPE-Secure-Login.md) login and transport fields, which belong to the link session's own login and never to a link transaction |
+
+A receiver that finds one drops the group it is in, or the whole transaction if it is not in a group, and answers a request with `RefusedFields`. This keeps the rule that a network never carries logins or account details true at every hop, and not only at the server that sent the field. A field that carries a network address falls under the same rule wherever a document defines one.
+
+**Chat history.** A server MAY keep a line's fields with the line it records. It never sends a recorded line over a link.
 
 ---
 
@@ -412,13 +538,25 @@ Servers are described by groups of fields, each opened by `DATA_LINK_SERVER_ID`:
 | `DATA_LINK_HOPS` | Yes | `0` for the sender itself, otherwise the sender's distance to that server |
 | `DATA_COLOR` (`0x0500`) | No | The color that server suggests for its users elsewhere ([Color](#color)) |
 
-A group is complete, not incremental: it carries everything the sender holds for that server, and the receiver replaces what it had.
+A group is complete, not incremental: it carries everything the sender holds for that server, and the receiver replaces what it had. That includes fields this document does not define for a server group, which a relay keeps and passes on ([Relaying Fields](#relaying-fields)).
 
 ### Server ID
 
-Every server has an 8-byte **server ID**, chosen at random the first time it links and kept permanently. It MUST NOT change when the server restarts, is renamed or changes its tag. Two servers with the same ID cannot be in the same network, which is how [loops](#loop-prevention) are detected, so a server MUST NOT derive its ID from anything another server could share (a hostname, a copy of a configuration file) and SHOULD generate it rather than accept one from its operator.
+Every server has an 8-byte **server ID**, kept permanently. A server SHOULD have a [server key](#server-key) and use the ID derived from it; a server without one chooses its ID at random the first time it links. It MUST NOT change when the server restarts, is renamed or changes its tag. Two servers with the same ID cannot be in the same network, which is how [loops](#loop-prevention) are detected, so a server MUST NOT derive its ID from anything another server could share (a hostname, a copy of a configuration file) and SHOULD generate it rather than accept one from its operator.
 
-**Copying a server copies its ID.** An operator who sets up a second server by duplicating the first one's data, or who restores one server's backup onto another machine while the original still runs, ends up with two servers sharing an ID. Linking them, or placing both in the same network, is then refused as a loop. Implementations SHOULD keep the server ID somewhere an operator would not copy by accident, SHOULD give operators a command to generate a new one, and SHOULD say in the `Loop` log message that a duplicated server ID is one possible cause. Generating a new ID is harmless: peers see a new server, and nothing else depends on the old value.
+**Copying a server copies its ID.** An operator who sets up a second server by duplicating the first one's data, or who restores one server's backup onto another machine while the original still runs, ends up with two servers sharing an ID. Linking them, or placing both in the same network, is then refused as a loop. Implementations SHOULD keep the server ID somewhere an operator would not copy by accident, SHOULD give operators a command to generate a new one, and SHOULD say in the `Loop` log message that a duplicated server ID is one possible cause. Generating a new ID is harmless: peers see a new server, and nothing else depends on the old value. On a server with a key, generating a new ID means generating a new key.
+
+### Server Key
+
+A server's **server key** is an Ed25519 key pair (RFC 8032), generated by the server and kept permanently, like the server ID. Implementations SHOULD keep it apart from the configuration an operator copies between servers, for the reasons given under [Server ID](#server-id), and readable by the server alone.
+
+- **Its server ID is derived from it:** the first 8 bytes of the raw SHA-256 digest of its 32-byte public key (not of the display form). A server with a key MUST NOT use any other ID while it has the key. A peer that links with it by key therefore knows the ID at the other end is genuine.
+- **It is shown to operators as its fingerprint:** the SHA-256 digest of the public key, in lowercase Crockford base32 (most significant bit first, as RFC 4648) without padding, 52 characters. A user interface MAY group it for reading.
+- A server MUST refuse a public key that is not a canonical encoding or is a point of small order, whether it is configured for a peer or its own.
+- **Adopting, changing or dropping a key changes the server ID.** It becomes the one derived from the new key, or, for a server that stops using keys, a new random ID. A server that changes its ID, by restarting or while running, closes its links as it would for a restart, with `Shutdown`, and links again. Its next Hello names a different server, and each peer withdraws the old one at once ([Interruption and Resynchronisation](#interruption-and-resynchronisation)), with the old server's users leaving and the new one's arriving. It MUST NOT close its links with `Unlinked` for this, because that stops its peers' dialers: a peer on a password link, for whom nothing changed, would wait for its operator. Its own dialers then retry at the slowest pace until each peer that links with it by key has the new key. Bans it made under its old ID stay with that ID, and it can no longer lift them. **An operator SHOULD lift the network bans their server made that they want lifted before it first gets its key, or changes it.**
+- A server MAY use the same key elsewhere (to sign a discovery document, for example), provided every signature it makes with the key is domain-separated from the key proof's.
+
+Having a key does not mean using key mode. A server with a key may link to every neighbour by password and still uses the ID derived from its key, so it can adopt key mode on any link later without changing its ID again.
 
 ### Tag
 
@@ -442,7 +580,7 @@ Each side MUST send Link Hello as its first link transaction, immediately after 
 
 - The link runs at the **lower** of the two versions. A side that cannot speak that version MUST send [Link Close](#link-close-911) with `VersionUnsupported`.
 - The link's features are the bitwise AND of the two `DATA_LINK_FEATURES` values.
-- On receiving Hello, each side checks the peer's server ID and tag against its own knowledge ([Loop Prevention](#loop-prevention), [Tag](#tag)), then sends [Link Servers](#link-servers-912).
+- On receiving Hello, each side checks the peer's server ID and tag against its own knowledge ([Loop Prevention](#loop-prevention), [Tag](#tag)), then sends [Link Servers](#link-servers-912). On a link authenticated by server keys, it first checks that the server ID is the one derived from the key the peer proved ([The Key Proof](#the-key-proof)).
 - Each side sends its [Link Snapshot](#link-snapshot-901) only once it has received and accepted the peer's first complete Link Servers. A side that refuses the peer's server list (with `Loop`, `TagConflict` or `HopLimit`) has then sent none of its users over the link.
 
 ### Link Ping (910)
@@ -480,7 +618,8 @@ A link that drops without `Link Close`, or closes with `Shutdown`, is **interrup
 - On reconnection, each side sends its full server list and snapshot as usual, and the receiver reconciles them against what it kept:
   - **Same epoch** in the peer's Hello as before the interruption: the peer's user IDs still mean the same users. Keep ghosts whose ID appears in the snapshot (relaying an update only if something about them changed), remove those whose ID does not, and add the new ones.
   - **Different epoch**: the peer restarted, and its user IDs now name different people. Every ghost learned over that link is stale. The receiver SHOULD remove all of them and add the snapshot's users afresh. It MAY instead re-use a ghost for an incoming user with the same home server, name and icon, which avoids showing a reconnected user leaving and rejoining. It MUST update the ID mapping when it does.
-  - Servers are reconciled by server ID: those in the new list are kept or updated, and those missing are gone.
+  - Servers are reconciled by server ID: those in the new list are kept or updated, and those missing are gone. The receiver withdraws the missing ones before it learns any new ones, so a server that came back under a new ID with the same tag finds its tag free, and the servers beyond hear of the departure before the arrival.
+  - **The peer itself counts too.** A Hello naming a different server ID than the previous session's means the peer's old server is gone. The receiver withdraws it, with every user homed there, before it accepts the new one.
 - When the grace period expires without reconnection, the server removes the ghosts and relays [Link Server Gone](#link-server-gone-914) for every server learned over the link. It MAY post a notice in public chat that the link was lost.
 
 A split that outlasts the grace period is announced honestly: every client sees the users on the far side leave, and sees them all arrive again when the link returns. The same happens when a server first joins a network. This is the netsplit familiar from IRC and from linked game realms, and it is expected behaviour, not something to suppress. It is the user list telling the truth about who can be reached.
@@ -573,7 +712,7 @@ Users [excluded](#exclusion) somewhere are still exported, with their exclusions
 
 In a transaction carrying several groups, every field from one `DATA_LINK_USER_ID` up to the next (or the end of the transaction) belongs to that user.
 
-**A relaying server passes the home server, name, icon, color and exclusions on unchanged.** It applies its own [flag](#user-flags) rules and substitutes its own ID for the user.
+**A relaying server passes the home server, name, icon, color, exclusions and every other field of the group on unchanged** ([Relaying Fields](#relaying-fields)). It applies its own [flag](#user-flags) rules and substitutes its own ID for the user.
 
 Senders MUST NOT send any of the user's IP address, login, account name, account privileges or connection details. No server in the network has any use for them, and a network that never carries them can never leak them.
 
@@ -625,19 +764,17 @@ The receiver removes the ghost, announces Notify Delete User (302) if it was sho
 
 ### Display Name
 
-By default a ghost is shown under **the user's own name, unchanged**, and is distinguished by [color](#color). A server SHOULD offer its operator an option to append the home server's [tag](#tag) instead, giving `bob@hl2`.
+By default a ghost is shown under **the user's own name, unchanged**, and is distinguished by [color](#color). A server SHOULD offer its operator an option to append the home server's [tag](#tag) instead, giving `bob@hl2`. With that option on, **every** ghost carries its tag; with it off, none does. Nothing else changes a ghost's name.
 
-Two rules apply in either mode:
+**Names may be shared.** Hotline lets users choose any name, and a server's user list commonly holds several users with the same one, such as clients' default names like `unnamed`. A ghost is no exception. A receiving server MUST NOT rename, tag or refuse a ghost because another user, local or linked, has the same name, and it never renames a local user because of a ghost. Without the tag option, local users and linked users share the list as users of one server would. That is the intended experience for a community spread over several linked servers.
 
-- **A ghost's name MUST NOT duplicate another user's name** in the receiving server's user list, compared case-insensitively. A server SHOULD compare names after NFC normalization and Unicode simple case folding, so that names differing only in the case of a non-ASCII letter (`Ärger`, `ärger`) also count as duplicates. Tags are ASCII, so this concerns names only. If it would, the server appends the tag to that ghost (`bob@hl2`), whatever the option says. Local users always keep their own names, and it is always the ghost that is tagged:
-  - If a local user later takes a name that an untagged ghost already has, the server tags the ghost and announces the change with 301.
-  - If two ghosts collide, the one announced later is tagged.
-  - A ghost tagged this way keeps its tag until its own name next changes.
-- **When the tag is appended and the result exceeds the server's name length limit**, the server shortens the name part, never the tag. A truncated name is unremarkable, whereas a truncated tag hides where the user is from.
+A ghost cannot pass as a local administrator: the admin flag is cleared on every ghost at every hop ([User Flags](#user-flags)), so a classic client never shows a ghost as one. A ghost with the same name as a local user is no different from a local user with the same name as another, which Hotline has always allowed. Where an operator wants every linked user marked even in clients without color, the tag option does that.
 
-Display names are local. Each server decides its own, and relays the user's own name, never its display name. A user tagged on one server because of a name collision there is untagged everywhere else.
+**When the tag is appended and the result exceeds the server's name length limit**, the server shortens the name part, never the tag. A truncated name is unremarkable, whereas a truncated tag hides where the user is from.
 
-The collision rule matters most for clients that cannot show color. Without it, a ghost could take exactly the name of a local user, including a local administrator, and appear identical to them.
+Display names are local. Each server decides its own, and relays the user's own name, never its display name. A user shown as `bob@hl2` on a server that appends tags is `bob` on one that doesn't.
+
+A server that changes the tag option while linked SHOULD show its existing ghosts anew under the new setting, announcing each change with Notify Change User (301).
 
 ### Color
 
@@ -651,7 +788,7 @@ Using the home server's suggestion by default means a server's users appear in t
 
 The server's color takes precedence over the user's own `DATA_COLOR`. A ghost whose name is not tagged is identified only by its color, and a user free to pick their own color could pick the local one. A server MAY use the user's own color when it is appending the tag, because the tag then identifies the ghost.
 
-Clients without colored-nickname support see untagged ghosts as ordinary users. The [user info](#user-info) text still names the ghost's home server. Operators whose communities mostly use such clients may prefer the tag option.
+Clients without colored-nickname support see untagged ghosts as ordinary users, which is what the default intends. The [user info](#user-info) text still names the ghost's home server. Operators who want linked users marked in such clients use the tag option.
 
 ### User Flags
 
@@ -704,7 +841,7 @@ Notification carrying one public chat line.
 
 **Fields:** `DATA_LINK_USER_ID` (REQUIRED, the speaker, as the sender identifies them), `FieldData` (REQUIRED, the text as the speaker sent it, UTF-8), `FieldChatOptions` (optional, `1` for an emote, as in Send Chat (105)), `DATA_LINK_LINE_ID` (optional, see below).
 
-**Line ID.** `DATA_LINK_LINE_ID` names one line across the whole network: the speaker's home server ID (8 bytes), that server's current [epoch](#interruption-and-resynchronisation) (8 bytes), and a UInt32 sequence number the home server increments for every line it originates during that epoch. The home server SHOULD include it when it originates a line. A relaying server MUST copy it unchanged when present and MUST NOT add one. Receivers MUST NOT require it. This version defines no transaction that uses it. It is assigned now so that a later version can redact or deduplicate a line by naming it, without depending on every relay having been upgraded first. A receiver MAY record it with the line in its chat history.
+**Line ID.** `DATA_LINK_LINE_ID` names one line across the whole network: the speaker's home server ID (8 bytes), that server's current [epoch](#interruption-and-resynchronisation) (8 bytes), and a UInt32 sequence number the home server increments for every line it originates during that epoch. The home server SHOULD include it when it originates a line. Relays pass it on as they pass every field ([Relaying Fields](#relaying-fields)), and MUST NOT add one. Receivers MUST NOT require it. This version defines no transaction that uses it. It is assigned now so that a later version can redact or deduplicate a line by naming it, without depending on every relay having been upgraded first. A receiver MAY record it with the line in its chat history.
 
 **Originating.** When a local, exported user sends a public chat line that the server accepts and broadcasts locally, the server sends Link Chat over each link that negotiated the feature. It sends the **raw text** the user typed, never the formatted line its own clients receive.
 
@@ -715,7 +852,7 @@ A server MUST NOT originate or relay Link Chat for:
 - lines from users not exported over the outgoing link;
 - server messages, administrator broadcasts, or lines injected by bridges;
 - chat in any room other than public chat;
-- inline media or other extension content attached to a line. The text is sent; the attachment is not. A line that consists only of an attachment, with no text, is not sent at all, rather than sent empty.
+- inline media or other extension content a client attached to a line. The text is sent; the attachment is not. A line that consists only of an attachment, with no text, is not sent at all, rather than sent empty. A later extension may define fields that carry such content across links, and relays pass those on like any other field ([Relaying Fields](#relaying-fields)).
 
 **Receiving.** The receiver validates that the speaker is a current ghost from that link and that the line is within its [limits](#limits), then **formats and delivers it exactly as it would a line from a local user**, with the ghost's display name. It does this unless the speaker is [excluded](#exclusion) here, in which case it only relays. Formatting at the receiver is what makes remote lines look like local ones: the same layout, the same encoding conversion for each client and the same chat history. It also means no server needs to know how another formats chat.
 
@@ -842,22 +979,26 @@ A receiver applies its own limits to everything arriving over a link, and MUST N
 - **Chat.** A server SHOULD rate-limit Link Chat per ghost, at the same thresholds it applies to local users. **A per-ghost limit, like a [local filter](#public-chat), decides whether this server shows the line, never whether it is relayed.** Every server beyond applies its own limits, and a line dropped in the middle would vanish for everyone behind that server without anyone being able to tell why. A server MAY also bound the total chat volume it accepts from each link, to protect itself; a line beyond that bound is dropped and not relayed, and the server SHOULD log when it happens.
 - **Private messages.** A server SHOULD rate-limit Link Private Message per ghost and per link, at the same thresholds it applies to local users. A message over a limit is refused with `RateLimited`, so the sender learns of it.
 - **Lengths.** Text on a link is bounded as described in [Text on a Link](#text-on-a-link).
+- **Fields.** Fields outside the baseline of a group or transaction are bounded as described in [Relaying Fields](#relaying-fields).
 - **Server capacity.** Ghosts MUST NOT count toward the server's connection limit or per-address limits. They consume user IDs and nothing else.
-- **Tracker listings and the info port.** A server SHOULD NOT count ghosts in the user count it reports to trackers, or in `users.connected` on the [info port](Hotline-Info-Port.md). A user is connected to one server, and counting them on every server in the network inflates every listing. A server MAY report the number of ghosts it currently shows as `users.linked` on the info port, and that it links and how many ghosts it shows as `SUPPORTS_SERVER_LINKING` and `LINKED_USERS` in a [v3 tracker registration](Tracker-Protocol-v3.md).
+- **Tracker listings and the info port.** A server SHOULD NOT count ghosts in the user count it reports to trackers, or in `users.connected` on the [info port](../Hotline-Info-Port.md). A user is connected to one server, and counting them on every server in the network inflates every listing. A server MAY report the number of ghosts it currently shows as `users.linked` on the info port, and that it links and how many ghosts it shows as `SUPPORTS_SERVER_LINKING` and `LINKED_USERS` in a [v3 tracker registration](Tracker-Protocol-v3.md).
 
 ---
 
 ## Security Considerations
 
 - **The link password is the keys to the user list.** Anyone holding it can place users on the peer's server under any name, attributed to any server behind them. It MUST be random ([Protecting the Link](#protecting-the-link)), SHOULD be unique per peer, and SHOULD be rotated when an operator leaves. Closing a link is always unilateral, so revoking it requires nothing from the other side.
-- **Peer authentication is mutual** on every link. With HOPE AEAD, both servers prove knowledge of the link password before any link traffic is accepted.
+- **A server key is too, but it never leaves its server.** A peer's operator holds only the public key, which is useless to anyone who steals it. An operator who no longer trusts a key removes the peer's entry. A server whose key leaked generates a new one, with it a new server ID, and gives the new fingerprint to its peers.
+- **Peer authentication is mutual** on every link. With HOPE AEAD, both servers prove knowledge of the link password before any link traffic is accepted. With server keys, each proves its key, bound to the TLS session.
+- **What a key proves.** Key mode authenticates the two servers on a link to each other. It says nothing about servers further away: what a peer relays about them is taken on trust, exactly as on a password link.
 - **Trust is transitive, by design.** A server cannot verify what a peer says about servers behind it. A dishonest server in the middle of a network could invent users from a server it relays, drop a ban request, or make a moderation request in the name of a server behind it. It cannot do so in the name of a server elsewhere in the network, because [every hop checks the requester](#moderation). This is the price of relaying, and it is why the [trust model](#trust-model) treats joining a network as vouching for it, and why transit is a per-link choice.
 - **Identity assertions are scoped.** A peer can present only users homed behind it, can speak only for users it exported, and can address only users it was shown. Every transaction naming a user or a server is checked against those sets.
 - **Privilege never crosses.** The admin flag is cleared by every sender and every receiver, ghosts hold no access privileges, and user info is built as for an unprivileged requester.
 - **No personal data crosses.** No address, login or account detail is ever sent. Bans work without them because home servers enforce them. A user's exclusions do reveal which servers have kicked them to every server they are relayed through; operators who link have accepted that.
-- **Impersonation.** The [display name](#display-name) rules prevent a ghost from taking a local user's exact name. They cannot prevent look-alike names (`adm1n`, Unicode confusables), any more than a single server can between its own users. Color and the user-info prefix remain the reliable identification.
+- **Impersonation.** A ghost may have any name, including a local user's, exactly as a local user may ([Display Name](#display-name)). It can never carry the admin flag, so it cannot be shown as a local administrator. Color, the tag option and the user-info prefix identify where a user is from; a name never did, on Hotline.
 - **Content is visible to every server on its path**, and to anyone who reads those servers' chat logs. Whether and how to tell users that the server is part of a network (in the agreement, for instance) is left to each operator.
 - **Network membership is not published.** Which servers a server is linked with, and the tags and IDs of the servers in its network, are known to the network's operators and its users, not to the outside. A server MUST NOT publish them outside the link: not to trackers, not on the info port, and not in any other public listing. That a server links, and how many linked users it shows, MAY be published (see [Limits](#limits)). A network's membership maps the trust relationships between its operators, and an attacker looking for a way in should not get it for free.
+- **Relays carry fields they cannot check.** A relay passes on fields defined by documents it does not implement, so keeping logins, addresses and account details off a link is the job of the server that adds a field. The fields that [never cross](#relaying-fields) are refused at every hop, and every field must be defined in a published document, so the rule does not depend on the origin alone.
 - **Transactions on a ghost fail closed** ([Transactions Naming a Ghost](#transactions-naming-a-ghost)). This is the property most likely to regress as a server gains features, and it deserves a test of its own.
 
 ---
@@ -880,7 +1021,7 @@ A conforming server:
 3. Keeps a permanent random server ID and a network-unique tag, and refuses links that would create a loop, duplicate a tag, or exceed its depth limit.
 4. Exports its own visible local users, and relays ghosts and servers between transit links, never back over the link they came from. It announces every server before any of its users, and never sends addresses, logins or privileges.
 5. Sends Hello first and nothing before it, then its server list, and its users only once it has accepted the peer's server list. It closes a link whose peer never sends Hello, and one that sends server or user state it cannot parse.
-6. Presents ghosts with an allocated user ID, their home server's color, flags filtered as specified, and a display name that never duplicates another user's.
+6. Presents ghosts with an allocated user ID, their home server's color, flags filtered as specified, and their own name, with the home server's tag appended if and only if its operator enabled the tag option. It never renames or refuses anyone because a name is shared.
 7. Validates every incoming reference. A user must be homed behind the link they arrived on, a moderation requester must lie behind that link, a sender must be a current ghost from that link, and a target must be a user exported over that link.
 8. Formats remote chat lines locally, from raw text, as it would a local line.
 9. Relays private messages, user-info requests and moderation requests hop by hop, translating IDs, and passes replies back.
@@ -891,12 +1032,14 @@ A conforming server:
 14. Applies its own limits to link traffic, without dropping relayed chat for per-user limits, and excludes ghosts from connection limits and tracker counts.
 15. Publishes nothing about its network's membership: not which servers it links with, nor their tags or IDs.
 16. Quarantines user IDs it has exported before reusing them, sends text with CR line endings and within the link's length bounds, and drops rather than truncates text over them.
+17. Relays groups and transactions whole, keeping every field it is not told to translate, and keeps each ghost's and server's group with all its fields. It drops a group or transaction that exceeds the field bounds or carries a field that never crosses, never acts on a field not defined where it appears, and sends no field that no published document defines.
+18. Has a server key and uses the ID derived from it (SHOULD). On a link by server keys, proves its key over TLS 1.3 and accepts only the key configured for the peer, and checks the peer's Hello ID against it.
 
 ---
 
 ## Future Work
 
-Each item below would be a new [link feature](#link-features) bit, or a new transaction in the reserved range, negotiated per link, so a server that does not implement it continues to interoperate.
+Each item below would be a new [link feature](#link-features) bit, or a new transaction in the reserved range, negotiated per link, so a server that does not implement it continues to interoperate. Where an item needs only new fields in existing transactions, [Relaying Fields](#relaying-fields) carries them across servers that do not implement it.
 
 - **Redundant links.** Standby links between servers that are already connected, held idle while the tree is whole and activated when it splits. This heals a broken link without an operator.
 - **Private chat across links.** Inviting a ghost into a private chat, with the chat hosted on, and moderated by, the server where it was created.
@@ -906,23 +1049,83 @@ Each item below would be a new [link feature](#link-features) bit, or a new tran
 - **File transfer** between users on different servers.
 - **Messaging.** Bringing the [instant messaging](Capabilities-Messaging.md) roster and presence across links, so users on different servers can be friends.
 - **Bans at every door.** A network-wide ban is enforced at the banned user's home server, so it does not recognise the same person arriving at another server. Recognising them everywhere would require an identifier to cross links: an account, or an address. A keyed hash does not help here, since the IPv4 space is small enough to search. Revisit if networks find evasion to be a real problem.
-- **Server keys.** A server ID derived from a key the server holds, with server groups and moderation requests signed by it. A server in the middle could then no longer invent servers behind it or make requests in their name, and a requester would be verifiable end to end rather than [hop by hop](#moderation).
+- **Signed server groups and moderation.** Server groups and moderation requests signed with the [server key](#server-key). A server in the middle could then no longer invent servers behind it or make requests in their name, and a requester would be verifiable end to end rather than [hop by hop](#moderation). The [server keys draft](Server-Link-Server-Keys.md) sketches both.
+- **User keys.** Optional identity keys for users, carried across links, as drafted from hxd-ng's identity spec. The draft is expected to keep to these points:
+  - **The fingerprint is the home server's statement.** It is an identity fingerprint in the user group, added only by the home server, only for a session that proved the key at login there, and passed on unchanged like exclusions. Receivers take it as the home server's word, which is as far as the [trust model](#trust-model) goes.
+  - **It is identity, not moderation.** A key the user presents does nothing against ban evasion, which is why bans at every door stays open.
+  - **Key bans are each receiving server's choice.** A ban by key binds the home server as any network ban does. Any other server honours it only if its operator opts in, it means something only where identity logins exist, and it holds only where unknown keys are refused.
+  - **Encrypted private messages** ride in Link Private Message (905) within its bound, with a plaintext placeholder for classic clients. Getting the recipient's key must not reveal other servers' addresses or the network's membership ([Security Considerations](#security-considerations)). The key is therefore fetched by a request relayed hop by hop to the home server, as [Link User Info (906)](#link-user-info-906) is. Device certificates can run to a few kilobytes, so this is likely a new request in the reserved 915–919 range with a bound of its own, not an addition to 906.
 - **Server-scoped bans.** A ban that, like a kick, removes someone from one server only but persists across their sessions. The exclusion mechanism already carries it; it needs only a lifetime longer than a session.
 
 ## Implementation Notes
 
-- **Allocations.** Capability bit 11, transactions 900–914 (915–919 reserved), fields `0x0630`–`0x063F` (`0x0640`–`0x064F` reserved) and reason codes 0–11 and 16–24 are assigned. Janus 2.0.18 shipped all of them except `DATA_LINK_LINE_ID` and `InvalidRequester`, which Janus 2.0.19 (in development) adds. Interoperation has been exercised between Janus servers only.
+- **Allocations.** Capability bit 11, transactions 900–914 (915–919 reserved), fields `0x0630`–`0x0641` (`0x0642`–`0x064F` reserved) and reason codes 0–12 and 16–24 are assigned. Transaction 915, fields `0x0642`–`0x0644`, feature bit 4 and reason code 13 are reserved for the user keys draft. Janus 2.0.18 shipped all of them except `DATA_LINK_LINE_ID`, `DATA_LINK_SERVER_KEY`, `DATA_LINK_KEY_PROOF`, `InvalidRequester` and `RefusedFields`, which Janus 2.0.19 (in development) adds. Interoperation has been exercised between Janus servers only.
 - **Peer configuration.** The Janus reference design identifies a peer by a configuration entry. A dialing entry carries the peer's address and the credentials the peer issued; an accepting entry names the local account the peer logs in with. Features and the ghost bound are per entry. The server's own tag, its suggested color, the tag-display option and color overrides by tag are server-wide settings.
 - **The ghost sink.** A reference server delivers transactions to users through a per-recipient outbox, and every broadcast loop (chat lines, user-list notifications) will reach ghosts through it. The outbox MUST **drop** every transaction addressed to a ghost. The translations above happen earlier: in the handlers for 108, 303 and 110, which recognise a ghost target before building any outbound transaction, and in the chat handler, which sends the raw text over links rather than forwarding the formatted 106 that the broadcast produced. A sink that drops everything is one choke point that is easy to keep closed. A sink that tried to translate whatever reached it would forward the formatted copy of every broadcast.
 - **Hidden ghosts.** A user excluded at this server is still allocated an ID and kept in the per-link table so it can be relayed. It is a ghost with a "not listed" mark, handled by the same code that already keeps invisible users out of the list.
 - **Failing closed on ghosts.** The reference server enforces [Transactions Naming a Ghost](#transactions-naming-a-ghost) in its transaction dispatcher, not in each handler: a request whose user ID names a ghost is refused before any handler runs, unless its type is one of the three that are translated (108, 303, 110). A handler added later is then safe by default, and the translated three are the only places that need to know about ghosts.
 - **Joined, not connected.** The reference server marks a session as joined at the moment it announces the user to the user list (301), after the login reply and, where the server waits for one, after Agreed (121), and exports it from then on, as [Who Is Exported](#who-is-exported) requires. Until its login reply has been sent, a session is sent nothing at all, which also keeps chat from linked servers from reaching a client whose text encoding the server has not settled yet.
+- **Server keys.** Exporter values are available as `tls.ConnectionState.ExportKeyingMaterial` in Go and `export_keying_material` in rustls, among others; both say whether TLS 1.3 was negotiated. Neither Go's `crypto/ed25519` nor `ed25519-dalek` refuses every non-canonical or small-order public key on its own. Since a verifier only ever uses configured keys, the check belongs where a key is configured or generated: decode to a point, re-encode it and compare bytes for canonical form, and multiply by the cofactor and compare with the identity for small order. In Go, `filippo.io/edwards25519` does both (`SetBytes` then `Bytes`; `MultByCofactor`). In Rust, `ed25519-dalek`'s `VerifyingKey::is_weak` covers small order, but `to_bytes` returns the bytes it was given, so the canonical check must re-encode through the point, as in `CompressedEdwardsY(bytes).decompress()?.compress() == bytes`.
 - **Operator state.** The server ID lives in its own file in the server's data directory (`server-id`), apart from the configuration an operator copies between servers, and `janus link reset-id` replaces it. Suspended links and trusted addresses are kept in `link-state.json`; bans a server enforces for others and bans it has placed on other servers' users are kept in separate files, so lifting one never touches the other.
 - **Optional behaviour left out.** The reference server does not mark ghosts away during a grace period and does not post a chat notice when a link is lost. Both are MAYs.
 
 ---
 
+## Acknowledgements
+
+Server keys, key mode and the key proof are the design of **Misha Nasledov**, adopted from her [proposal](Server-Link-Server-Keys.md). Her review of the first published version, written while implementing this extension in hxd-ng, also brought:
+
+- the requester check;
+- the user ID quarantine;
+- the rules in Text on a Link;
+- Relaying Fields, with its scope, its test of what a group or transaction defines, and the fixed field baseline;
+- most of the corrections in the revisions that followed.
+
+Her [user keys draft](Server-Link-User-Keys.md) is kept beside this document.
+
+---
+
 ## Changes
+
+### October 5, 2026: Server Keys
+
+The fifth revision. It adopts the [server keys draft](Server-Link-Server-Keys.md) by hxd-ng's developer.
+
+- **Server keys.** A server SHOULD hold an Ed25519 key and derive its server ID from it. Adopting a key changes a server's ID once. See [Server Key](#server-key).
+- **Key mode,** a third way to protect a link: each server proves its key at login, bound to a TLS 1.3 session whose certificate need not be verified. No password is shared. See [Server Keys over TLS](#server-keys-over-tls) and [The Key Proof](#the-key-proof).
+- **New fields** `DATA_LINK_SERVER_KEY` (`0x0640`) and `DATA_LINK_KEY_PROOF` (`0x0641`), previously reserved for the draft.
+- **Protection is per link.** The spec now says so outright: a server may link to its neighbours by different methods.
+- **Future Work** now lists signed server groups and moderation, which build on server keys.
+- **Reconciliation covers a peer that returns under a new ID.** The old server is withdrawn first, and servers missing from a new list are withdrawn before new ones are learned. See [Interruption and Resynchronisation](#interruption-and-resynchronisation).
+- **Drafts being tried** may negotiate their feature bits and send their transactions, which Link Features and Link Session Restrictions now say. Before, they contradicted Trying out a draft.
+
+### October 5, 2026: Room for Later Documents
+
+The fourth revision, alongside the [user keys draft](Server-Link-User-Keys.md) from hxd-ng's developer.
+
+- **Relaying Fields covers transactions later documents define**, with the baselines those documents give them. See [Relaying Fields](#relaying-fields).
+- **Link sessions accept transactions and feature bits from published extensions** the server implements and the link negotiated, where they were limited to this document's. See [Link Session Restrictions](#link-session-restrictions) and [Link Features](#link-features).
+- **Reserved for the user keys draft:** transaction 915, fields `0x0642`–`0x0644`, feature bit 4 and reason code 13. The draft is not adopted.
+- **Drafts are not published extensions** until this document adopts them. Their reserved numbers may be used to try them out between servers whose operators choose to, and a trial asks nothing of servers that haven't. See [Data Objects](#data-objects).
+
+### October 5, 2026: Display Names and the Field Baseline
+
+The third revision, after feedback from the developer of hxd-ng, which implements this spec.
+
+- **No more forced tags on shared names.** The rule that tagged a ghost whose name matched another user's is removed, together with the name comparison it needed. Names may be shared, as on any Hotline server, and the tag option alone decides whether ghosts carry tags. See [Display Name](#display-name).
+- **The size bound counts against a fixed baseline.** It used to count fields "not defined" for a group or transaction, which grows with each revision, so relays on different versions could disagree over what to drop. It now counts every field outside this revision's baseline, which later revisions never change. See [Relaying Fields](#relaying-fields).
+- **User keys added to Future Work**, including that fetching a user's key is a relayed request of its own. See [Future Work](#future-work).
+- **The field bounds are permanent**, said outright, since raising them would make older relays drop what newer servers send. See [Relaying Fields](#relaying-fields).
+
+### October 5, 2026: Relaying Fields
+
+The second revision, also after outside review. A server implementing an earlier version still interoperates; it strips fields it does not know, which a later extension's fields then fail to cross.
+
+- **Relays pass on what they relay whole.** Every field of a relayed group or transaction is copied unchanged and in order, including fields not defined for it, except the user IDs, hop counts and flags each hop translates. See [Relaying Fields](#relaying-fields).
+- **Bounds on extra fields:** 1024 bytes per group or transaction, and 17,408 bytes for Link Private Message. A group or transaction over them is dropped whole.
+- **Fields that never cross:** login, password, access privileges, the messaging Login and HOPE fields, refused at every hop. New reason code `RefusedFields` (12).
+- **Fields are allocated by this document** or a published extension of it, and none may be sent where no published document defines it. See [Data Objects](#data-objects).
+- **`0x0640`–`0x0641` reserved** for the [server keys draft](Server-Link-Server-Keys.md).
 
 ### October 5, 2026
 
@@ -936,6 +1139,6 @@ The first revision, made after outside review. Allocations are additive; a serve
 - **Chat line IDs.** New optional field `DATA_LINK_LINE_ID` (`0x063F`) in Link Chat, copied unchanged by relays, for later use. See [Link Chat (904)](#link-chat-904).
 - **Ban identifier.** A home server bans by whatever identifier its own operator's bans would use. See [Link Ban (908)](#link-ban-908).
 - **Failed kicks.** A kick the home server never confirms keeps the user hidden at the requesting server for the rest of their session. See [Link Kick (907)](#link-kick-907).
-- **Name comparison.** The display-name collision rule SHOULD compare after NFC normalization and Unicode simple case folding. See [Display Name](#display-name).
+- **Name comparison.** The display-name collision rule SHOULD compare after NFC normalization and Unicode simple case folding. (Removed again in the next revision, with the collision rule.)
 - **Transport.** A link may ride any transport that carries the classic protocol, provided it is protected.
 - **Smaller additions.** Ghost bounds SHOULD leave room for local users, and server keys were added to [Future Work](#future-work).
