@@ -1,6 +1,6 @@
 # Hotline Info Port - Capability Discovery Protocol
 
-> Last updated: October 1, 2026
+> Last updated: October 9, 2026
 
 The **Hotline Info Port** is an optional, out-of-band TCP listener that lets a client discover what a Hotline server supports *before* opening a real session on the data port. It is purely advisory and has no effect on the legacy Hotline wire protocol - clients that don't know about the info port connect to the data port as they always have.
 
@@ -193,7 +193,8 @@ The payload is a single JSON object. All fields are OPTIONAL except `infoVersion
 
   // OPTIONAL. Live user count. Operators MAY suppress this.
   "users": {
-    "connected": 42
+    "connected": 42,
+    "linked":    17    // OPTIONAL. Users from linked servers shown here
   }
 }
 ```
@@ -203,6 +204,7 @@ The payload is a single JSON object. All fields are OPTIONAL except `infoVersion
 - **`transport.hope.required`** + **`transport.tls.required`** are *server-side enforcement* signals. If `hope.required` is `true`, the server will reject a plaintext login on the data port. Clients SHOULD honor this in their connect plan rather than discover it the hard way.
 - **`transport.plaintext.accepted`** is the inverse of "encryption is mandatory."
 - **`capabilities.*`** flags describe what the *server* can do. The client still negotiates the actual session capabilities during the Hotline login handshake; the info port is a hint, not a contract.
+- **`users.connected`** counts users connected to *this* server, as an ordinary client would find them in the user list: a connection still logging in, a session that only uses messaging, and an invisible user are not counted, so that neither count reveals more than the user list does. On a server using [server linking](extensions/Capabilities-Server-Link.md), users from other servers in the network are not included. They are reported separately in **`users.linked`**, which counts those shown in the user list (not those hidden there) and is absent on servers that do not link. A client showing "how busy is this server" SHOULD use `connected`; one showing "how many people will I see" MAY add the two.
 - **`etag`** is opaque. Clients SHOULD NOT parse or interpret it; only compare for equality.
 
 ---
