@@ -45,6 +45,14 @@ A new user group field, set by the user's home server only:
   legacy HOPE sessions use RC4, so a value of its own lets a client say
   what is true of them rather than round either way. A receiver that
   predates `3` treats it as unknown, never as encrypted.
+- **A HOPE session with an empty password is cleartext (`2`)**, whatever
+  its cipher. HOPE derives the transport keys from the password and the
+  session key, and the session key crosses in the clear in the reply to
+  step 1, so with an empty password anyone who watched the login can
+  derive both directions' keys and read the rest of the session, and
+  under ChaCha20-Poly1305 its file transfers too. Guest accounts
+  usually have no password, so this is most HOPE guests. hxd-ng reports
+  such a session as cleartext to its own clients as well.
 - **A home server MUST NOT send `1` on an assumption it hasn't
   checked.** One that can't vouch for the connection (behind a proxy
   that terminates TLS, or a plain listener it only assumes is behind
