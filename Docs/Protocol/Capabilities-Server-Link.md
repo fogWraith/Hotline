@@ -1,6 +1,6 @@
 # Server Linking Extension
 
-> Last updated: October 5, 2026
+> Last updated: October 9, 2026
 
 > **Status:** Accepted, Implemented by the reference server, Janus, from 2.0.18.
 
@@ -380,7 +380,7 @@ Field IDs are allocated from the free `0x0630`-block.
 | `0x0640` | 1600 | `DATA_LINK_SERVER_KEY` | Binary (32) | An Ed25519 [server key](#server-key), in a key-mode Login (107) and its reply |
 | `0x0641` | 1601 | `DATA_LINK_KEY_PROOF` | Binary (64) | A [key proof](#the-key-proof) signature, in a key-mode Login (107) and its reply |
 
-Field IDs `0x0642`–`0x0644` are reserved for the [user keys draft](Server-Link-User-Keys.md), which is not adopted. Field IDs `0x0645`–`0x064F` are reserved for future link growth.
+Field IDs `0x0642`–`0x0644` and `0x0646` are reserved for the [user keys draft](Server-Link-User-Keys.md), and `0x0645` for the [user transport draft](Server-Link-User-Transport.md), neither of which is adopted. Field IDs `0x0647`–`0x064F` are reserved for future link growth.
 
 **Fields are allocated by this document.** A field may appear in a link transaction or group only where a published document defines it there: this one, or a published extension of it. A **published extension** is one this document adopts. A draft kept beside it, such as the user keys draft, is not one until it is adopted.
 
@@ -1059,7 +1059,7 @@ Each item below would be a new [link feature](#link-features) bit, or a new tran
 
 ## Implementation Notes
 
-- **Allocations.** Capability bit 11, transactions 900–914 (915–919 reserved), fields `0x0630`–`0x0641` (`0x0642`–`0x064F` reserved) and reason codes 0–12 and 16–24 are assigned. Transaction 915, fields `0x0642`–`0x0644`, feature bit 4 and reason code 13 are reserved for the user keys draft. Janus 2.0.18 shipped all of them except `DATA_LINK_LINE_ID`, `DATA_LINK_SERVER_KEY`, `DATA_LINK_KEY_PROOF`, `InvalidRequester` and `RefusedFields`, which Janus 2.0.19 (in development) adds. Interoperation has been exercised between Janus servers only.
+- **Allocations.** Capability bit 11, transactions 900–914 (915–919 reserved), fields `0x0630`–`0x0641` (`0x0642`–`0x064F` reserved) and reason codes 0–12 and 16–24 are assigned. Transaction 915, fields `0x0642`–`0x0644` and `0x0646`, feature bit 4 and reason code 13 are reserved for the user keys draft, and field `0x0645` for the user transport draft. Janus 2.0.18 shipped all of them except `DATA_LINK_LINE_ID`, `DATA_LINK_SERVER_KEY`, `DATA_LINK_KEY_PROOF`, `InvalidRequester` and `RefusedFields`, which Janus 2.0.19 adds. Janus 2.0.21 (in development) relays Link Device Keys (915) on links whose operators try the user keys draft, and holds no keyed sessions itself; to peers trying the user transport draft, it sends `DATA_LINK_USER_TRANSPORT` for its own users. Interoperation has been exercised between Janus servers only.
 - **Peer configuration.** The Janus reference design identifies a peer by a configuration entry. A dialing entry carries the peer's address and the credentials the peer issued; an accepting entry names the local account the peer logs in with. Features and the ghost bound are per entry. The server's own tag, its suggested color, the tag-display option and color overrides by tag are server-wide settings.
 - **The ghost sink.** A reference server delivers transactions to users through a per-recipient outbox, and every broadcast loop (chat lines, user-list notifications) will reach ghosts through it. The outbox MUST **drop** every transaction addressed to a ghost. The translations above happen earlier: in the handlers for 108, 303 and 110, which recognise a ghost target before building any outbound transaction, and in the chat handler, which sends the raw text over links rather than forwarding the formatted 106 that the broadcast produced. A sink that drops everything is one choke point that is easy to keep closed. A sink that tried to translate whatever reached it would forward the formatted copy of every broadcast.
 - **Hidden ghosts.** A user excluded at this server is still allocated an ID and kept in the per-link table so it can be relayed. It is a ghost with a "not listed" mark, handled by the same code that already keeps invisible users out of the list.
@@ -1073,7 +1073,7 @@ Each item below would be a new [link feature](#link-features) bit, or a new tran
 
 ## Acknowledgements
 
-Server keys, key mode and the key proof are the design of **Misha Nasledov**, adopted from her [proposal](Server-Link-Server-Keys.md). Her review of the first published version, written while implementing this extension in hxd-ng, also brought:
+Server keys, key mode and the key proof are the design of **Misha Nasledov** (hxd-ng), adopted from her [proposal](Server-Link-Server-Keys.md). Her review of the first published version, written while implementing this extension in hxd-ng, also brought:
 
 - the requester check;
 - the user ID quarantine;
@@ -1087,9 +1087,17 @@ Her [user keys draft](Server-Link-User-Keys.md) is kept beside this document.
 
 ## Changes
 
+### October 9, 2026: User Keys and User Transport Drafts
+
+The [user keys draft](Server-Link-User-Keys.md) now points to hxd-ng's end-to-end messages document for its construction, and adds a field. A second draft from hxd-ng's developer, [user transport](Server-Link-User-Transport.md), lets a home server say whether each of its users is connected to it over an encrypted connection.
+
+- **`0x0646` reserved for the user keys draft**, for `DATA_LINK_SEALED_TO`.
+- **`0x0645` reserved for the user transport draft**, for `DATA_LINK_USER_TRANSPORT`.
+- Neither draft is adopted.
+
 ### October 5, 2026: Server Keys
 
-The fifth revision. It adopts the [server keys draft](Server-Link-Server-Keys.md) by hxd-ng's developer.
+The fifth revision. It adopts the [server keys draft](Server-Link-Server-Keys.md) by hxd-ng's developer, Misha Nasledov.
 
 - **Server keys.** A server SHOULD hold an Ed25519 key and derive its server ID from it. Adopting a key changes a server's ID once. See [Server Key](#server-key).
 - **Key mode,** a third way to protect a link: each server proves its key at login, bound to a TLS 1.3 session whose certificate need not be verified. No password is shared. See [Server Keys over TLS](#server-keys-over-tls) and [The Key Proof](#the-key-proof).
