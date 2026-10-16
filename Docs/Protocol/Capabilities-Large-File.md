@@ -1,6 +1,6 @@
 # Large File Extension
 
-> Last updated: September 30, 2026
+> Last updated: October 16, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -67,7 +67,7 @@ Adds 64-bit sizing to control-plane fields (transactions) and transfer-plane hea
 
 ## Legacy Field Reference
 
-This extension adds 64-bit companion fields alongside existing 32-bit fields. For implementors' convenience, the legacy field IDs referenced throughout this document are listed here. Full definitions are in [Hotline.md](Hotline.md).
+This extension adds 64-bit companion fields alongside existing 32-bit fields. For implementors' convenience, the legacy field IDs referenced throughout this document are listed here. Full definitions are in [Hotline.md](../Hotline.md).
 
 | ID (hex) | Decimal | Name | Width | Used In |
 |---|---|---|---|---|
@@ -75,7 +75,7 @@ This extension adds 64-bit companion fields alongside existing 32-bit fields. Fo
 | `0x006C` | 108 | `DATA_TRANSFERSIZE` | 32-bit | Transfer size (remaining bytes) |
 | `0x00C8` | 200 | `DATA_FILE_NAME_WITH_INFO` | Variable | File entry in directory listings |
 | `0x00CB` | 203 | `DATA_FILE_RESUME_DATA` | Variable | RFLT resume structure |
-| `0x00CC` | 204 | `DATA_FILE_TRANSFER_OPTIONS` | Variable | Transfer option flags (value `2` = resume) |
+| `0x00CC` | 204 | `DATA_FILE_TRANSFER_OPTIONS` | Variable | Transfer options. In Download File, `2` asks for the bare data fork (a preview); some clients also send `2` when resuming, beside the RFLT, so the RFLT is what marks a resume. In Upload File, the field's presence asks to resume (OpenLine sends `1`, other clients `2`). |
 | `0x00CF` | 207 | `DATA_FILESIZE` | 32-bit | File size |
 | `0x00DC` | 220 | `DATA_FOLDER_ITEM_COUNT` | 16-bit | Folder item count |
 
@@ -100,7 +100,7 @@ Total size: 20 + N bytes.
 | ID (hex) | Name | Width | Notes |
 |---|---|---|---|
 | `0x01F1` | `DATA_FILESIZE64` | 64 | File size in bytes. Paired with legacy `DATA_FILESIZE` (32-bit) for compatibility. |
-| `0x01F2` | `DATA_OFFSET64` | 64 | Offset into file (downloads/resume). Paired with legacy `DATA_OFFSET`. |
+| `0x01F2` | `DATA_OFFSET64` | 64 | Offset into file (downloads/resume). There is no 32-bit offset field; its legacy partner is the data fork offset inside the RFLT (`DATA_FILE_RESUME_DATA`), clamped. |
 | `0x01F3` | `DATA_XFERSIZE64` | 64 | Transfer length (remaining bytes). Paired with legacy `DATA_XFERSIZE`. |
 | `0x01F4` | `DATA_FOLDER_ITEM_COUNT64` | 64 | Folder item counts. Paired with legacy `DATA_FOLDER_ITEM_COUNT` (16-bit). While a 64-bit width is far larger than any realistic item count, this matches the convention used by the other companion fields for consistency. |
 | `0x01FA` | `DATA_PARTIAL_DIGEST` | 320 | Resume digest of a partial upload: an 8-byte window length followed by a 32-byte SHA-256. Sent in the Upload File (203) reply, and echoed by the client in the `HTXF_FLAG_RESUME` handshake extension. See [Resume Digest](#resume-digest). Not `0x01F5`, which would have continued this block - the large-file allocation ends at `0x01F4` and the voice extension holds `0x01F5`–`0x01F9`. |
@@ -121,8 +121,8 @@ Send both legacy and 64-bit forms when large-file mode is active; legacy fields 
 
 ### Download File (202)
 
-- Request: clients MAY include `DATA_XFERSIZE64` to request a 64-bit-length subset; include `DATA_OFFSET64` for 64-bit resume offsets. Legacy `DATA_XFERSIZE`/`DATA_OFFSET` SHOULD still be sent with clamped values.
-- Reply: servers include both legacy (`DATA_FILESIZE`, `DATA_OFFSET`, `DATA_XFERSIZE`) and 64-bit (`DATA_FILESIZE64`, `DATA_OFFSET64`, `DATA_XFERSIZE64`) sizes when large-file mode is active. Each pair carries one quantity, the legacy member clamped:
+- Request: clients MAY include `DATA_XFERSIZE64` to request a 64-bit-length subset; include `DATA_OFFSET64` for 64-bit resume offsets. Legacy `DATA_XFERSIZE` SHOULD still be sent with a clamped value, and a resume still carries the RFLT, its 32-bit offset clamped.
+- Reply: servers include both legacy (`DATA_FILESIZE`, `DATA_XFERSIZE`) and 64-bit (`DATA_FILESIZE64`, `DATA_XFERSIZE64`) sizes when large-file mode is active, each pair carrying one quantity with the legacy member clamped, plus `DATA_OFFSET64`, which has no legacy partner in the reply:
   - `DATA_FILESIZE64` is the file's full size.
   - `DATA_OFFSET64` is the offset the transfer resumes from (`0` for a fresh download).
   - `DATA_XFERSIZE64` is the number of bytes the transfer connection will carry - for a resume, the size of the *resumed* FFO (see [Resume Flow (Download)](#resume-flow-download)), which the client counts down to zero. It MUST NOT echo `DATA_FILESIZE64`.
@@ -131,7 +131,7 @@ Send both legacy and 64-bit forms when large-file mode is active; legacy fields 
 ### Upload File (203)
 
 - Request: clients SHOULD send `DATA_XFERSIZE64` with the full upload size. The legacy `DATA_XFERSIZE` MUST be clamped to `0xFFFFFFFF` when the true size exceeds 32 bits. Servers use the 64-bit value when available.
-- Reply: servers include the refnum (32-bit) and, when resuming a partially transferred file, include both the legacy `DATA_OFFSET` (clamped) and `DATA_OFFSET64` fields, plus `DATA_XFERSIZE` and `DATA_XFERSIZE64` echoing the expected transfer size.
+- Reply: servers include the refnum (32-bit) and, when resuming a partially transferred file, include both the RFLT (`DATA_FILE_RESUME_DATA`, its 32-bit offset clamped) and `DATA_OFFSET64`, plus `DATA_XFERSIZE` and `DATA_XFERSIZE64` echoing the expected transfer size.
 - Reply: in large-file mode, servers SHOULD also include `DATA_PARTIAL_DIGEST` so the client can confirm the partial belongs to the file it is about to resume. A server that cannot produce one omits the field, and the client then sends the whole file. See [Resume Flow (Upload)](#resume-flow-upload).
 - Transfer side-channel MUST set the HTXF large-file flag when large-file mode is active.
 
@@ -646,8 +646,8 @@ A client requests a 5 GiB file in large-file mode. The server replies with both 
  1A      6C 61 72 67 65 66 69 6C
          65 2E 69 73 6F                Data        = "largefile.iso"
 
-         ── Field 2: DATA_FILEPATH (0x00C6) ───────────────────────────────
- 27      00 C6                         ID          = DATA_FILEPATH
+         ── Field 2: DATA_FILEPATH (0x00CA) ───────────────────────────────
+ 27      00 CA                         ID          = DATA_FILEPATH
  29      00 02                         Length      = 2
  2B      00 00                         Data        = root (empty path)
 ```
@@ -661,10 +661,10 @@ A client requests a 5 GiB file in large-file mode. The server replies with both 
  00      00 01 00 00                   Type        = HTLS_HDR_TASK (65536)
  04      00 00 00 02                   Seq         = 2
  08      00 00 00 00                   Flags       = 0
- 0C      00 00 00 40                   Size        = 64 (body length)
- 10      00 00 00 40                   Check       = 64
+ 0C      00 00 00 44                   Size        = 68 (body length)
+ 10      00 00 00 44                   Check       = 68
 
- BODY (64 bytes)
+ BODY (68 bytes)
  14      00 07                         FieldCount  = 7
 
          ── Field 1: DATA_XFERSIZE (0x006C) ──────────────────────────────
@@ -692,15 +692,15 @@ A client requests a 5 GiB file in large-file mode. The server replies with both 
  40      00 04                         Length      = 4
  42      00 00 AB CD                   Data        = 0x0000ABCD (transfer reference)
 
-         ── Field 6: DATA_WAITING_COUNT (0x006F) ─────────────────────────
- 46      00 6F                         ID          = DATA_WAITING_COUNT
+         ── Field 6: DATA_WAITING_COUNT (0x0074) ─────────────────────────
+ 46      00 74                         ID          = DATA_WAITING_COUNT
  48      00 02                         Length      = 2
  4A      00 00                         Data        = 0 (no queue)
 
-         ── Field 7: DATA_OFFSET (0x0096) ────────────────────────────────
- 4C      00 96                         ID          = DATA_OFFSET
- 4E      00 04                         Length      = 4
- 50      00 00 00 00                   Data        = 0 (no resume offset)
+         ── Field 7: DATA_OFFSET64 (0x01F2) ──────────────────────────────
+ 4C      01 F2                         ID          = DATA_OFFSET64
+ 4E      00 08                         Length      = 8
+ 50      00 00 00 00 00 00 00 00       Data        = 0 (no resume offset)
 ```
 
 The client uses `DATA_REFNUM = 0x0000ABCD` to initiate the HTXF transfer on port + 1.
