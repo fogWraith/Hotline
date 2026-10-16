@@ -1,6 +1,6 @@
 # DATA_CAPABILITIES – Session Capability Negotiation
 
-> Last updated: October 3, 2026
+> Last updated: October 16, 2026
 
 `DATA_CAPABILITIES` is a field used during the Hotline login sequence to negotiate protocol extensions between client and server. Each extension is represented by a single bit in a bitmask, allowing both sides to advertise and confirm support for specific features.
 
@@ -69,7 +69,8 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | 9 | `0x0200` | `CAPABILITY_MODERN_DATES` | Client parses the modern date encoding (actual year + seconds since Jan 1 00:00 UTC of that year). Absent, the server MUST serve the legacy Mac 1904 epoch encoding (year field `1904`, seconds = total elapsed seconds since Jan 1 1904 UTC). A server MUST NOT infer this bit from any other capability: a classic Mac client reads the 4-byte seconds field as total-seconds-since-1904 and ignores the year field, so a modern date renders every timestamp in 1904. Ungated - a server confirms the bit whenever the client advertises it. | See [Date Format Selection](#date-format-selection) below |
 | 10 | `0x0400` | `CAPABILITY_VIDEO` | Camera video and screen sharing inside voice rooms. Only meaningful alongside bit 2: a client MUST NOT set bit 10 without bit 2, and a server MUST NOT confirm bit 10 unless it also confirms bit 2 - video has no meaning without the voice room that carries it. Delivery is opt-in per stream, so a session without this bit receives no video media sections and no video RTP. | See [Video Chat Extension](Capabilities-Video.md) |
 | 11 | `0x0800` | `CAPABILITY_SERVER_LINK` | The session is a server link, not a user. Set only by a server dialing a peer; confirmed only for an account configured as that peer's link account, only alongside bit 1, and only on a session protected by HOPE ChaCha20-Poly1305 or verified TLS. A confirmed session is hidden from the user list, skips the agreement, and may use only the link transactions (900–919). Links relay users between servers and must form a tree. | See [Server Linking Extension](Capabilities-Server-Link.md) |
-| 12–63 | - | *Reserved* | Available for future extensions | - |
+| 12 | `0x1000` | `CAPABILITY_RANGED_DOWNLOAD` | Download File (202) as a preview with an offset and a length (`DATA_RANGE_OFFSET` `0x01FC`, `DATA_RANGE_LENGTH` `0x01FD`; 32-bit, or 64-bit alongside bit 0): the server sends exactly that byte range of the data fork and ends the transfer normally, so a viewer can read parts of an archive without downloading it or hanging up. A client MUST NOT send a range unless the server confirmed the bit. | See [Ranged Download Extension](Capabilities-Ranged-DL.md) |
+| 13–63 | - | *Reserved* | Available for future extensions | - |
 
 ---
 
@@ -117,6 +118,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 | Extended privilege bitmap | `DATA_CAPABILITIES` bit 5 + server config (account store widened to 128 bits) |
 | Instant messaging | `DATA_CAPABILITIES` bit 6 (+ optional bit 7 for direct transfer) + server config (`Messaging.Enabled`) + `AccessMessaging` (bit 58) permission |
 | Video chat | `DATA_CAPABILITIES` bit 10, requires bit 2 + server config (`EnableVideo`, requires `EnableVoice`) + `AccessVideoChat` (bit 59) for camera, `AccessScreenShare` (bit 60) for screen share |
+| Ranged download | `DATA_CAPABILITIES` bit 12; independent of bit 0, which only widens the range fields to 64 bits |
 | HOPE secure login | Dedicated HOPE field IDs (0x0E01–0x0E04, 0x0EC1–0x0ECA) |
 | Colored nicknames | Implicit opt-in (client sends `DATA_COLOR` in Set Client User Info) |
 | GIF icons | No negotiation - feature is always available if server supports it |
