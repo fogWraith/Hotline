@@ -54,7 +54,7 @@ How a client asks its own server for a ghost's certificate, and how it sends and
 
 Request/reply, [relayed](Capabilities-Server-Link.md#routing) hop by hop to the target's home server like [Link User Info (906)](Capabilities-Server-Link.md#link-user-info-906), and only over links that negotiated `LINK_FEATURE_USER_KEYS`. Fetching the certificate over the link is what keeps it private: the requester's server never learns the home server's address, and nothing outside the network learns that the servers are linked.
 
-**Request fields:** `DATA_LINK_USER_ID` (REQUIRED, the requesting user, as the sender identifies them), `DATA_LINK_TARGET_ID` (REQUIRED, the target, as the receiving server identifies them).
+**Request fields:** `DATA_LINK_USER_ID` (REQUIRED, the requesting user, as the sender identifies them, except in a server's request for itself, under [Fetching the Certificate](#fetching-the-certificate)), `DATA_LINK_TARGET_ID` (REQUIRED, the target, as the receiving server identifies them).
 
 **Reply fields:** `DATA_LINK_DEVICE_CERT`, the certificate of the device the target session currently proves; or a failure with `DATA_LINK_REASON`: `RefusedFields`, `FeatureNotNegotiated`, `UnknownUser`, `Excluded`, `RefusesMessages`, `NoDeviceKeys`, `RateLimited` or `Unreachable`.
 
@@ -63,7 +63,7 @@ A server receiving a Link Device Keys request handles it in the order of [Link P
 1. it applies [Relaying Fields](Capabilities-Server-Link.md#relaying-fields), answering `RefusedFields` for a request it must drop;
 2. it answers `FeatureNotNegotiated` if the request arrived over a link that did not negotiate `LINK_FEATURE_USER_KEYS`;
 3. it checks that the requester is a current ghost from that link and the target a user exported over it, and answers `UnknownUser` otherwise;
-4. if the target is a ghost here, it forwards the request over the link the ghost came from, with both IDs translated, or answers `FeatureNotNegotiated` if that link did not negotiate the feature, and answers with the reply it receives;
+4. if the target is a ghost here, it forwards the request over the link the ghost came from, with both IDs translated (only the target's in a server's own request), or answers `FeatureNotNegotiated` if that link did not negotiate the feature, and answers with the reply it receives;
 5. if the target is local, it answers `Excluded` if either party is [excluded](Capabilities-Server-Link.md#exclusion) at the other's home server as far as it can tell, `RefusesMessages` if the target refuses private messages, and `NoDeviceKeys` unless the target's user group carries a fingerprint (a certificate reveals it, so it is never sent for a user whose fingerprint is not exported) and the target session currently proves a device whose certificate is unexpired, not revoked as of this request, at most 512 bytes, and allows messages (identity spec section 3.3, the `caps` bit for messages), and the session's client can receive sealed messages (a classic client tunneled under a key cannot, for example). Otherwise it answers with that certificate.
 
 Link Device Keys is rate-limited per ghost and per link, like [Link Private Message](Capabilities-Server-Link.md#limits). The originating server refuses it locally, without sending anything, when the requester is not exported over that link, as it does for 905. Link Device Keys does not need `LINK_FEATURE_PRIVATE_MESSAGES` on its path, so it can succeed where the 905 that follows fails with `FeatureNotNegotiated`; a client then reports that private messages cannot reach that user.
@@ -102,19 +102,33 @@ A user who logs in with a key can sign a public chat line or a private message w
 
 | Field | Notes |
 |---|---|
-| `DATA_LINK_SIGNED` | The signed message in detached form, at most 1020 bytes |
+| `DATA_LINK_SIGNED` | The signed message in detached link form, with the sender's certificate replaced by its SHA-256, at most 256 bytes |
 
-The signed message is defined by the same end-to-end messages document. It is a CBOR map in deterministic encoding, signed by the sender device's Ed25519 key, that carries a random 16-byte ID, the time it was signed, its scope, the sender's device certificate and, for a line, whether it is an action. It covers the text too, but leaves it out of the detached form, since the text already crosses in `FieldData`.
+The signed message is defined by the same end-to-end messages document. It is a CBOR map in deterministic encoding, signed by the sender device's Ed25519 key, that carries a random 16-byte ID, the time it was signed, its scope, the sender's device certificate under `cert` and, for a line, whether it is an action. The signature covers all of it and the text, exactly as that document defines; the link changes only what is sent, never what is signed, so a line signed once crosses a link as it is.
+
+**The detached link form** leaves out the text, which already crosses in `FieldData`, and `cert`, and carries in `cert`'s place a key `cert_sha256`: the SHA-256 of the certificate, 32 bytes. This is where the link differs from the [end-to-end messages document](https://github.com/mishan/hxd-ng/blob/main/docs/e2e-messages.md), whose detached form carries `cert` itself. A verifier fetches the certificate ([Fetching the Certificate](#fetching-the-certificate)), checks that its SHA-256 equals `cert_sha256`, removes `cert_sha256`, puts the certificate back under `cert` and the canonical text under its key, encodes the map deterministically without `sig`, and verifies `sig` over it as that document says. A relay that rewrites the hash, or serves another certificate under the same identity, therefore makes the signature fail. A link form that carries `cert`, or lacks `cert_sha256`, is rejected; a signed message whose own map carries `cert_sha256` cannot take the link form.
 
 - **In Link Chat (904)**, for a lobby line, under the domain `hl-identity/chat/v1`. Its scope is the home server's key (the [discovery key](#the-discovery-key) below) and room 0, so a line said on one server cannot be passed off as said on another.
 - **In Link Private Message (905)**, for a message signed and not sealed, under the domain `hl-identity/message/v1`. Its scope is the recipient's identity fingerprint. It covers whether the message is an automatic response, so `FieldOptions` MUST agree with it, and it covers no quote, so a signed 905 carries no `FieldQuotingMsg`. A sealed message carries its signature, or its deniable proof, inside `DATA_LINK_SEALED`, and never carries `DATA_LINK_SIGNED` as well.
-- **It fits 904.** [Relaying Fields](Capabilities-Server-Link.md#relaying-fields) allows 904 1024 bytes beyond its baseline, field headers included, and `DATA_LINK_SIGNED` with its header takes at most all of them. A typical one is 405 bytes with a certificate that leaves out `name`, and 684 with a 512-byte certificate, so a signed line leaves little room in 904 for any other extension.
+- **It is small.** A signed lobby line's detached link form is 201 bytes, and 206 for an action; a signed 905's is 187 bytes, and 193 for an automatic response. With its header, a signed line takes about a fifth of the 1024 bytes [Relaying Fields](Capabilities-Server-Link.md#relaying-fields) allows 904 beyond its baseline, and the bound of 256 bytes leaves room for keys a later version adds, and at least 764 bytes for other extensions.
 - **The text is signed in canonical form**: each CR LF pair, and then each lone CR, replaced by LF. `FieldData` keeps the CR line endings of [Text on a Link](Capabilities-Server-Link.md#text-on-a-link), and a verifier canonicalizes it before checking. Signed text is at most 4096 bytes. Like any text over a link's bounds, a signed line that does not fit is dropped, never cut.
 - **Relaying servers pass it on unchanged**, under Relaying Fields, whether or not they implement this document, and MUST NOT strip it. A relay from before the revision that added Relaying Fields strips it, and the line arrives unsigned; a client that remembers a sender who signs can warn when one arrives without.
-- **A receiving server SHOULD check a signed 904** as a client would: the certificate (valid, allowing messages, at most 512 bytes), the signature, and the scope, which is the discovery key in the home server's group and room 0. The signer is the SHA-256 of the certificate's identity key, never what a server says, and a server compares it with the fingerprint in the sender's user group where there is one. A server does not show a line that fails, and relays it onward unchanged all the same, as it does lines its [local filters](Capabilities-Server-Link.md#link-chat-904) drop: every server judges for itself.
-- **The target's home server SHOULD check a signed 905** in the same way, with the target's identity fingerprint as its scope, and refuses one that fails with `BadSignature`. Servers in the middle relay it unchanged.
+- **A receiving server MAY check a signed 904** as a client would: the certificate (its SHA-256 equal to `cert_sha256`, valid, allowing messages, at most 512 bytes), the signature, and the scope, which is the discovery key in the home server's group and room 0. The signer is the SHA-256 of the certificate's identity key, never what a server says, and it must match the fingerprint in the sender's user group. A server that checks does not show a line that fails, and relays it onward unchanged all the same, as it does lines its [local filters](Capabilities-Server-Link.md#link-chat-904) drop: every server judges for itself.
+- **The target's home server MAY check a signed 905** in the same way, with the target's identity fingerprint as its scope, and answers one that fails with `BadSignature` when it does. Servers in the middle relay it unchanged.
+- These checks are MAYs because they protect little: a server in the middle that wants to alter a line can strip its signature instead, and the line then arrives unsigned rather than failing. What protects users is the client that remembers who signs and warns when a line arrives without a signature (Downgrade, under [Security Considerations](#security-considerations)).
 - **A signature is never removed.** A server never relays a signed line or message onward without it, and never presents one as unsigned to a client that can check signatures. A client that cannot is shown the text, as for any line.
 - A line whose home server's group carries no discovery key cannot have its scope checked. A server shows such a line as unverified, which is not the same as failing it, and neither drops it nor counts it as invalid.
+
+#### Fetching the Certificate
+
+A signed message names its certificate by SHA-256, so whoever checks it needs the certificate first. It is fetched with [Link Device Keys (915)](#link-device-keys-915) and kept by its hash, so one fetch serves every line and message the same device signs.
+
+- **A server fetches in its own name**, whether it checks a line itself or one of its clients needs the certificate to verify one. A client cannot send 915, and a fetch in the server's name keeps the client's identity off the link.
+- **A server's own request** is a 915 without `DATA_LINK_USER_ID`. It is answered without the requester's checks of step 3 and step 5 (a current ghost, exclusion, refusing private messages) and without the condition that the client can receive sealed messages, and only for a target session that the home server has seen sign: one that has signed a lobby line, or, for a session that has signed only private messages, only over the links those messages went out on. Having no ghost behind it, it is held to the per-link rate limit. Everything else in 915 applies unchanged: the user group's fingerprint, and the certificate's own checks.
+- **Only an exported fingerprint can be checked.** 915 never sends the certificate of a user whose fingerprint is not exported, so a signed message from such a user cannot be verified across links.
+- **The reply is the certificate of the device the session proves now.** A receiver checks that its SHA-256 is the one the message names, and a message whose certificate does not match cannot be checked.
+- **The cost.** A line cannot be checked until its certificate has been fetched, nor at all once its home server no longer answers for that session: after the sender has left, or after the session has moved to another device. Lobby chat is read as it arrives, so this costs little there.
+- **A receiving server MAY fetch on arrival**, and store the line with the full signed form, `cert` restored, so that its own clients and its history can verify the line later, after its sender has left. The link carries only the hash either way.
 
 #### The Discovery Key
 
@@ -149,7 +163,7 @@ Data objects:
 | `0x0643` | 1603 | `DATA_LINK_DEVICE_CERT` | Binary (at most 512) | A device certificate (identity spec section 3.3), in a Link Device Keys reply |
 | `0x0644` | 1604 | `DATA_LINK_SEALED` | Binary (at most 17,152) | A sealed message, in 905 |
 | `0x0646` | 1606 | `DATA_LINK_SEALED_TO` | Binary (32) | The SHA-256 of the `device_enc` key a sealed message was sealed to, in 905 |
-| `0x0647` | 1607 | `DATA_LINK_SIGNED` | Binary (at most 1020) | A signed message in detached form, in 904 and 905 (proposed, to be confirmed) |
+| `0x0647` | 1607 | `DATA_LINK_SIGNED` | Binary (at most 256) | A signed message in detached link form, in 904 and 905 (proposed, to be confirmed) |
 | `0x0648` | 1608 | `DATA_LINK_DISCOVERY_KEY` | Binary (32) | A server's discovery key, in its server group (proposed, to be confirmed) |
 
 Transactions:
@@ -162,8 +176,10 @@ Reason codes:
 
 | Code | Name | Used in | Meaning |
 |---|---|---|---|
-| 13 | `NoDeviceKeys` | 905 and 915 replies | The target session has no device certificate that allows messages, its client cannot receive sealed messages, or (905) the message was sealed to another device key. (The Messaging amendment's reason of the same name is in a different list.) |
-| 14 | `BadSignature` | 905 reply | The message's `DATA_LINK_SIGNED` does not verify, or is not scoped to the target (proposed, to be confirmed) |
+| 13 | `NoDeviceKeys` | 905 and 915 replies | The target session has no device certificate that allows messages, its client cannot receive sealed messages, or (905) the message was sealed to another device key. |
+| 14 | `BadSignature` | 905 reply | The message's `DATA_LINK_SIGNED` does not verify, or is not scoped to the target, at a home server that checks it (proposed, to be confirmed) |
+
+The [Messaging identity draft](Capabilities-Messaging-Identity.md) has reasons of the same names in the messaging list, as 15 and 16. They differ because 13 and 14 are taken in the messaging list.
 
 **Relaying Fields for 915.** Link Device Keys falls under [Relaying Fields](Capabilities-Server-Link.md#relaying-fields) in both directions, with these baselines; any other field counts toward the 1024-byte bound:
 
@@ -183,7 +199,7 @@ This needs a small change in the extension, which today lists by number the tran
 - **Passive reading is what this stops**, and that covers most of the risk on a network: operators who log, a relay that is breached, chat logs copied off a disk. None of them can read a sealed message.
 - **Metadata still crosses.** Every server on the path sees who sent a message to whom, and when. Padding hides the exact length.
 - **Revocation.** A client cannot tell whether a device has been revoked. It relies on the home server, which answers Link Device Keys only with a certificate not revoked as of the request. A sender's certificate inside a sealed message is checked by nobody but the recipient. The recipient requires the sender's certificate to be unexpired by its own clock as well as when the message was sealed, so an expired key cannot seal a message dated before its expiry. But that does not limit what a stolen device key can do before it expires: whoever holds one can seal new messages in that user's name, under their real fingerprint, until then. A recipient may also ask its own server for the sender's current certificate and compare keys, but that helps only while the sender is online, and it is not a revocation check: the answer comes from whichever home server the sender logged in to, and a thief logs in where the revocation has not been seen. Short certificate lifetimes are the defense, as they are everywhere else in the identity spec.
-- **Certificates cross the network** in full, as above, but only the certificate of a device already online as a ghost, and only to a requester who could message that session.
+- **Certificates cross the network** in full, as above, but only the certificate of a device already online as a ghost, and only to a requester who could message that session, or to a server asking about a session that has signed what was sent its way.
 - **No addresses cross.** Certificates are fetched over the link, never from the home server directly, so the network's membership stays private, as the extension's [Security Considerations](Capabilities-Server-Link.md#security-considerations) require.
 - **Fingerprints link people across servers.** Anyone who can see a user's fingerprint can recognize them on every server in the network, which is why exporting it follows what the home server would show its own users.
 
@@ -191,9 +207,11 @@ This needs a small change in the extension, which today lists by number the tran
 
 No client change is required: a client that knows nothing of user keys sees ghosts as before, a sealed message as `[Encrypted message]`, and a signed line or message as its text. A client that supports user keys MAY show fingerprints, and follows the advice under Downgrade above.
 
+Nothing yet delivers a signed line or message to a classic client: a ghost's chat reaches it as Chat Message (106) and a ghost's private message as Server Message (104), and neither carries the signature. So on the classic wire, a client that can check signatures has no way to receive one for now; that needs a binding of its own.
+
 ### Implementation Notes
 
-- hxd-ng implements the identity spec's objects in `crates/hl-identity`, including device certificates and their verification. A server checks nothing cryptographic for sealed messages: only the clients do. Checking a signed message (Signed Messages) is a server's only cryptographic work here, and it is a SHOULD.
+- hxd-ng implements the identity spec's objects in `crates/hl-identity`, including device certificates and their verification. A server implementing this document need check nothing cryptographic: only the clients open sealed messages, and checking a signed message (Signed Messages) is a MAY.
 - Device certificates are at most 4 KiB by the identity spec, but a typical one is under 300 bytes.
 
 ---
