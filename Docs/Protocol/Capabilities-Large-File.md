@@ -1,6 +1,6 @@
 # Large File Extension
 
-> Last updated: October 16, 2026
+> Last updated: October 24, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -32,6 +32,7 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [Flattened File Object Fork Headers](#flattened-file-object-fork-headers)
   - [Large-File Transfer Mode](#large-file-transfer-mode)
   - [File Resume (RFLT)](#file-resume-rflt)
+    - [Preview or Resume](#preview-or-resume)
     - [Resume Digest](#resume-digest)
   - [Folder Transfer Wire Format](#folder-transfer-wire-format)
 - [Implementation Notes](#implementation-notes)
@@ -75,7 +76,7 @@ This extension adds 64-bit companion fields alongside existing 32-bit fields. Fo
 | `0x006C` | 108 | `DATA_TRANSFERSIZE` | 32-bit | Transfer size (remaining bytes) |
 | `0x00C8` | 200 | `DATA_FILE_NAME_WITH_INFO` | Variable | File entry in directory listings |
 | `0x00CB` | 203 | `DATA_FILE_RESUME_DATA` | Variable | RFLT resume structure |
-| `0x00CC` | 204 | `DATA_FILE_TRANSFER_OPTIONS` | Variable | Transfer options. In Download File, `2` asks for the bare data fork (a preview); some clients also send `2` when resuming, beside the RFLT, so the RFLT is what marks a resume. In Upload File, the field's presence asks to resume (OpenLine sends `1`, other clients `2`). |
+| `0x00CC` | 204 | `DATA_FILE_TRANSFER_OPTIONS` | Variable | Transfer options. In Download File, any non-zero value asks for a preview, the bare data fork, whether or not an RFLT comes with it; a resume carries no transfer options. In Upload File, `1` asks to resume. See [Preview or Resume](#preview-or-resume). |
 | `0x00CF` | 207 | `DATA_FILESIZE` | 32-bit | File size |
 | `0x00DC` | 220 | `DATA_FOLDER_ITEM_COUNT` | 16-bit | Folder item count |
 
@@ -121,7 +122,7 @@ Send both legacy and 64-bit forms when large-file mode is active; legacy fields 
 
 ### Download File (202)
 
-- Request: clients MAY include `DATA_XFERSIZE64` to request a 64-bit-length subset; include `DATA_OFFSET64` for 64-bit resume offsets. Legacy `DATA_XFERSIZE` SHOULD still be sent with a clamped value, and a resume still carries the RFLT, its 32-bit offset clamped.
+- Request: clients MAY include `DATA_XFERSIZE64` to request a 64-bit-length subset; include `DATA_OFFSET64` for 64-bit resume offsets. Legacy `DATA_XFERSIZE` SHOULD still be sent with a clamped value, and a resume still carries the RFLT, its 32-bit offset clamped. A resume MUST NOT carry `DATA_FILE_TRANSFER_OPTIONS`, which asks for a preview; see [Preview or Resume](#preview-or-resume).
 - Reply: servers include both legacy (`DATA_FILESIZE`, `DATA_XFERSIZE`) and 64-bit (`DATA_FILESIZE64`, `DATA_XFERSIZE64`) sizes when large-file mode is active, each pair carrying one quantity with the legacy member clamped, plus `DATA_OFFSET64`, which has no legacy partner in the reply:
   - `DATA_FILESIZE64` is the file's full size.
   - `DATA_OFFSET64` is the offset the transfer resumes from (`0` for a fresh download).
@@ -350,10 +351,30 @@ RFLT covers every resume except one: a resumed large-file *upload*, which has no
 
 #### Resume Flow (Download)
 
-1. Client sends Download File (202) with `DATA_FILE_RESUME_DATA` containing an RFLT listing partial fork sizes, and `DATA_FILE_TRANSFER_OPTIONS` set to `2` (resume mode).
+1. Client sends Download File (202) with `DATA_FILE_RESUME_DATA` containing an RFLT listing partial fork sizes, and no `DATA_FILE_TRANSFER_OPTIONS`.
 2. Client MAY include `DATA_OFFSET64` for 64-bit resume offsets.
 3. Server calculates the remaining transfer size and replies with updated `DATA_XFERSIZE` / `DATA_XFERSIZE64`.
-4. On the HTXF connection, the server sends a *resumed* FFO: the FILP header, the complete INFO fork, then the DATA fork header and the data fork from the resume point. The DATA fork header's length is the **remainder** (fork size minus the offset), so a client reads exactly that many bytes and appends them to what it already has. The server MUST send the FFO on a resume even though `DATA_FILE_TRANSFER_OPTIONS` = `2` is also what a quick-preview request carries; the RFLT (or a non-zero `DATA_OFFSET64`) is what marks a resume, and only a request with neither is a preview, which is answered with the bare data fork.
+4. On the HTXF connection, the server sends a *resumed* FFO: the FILP header, the complete INFO fork, then the DATA fork header and the data fork from the resume point. The DATA fork header's length is the **remainder** (fork size minus the offset), so a client reads exactly that many bytes and appends them to what it already has.
+
+#### Preview or Resume
+
+`DATA_FILE_TRANSFER_OPTIONS` (204) on a Download File (202) request asks for a **preview**: the bare data fork, with no FFO around it and nothing after it - no resource fork header and no resource fork. The OpenLine client sends `2` to view a text or picture file; mhxd's hx sends `1`. A server MUST decide by the field alone, whatever its non-zero value and whether or not an RFLT comes with it:
+
+| Request | Meaning | Server sends |
+|---|---|---|
+| No transfer options, no RFLT | Download | The FFO |
+| No transfer options, RFLT (and `DATA_OFFSET64`) | Resume, from `0` if the RFLT says so | A [resumed FFO](#resume-flow-download) |
+| Transfer options, no RFLT | Preview | The data fork |
+| Transfer options, RFLT (and `DATA_OFFSET64`) | The rest of a preview | The data fork from the RFLT's data fork offset (or `DATA_OFFSET64`) |
+| Transfer options `2` and a range, `CAPABILITY_RANGED_DOWNLOAD` confirmed | A range | See the [ranged download extension](Capabilities-Ranged-DL.md) |
+
+The transfer size of a preview is the data fork's length past the offset. A client that holds part of a preview and wants the rest sends the transfer options it previewed with and an RFLT, as hx does; mhxd and Mobius answer it that way.
+
+A client MUST NOT send transfer options with a resume. The OpenLine server (built from the original's source), mhxd and Mobius read the field as a preview and answer with raw data, which the client then reads as an FFO. The OpenLine client resumes with the RFLT alone.
+
+A transfer options field whose value is `0` asks for nothing, and the request is read as though the field were absent.
+
+In Upload File (203), the field instead asks to resume, and its value MUST be `1`: the OpenLine server resumes on `1` alone, and takes any other value for a new upload, while mhxd, Mobius and Janus accept any value. A server SHOULD accept any non-zero value. The OpenLine client and hx send `1`.
 
 #### Resume Flow (Upload)
 
@@ -363,7 +384,7 @@ Large-file uploads resume through `HTXF_FLAG_RESUME` instead, whether raw or fla
 
 The flow is:
 
-1. **Client** sends Upload File (203) with `DATA_FILE_TRANSFER_OPTIONS` = `2`. Note that `DATA_XFERSIZE` is not sent on a resume request.
+1. **Client** sends Upload File (203) with `DATA_FILE_TRANSFER_OPTIONS` = `1`. Note that `DATA_XFERSIZE` is not sent on a resume request.
 2. **Server** looks for a partial. If one exists it replies with `DATA_FILE_RESUME_DATA` (RFLT, for legacy compatibility) and, in large-file mode, `DATA_OFFSET64` carrying the partial's exact length and `DATA_PARTIAL_DIGEST` carrying the [resume digest](#resume-digest) of what it holds. It MUST remember the offset it quoted, at full width - the RFLT copy clamps above 4 GiB and cannot be used for step 5.
 3. **Client** computes the same digest over its own copy of the file, up to the quoted offset, and compares.
    - **Equal:** the two ends hold the same bytes; the client MAY resume.
