@@ -78,11 +78,6 @@ For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabi
   - [Get User Info (825)](#get-user-info-825)
   - [Set User Info (826)](#set-user-info-826)
   - [Searching profiles](#searching-profiles)
-- [Portable Identity](#portable-identity)
-  - [Identity Fields](#identity-fields)
-  - [Renames and Rotation](#renames-and-rotation)
-  - [Lookup and Blocking by Key](#lookup-and-blocking-by-key)
-  - [Signed and Sealed Messages](#signed-and-sealed-messages)
 - [Persistence](#persistence)
 - [Security Considerations](#security-considerations)
 - [Client Behaviour](#client-behaviour)
@@ -110,7 +105,6 @@ The extension distinguishes two pre-existing Hotline identifiers and layers a th
 | Bare identity | account **Login** | Yes | Roster membership, friend graph, presence aggregation, message and request addressing |
 | Resource / endpoint | ephemeral 16-bit **user ID** | No - reassigned each login | Wire-level delivery target; the specific endpoint a call or file transfer connects to |
 | Display name | user **name** (nickname) | No - mutable, non-unique | Cosmetic only; never an identity |
-| Portable identity | fingerprint of an identity key linked to the account (optional) | Yes, and across servers and renames | Durable key beside the Login; a lookup key, never a delivery address. See [Portable Identity](#portable-identity) |
 
 The 16-bit user ID is **retained** as the transport address. The server maintains a mapping from each Login to its set of live sessions; addressing a Login resolves to one or more user IDs at delivery time. Adding this indirection does not change the wire framing of any existing transaction.
 
@@ -133,7 +127,6 @@ Login (string)  →  set of live sessions (each with a 16-bit user ID)
 - **Call media** reuses the [voice chat](Capabilities-Voice.md) WebRTC SFU and its transactions (600–606). This extension adds only the *ring* (invite/accept/decline/cancel) semantics that the voice room model lacks.
 - **File transfer** reuses the existing Hotline file-transfer port and HTXF handshake. A user-to-user transfer is the same mechanism re-addressed from a server file path to a peer.
 - **Text encoding** of all human-readable strings follows the negotiated [text encoding](Capabilities-Text-Encoding.md). Logins SHOULD be restricted to printable ASCII.
-- **Identity** reuses a portable identity layer where a server has one: an account linked to an identity key is still an account, and this extension sees only the fields [Portable Identity](#portable-identity) adds.
 
 ---
 
@@ -141,15 +134,13 @@ Login (string)  →  set of live sessions (each with a 16-bit user ID)
 
 ### Capability Bits
 
-This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x01F0`), and [Portable Identity](#portable-identity) proposes two more. See [DATA_CAPABILITIES](Capabilities.md) for the general negotiation flow.
+This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x01F0`). See [DATA_CAPABILITIES](Capabilities.md) for the general negotiation flow.
 
 | Bit | Mask | Name | Description |
 |---|---|---|---|
 | 6 | `0x0040` | `CAPABILITY_MESSAGING` | Client supports the instant messaging layer: roster, presence, IM, receipts, discovery, and call signaling |
 | 7 | `0x0080` | `CAPABILITY_DIRECT_TRANSFER` | Client supports optional peer-to-peer (hole-punched) file transfer; absence means transfers use the server relay |
 | 8 | `0x0100` | `CAPABILITY_MESSENGER_SESSION` | The session is a pure instant messenger; the server hides it from the classic user list and suppresses its join/leave announcements |
-| 13 (proposed) | `0x2000` | `CAPABILITY_IDENTITY` | Client understands the identity fields on roster entries and discovery results, and signed messages. See [Portable Identity](#portable-identity) |
-| 14 (proposed) | `0x4000` | `CAPABILITY_SEALED_MESSAGES` | Client can open sealed messages for the device key its session proved. Only meaningful alongside bit 13. See [Signed and Sealed Messages](#signed-and-sealed-messages) |
 
 `CAPABILITY_MESSAGING` is the master switch for the entire extension. A client MUST set bit 6 to participate; the server confirms it in the login reply only when the messaging subsystem is enabled and the account holds the [access privilege](#access-privilege). If the server does not echo bit 6, the client MUST NOT send any transaction defined in this document.
 
@@ -309,19 +300,13 @@ All fields are carried using standard Hotline field framing. Field IDs are chose
 | `0x061C` | 1564 | `DATA_PROFILE_LANGUAGE` | String | ISO 639-1; **repeated**, at most 3 |
 | `0x061D` | 1565 | `DATA_BUDDY_ICON` | Binary (≤ 65535) | An account's buddy icon: GIF, PNG or JPEG bytes. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 | `0x061E` | 1566 | `DATA_BUDDY_ICON_HASH` | Binary (16) | First 16 bytes of the SHA-256 of the stored icon. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
-| `0x061F` (proposed) | 1567 | `DATA_FRIEND_IDENTITY` | Binary (32) | Fingerprint of the identity linked to an account. See [Identity Fields](#identity-fields) |
 | `0x0620` | 1568 | `DATA_MAX_MESSAGE_BYTES` | UInt32 | Server's effective `Messaging.MaxMessageBytes`. Login reply only |
 | `0x0621` | 1569 | `DATA_MAX_ROSTER_SIZE` | UInt32 | Server's effective `Messaging.MaxRosterSize`. Login reply only |
 | `0x0622` | 1570 | `DATA_MAX_OFFLINE_QUEUE` | UInt32 | Server's effective `Messaging.MaxOfflinePerRecipient`. Login reply only |
 | `0x0623` | 1571 | `DATA_MAX_ICON_BYTES` | UInt32 | Server's effective `Messaging.MaxIconBytes`, never above 65535. Login reply only; absent when buddy icons are not supported. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 | `0x0624` | 1572 | `DATA_MAX_ICON_DIMENSION` | UInt32 | Server's effective `Messaging.MaxIconDimension`, never below 64. Login reply only. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
-| `0x0628` (proposed) | 1576 | `DATA_FRIEND_HANDLE` | String | An account's registrar handle, `name@registrar`. See [Identity Fields](#identity-fields) |
-| `0x0629` (proposed) | 1577 | `DATA_FRIEND_DEVICE_CERT` | Binary (≤ 512) | A device certificate; **repeated**. Friend-only. See [Device certificates](#device-certificates) |
-| `0x062A` (proposed) | 1578 | `DATA_MESSAGE_SIGNED` | Binary (≤ 1020) | The detached signature of a message sent in the clear. See [Signed and Sealed Messages](#signed-and-sealed-messages) |
-| `0x062B` (proposed) | 1579 | `DATA_MESSAGE_SEALED` | Binary (≤ 17,152) | A sealed message, opaque to the server. See [Signed and Sealed Messages](#signed-and-sealed-messages) |
-| `0x062C` (proposed) | 1580 | `DATA_MESSAGE_SEALED_TO` | Binary (32) | SHA-256 of the device key a message was sealed to. See [Signed and Sealed Messages](#signed-and-sealed-messages) |
 
-Field ID `0x061F` is reserved for a future messaging field, and `0x0625`–`0x0627` for further server limits. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension. [Portable Identity](#portable-identity) proposes `0x061F` for `DATA_FRIEND_IDENTITY`, and `0x0628`–`0x062F`, just past the limits sub-block, for further messaging fields, of which it uses `0x0628`–`0x062C`.
+Field ID `0x061F` is reserved for a future messaging field, and `0x0625`–`0x0627` for further server limits. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension.
 
 Existing fields reused by this extension: `FieldUserID` (103), `FieldUserName` (102), the `FieldFile*` family (200–213) for file metadata in offers, and the `FieldVoice*` family (`0x01F5`–`0x01F9`) for SDP/ICE during a call.
 
@@ -400,10 +385,8 @@ repeat count times:
 | 10 | `RateLimited` | Caller exceeded a per-account rate limit |
 | 11 | `NotDiscoverable` | Target is unlisted; not returned by directory search |
 | 12 | `RosterFull` | Caller's roster is at `MaxRosterSize`, counting entries in every state - a roster can be full of people the caller has blocked |
-| 13 | `MessageTooLong` | Encoded body exceeds `MaxMessageBytes`, a buddy icon exceeds `MaxIconBytes`, or a sealed message exceeds 17,152 bytes |
+| 13 | `MessageTooLong` | Encoded body exceeds `MaxMessageBytes`, or a buddy icon exceeds `MaxIconBytes` |
 | 14 | `InvalidImage` | A buddy icon is not an accepted format, cannot be decoded, or exceeds the server's dimension or frame limits (see [Buddy Icons](Capabilities-Buddy-Icons.md)) |
-| 15 (proposed) | `NoDeviceKeys` | A sealed message names a device key no live session of the recipient proved, or the recipient has no live session that can receive sealed messages (see [Signed and Sealed Messages](#signed-and-sealed-messages)) |
-| 16 (proposed) | `BadSignature` | A signed message does not verify, is not scoped to the recipient, or reuses the message ID of another message by the same signer (see [Signed and Sealed Messages](#signed-and-sealed-messages)) |
 
 `MessageTooLong` exists because it is the one refusal a client can act on precisely: it knows exactly which message was rejected and can offer to split or trim it, where a generic failure leaves it able only to report that something went wrong. Servers predating this code return a failure with `FieldError` text and no reason code, so clients MUST treat an oversize body as rejected on the error code alone and use the reason code only to improve the message they show.
 
@@ -449,7 +432,7 @@ A server that supports [Buddy Icons](Capabilities-Buddy-Icons.md) adds a third: 
 
 **Request fields:** none.
 
-**Reply fields (repeated per entry):** `DATA_FRIEND_LOGIN`, `DATA_FRIEND_NICKNAME` (optional), `DATA_ROSTER_STATE`, `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional - the name the friend goes by; see [Display name precedence](#display-name-precedence)), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)), `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)).
+**Reply fields (repeated per entry):** `DATA_FRIEND_LOGIN`, `DATA_FRIEND_NICKNAME` (optional), `DATA_ROSTER_STATE`, `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional - the name the friend goes by; see [Display name precedence](#display-name-precedence)), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)).
 
 Because Hotline transactions carry a flat field list, repeated entries are delimited by `DATA_FRIEND_LOGIN`: every field following a `DATA_FRIEND_LOGIN`, up to the next `DATA_FRIEND_LOGIN` (or the end of the transaction), belongs to that entry. `DATA_FRIEND_LOGIN` therefore MUST be the first field of each entry. This governs the **reused** fields too - `FieldUserName` (102) inside an entry is that entry's friend's name. A client that scans the whole transaction for field 102 instead of the current group gives one friend's name to every row in the list. The same delimiting rule governs the repeated results of [User Search (823)](#user-search-823). A server MAY instead deliver the snapshot as a sequence of individual [Roster Entry (801)](#roster-entry-801) notifications following the reply; clients MUST accept either form.
 
@@ -457,7 +440,7 @@ Because Hotline transactions carry a flat field list, repeated entries are delim
 
 Server-initiated notification carrying a single roster delta: an addition, a relationship-state change, a presence change, or a removal. A removal is encoded with `DATA_ROSTER_STATE` = `Removed` (value `0`) and only `DATA_FRIEND_LOGIN`.
 
-**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_ROSTER_STATE` (REQUIRED), `DATA_FRIEND_NICKNAME` (optional), `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)), `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)).
+**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_ROSTER_STATE` (REQUIRED), `DATA_FRIEND_NICKNAME` (optional), `DATA_PRESENCE_STATE` (optional), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)).
 
 #### An entry group is complete, not incremental
 
@@ -501,7 +484,7 @@ Removal is **mutual**. The server MUST delete the relationship in both direction
 
 Server-initiated notification delivering an inbound authorization request. Delivered immediately if the target is online, otherwise on next login.
 
-**Fields:** `DATA_FRIEND_LOGIN` (the requester), `DATA_REQUEST_NOTE` (optional), `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)).
+**Fields:** `DATA_FRIEND_LOGIN` (the requester), `DATA_REQUEST_NOTE` (optional).
 
 **A server MUST NOT send `DATA_FRIEND_CAPABILITIES` in a Friend Request.** Its recipient is not yet a friend of the requester, and the rule under [User Discovery](#user-discovery) applies for the same reason: capabilities exist only while the requester is signed in, so carrying them tells a stranger that fact. A request queued for an offline recipient is worse, as it reports the requester's state at the moment of delivery, not of sending. Nothing is lost - the requester's capabilities arrive in the roster entry once the request is accepted. Earlier revisions of this document listed the field as optional; clients MUST NOT rely on it.
 
@@ -517,7 +500,7 @@ The server MUST send a [Roster Entry (801)](#roster-entry-801) reflecting the ne
 
 ### Block User (806)
 
-Request/reply. Sets the relationship to `Blocked`. A key with no account can be blocked by its fingerprint instead (see [Lookup and Blocking by Key](#lookup-and-blocking-by-key)). A blocked Login cannot send the caller messages, offers, calls, or friend requests, and cannot see the caller's presence; it is omitted from the caller's discovery results. Blocking an existing friend also removes the friendship.
+Request/reply. Sets the relationship to `Blocked`. A blocked Login cannot send the caller messages, offers, calls, or friend requests, and cannot see the caller's presence; it is omitted from the caller's discovery results. Blocking an existing friend also removes the friendship.
 
 Like [Remove Friend (803)](#remove-friend-803), this changes two rosters, and the server MUST tell both:
 
@@ -564,9 +547,9 @@ Clients MUST NOT read the field's absence as presence information - against a co
 
 Request/reply. Resolves an exact Login. Always available regardless of the target's discovery preference, because the caller must already know the exact handle. The reply does **not** expose the target's presence or online state unless the parties are already friends.
 
-**Request fields:** one of `DATA_FRIEND_LOGIN`, `DATA_FRIEND_HANDLE` or `DATA_FRIEND_IDENTITY` (REQUIRED; the last two, see [Lookup and Blocking by Key](#lookup-and-blocking-by-key)).
+**Request fields:** `DATA_FRIEND_LOGIN` (REQUIRED).
 
-**Reply fields on success:** `DATA_REASON_CODE` = `OK`, `DATA_FRIEND_LOGIN`, `FieldUserName` (the target's display name), `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)), and `DATA_FRIEND_CAPABILITIES` **only when the caller is already an accepted friend** (see [User Discovery](#user-discovery)). **On failure:** `DATA_REASON_CODE` (`AccountNotFound` / `NotMessagingEnabled`) with a non-zero header error code.
+**Reply fields on success:** `DATA_REASON_CODE` = `OK`, `DATA_FRIEND_LOGIN`, `FieldUserName` (the target's display name), and `DATA_FRIEND_CAPABILITIES` **only when the caller is already an accepted friend** (see [User Discovery](#user-discovery)). **On failure:** `DATA_REASON_CODE` (`AccountNotFound` / `NotMessagingEnabled`) with a non-zero header error code.
 
 A target that has blocked the caller is reported as `AccountNotFound`, so a caller cannot use this transaction to detect a block.
 
@@ -576,7 +559,7 @@ Request/reply. Directory search over accounts whose own `DATA_DISCOVERABLE` pref
 
 **Request fields:** `DATA_SEARCH_QUERY` (REQUIRED).
 
-**Reply fields (repeated per result):** `DATA_FRIEND_LOGIN`, `FieldUserName` (optional), `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)), `DATA_FRIEND_CAPABILITIES` (only for a result who is already an accepted friend - see [User Discovery](#user-discovery)), preceded by `DATA_REASON_CODE` = `OK` (see [Reply Shape](#reply-shape)).
+**Reply fields (repeated per result):** `DATA_FRIEND_LOGIN`, `FieldUserName` (optional), `DATA_FRIEND_CAPABILITIES` (only for a result who is already an accepted friend - see [User Discovery](#user-discovery)), preceded by `DATA_REASON_CODE` = `OK` (see [Reply Shape](#reply-shape)).
 
 The result bound is server-local and is **not** advertised, so a truncated result set is indistinguishable on the wire from a complete one. Clients MUST NOT present results as the complete set of matching accounts, and SHOULD invite the user to narrow the query rather than implying there is nobody else. The reference server caps a search at 50 results.
 
@@ -618,7 +601,7 @@ The simplest conforming client always sends the field, empty when the user has n
 
 Server-initiated notification sent to a client when one of its accepted friends changes presence (including going online/offline). A friend who has disconnected or is in the `Invisible` state is reported with `DATA_PRESENCE_STATE` = `Offline` (`0`), so the two are indistinguishable to the recipient. Presence is aggregated across the friend's sessions: the reported state is the most-available session's (online > busy > away), and `Offline` only when no session is visible.
 
-**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_PRESENCE_STATE` (REQUIRED), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)), `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)).
+**Fields:** `DATA_FRIEND_LOGIN` (REQUIRED), `DATA_PRESENCE_STATE` (REQUIRED), `DATA_PRESENCE_STATUS_TEXT` (optional), `DATA_FRIEND_CAPABILITIES` (optional), `FieldUserName` (102, optional), `DATA_BUDDY_ICON_HASH` (optional; see [Buddy Icons](Capabilities-Buddy-Icons.md)).
 
 `DATA_FRIEND_CAPABILITIES` follows the rule for roster entries: it describes a live session, so it MUST be omitted whenever the reported state is `Offline` - including for a friend who is `Invisible`.
 
@@ -638,9 +621,9 @@ The rule a server needs is simple: send 809 only when the Login was visible befo
 
 Request/reply. Sends a one-to-one message to an accepted friend. The server validates friendship and block state, enforces `MaxMessageBytes`, stamps `DATA_MESSAGE_TIMESTAMP`, persists the message, and delivers it via [IM Deliver (811)](#im-deliver-811) to every live session of the recipient. If the recipient has no live session, the message is queued (see [Offline Delivery](#offline-delivery)).
 
-**Request fields:** `DATA_FRIEND_LOGIN` (REQUIRED, recipient), `DATA_MESSAGE_GUID` (REQUIRED), `DATA_MESSAGE_BODY` (REQUIRED, unless the message is sealed), `DATA_MESSAGE_SIGNED`, or `DATA_MESSAGE_SEALED` with `DATA_MESSAGE_SEALED_TO` (optional; see [Signed and Sealed Messages](#signed-and-sealed-messages)).
+**Request fields:** `DATA_FRIEND_LOGIN` (REQUIRED, recipient), `DATA_MESSAGE_GUID` (REQUIRED), `DATA_MESSAGE_BODY` (REQUIRED).
 
-**Reply fields:** `DATA_REASON_CODE` - `OK` when delivered to at least one live session, `OfflineQueued` when stored for later delivery, or an error (`NotFriends`, `Blocked`, `RateLimited`, `QueueFull`, and for [signed and sealed messages](#signed-and-sealed-messages) `NoDeviceKeys`, `OfflineUndeliverable` or `BadSignature`).
+**Reply fields:** `DATA_REASON_CODE` - `OK` when delivered to at least one live session, `OfflineQueued` when stored for later delivery, or an error (`NotFriends`, `Blocked`, `RateLimited`, `QueueFull`).
 
 The recipient is **not** identified by `DATA_MESSAGE_TIMESTAMP`; dedup is by `DATA_MESSAGE_GUID`. Re-sending the same GUID to the same recipient MUST be idempotent.
 
@@ -648,7 +631,7 @@ The recipient is **not** identified by `DATA_MESSAGE_TIMESTAMP`; dedup is by `DA
 
 Server-initiated notification delivering a message to a recipient session.
 
-**Fields:** `DATA_MESSAGE_GUID` (REQUIRED), `DATA_FRIEND_LOGIN` (REQUIRED, the sender), `DATA_MESSAGE_BODY` (REQUIRED, unless the message is sealed), `DATA_MESSAGE_TIMESTAMP` (REQUIRED), and `DATA_MESSAGE_SIGNED`, or `DATA_MESSAGE_SEALED` with `DATA_MESSAGE_SEALED_TO`, as sent (optional; see [Signed and Sealed Messages](#signed-and-sealed-messages)).
+**Fields:** `DATA_MESSAGE_GUID` (REQUIRED), `DATA_FRIEND_LOGIN` (REQUIRED, the sender), `DATA_MESSAGE_BODY` (REQUIRED), `DATA_MESSAGE_TIMESTAMP` (REQUIRED).
 
 ### IM Acknowledge (812)
 
@@ -669,7 +652,7 @@ Notification (no reply). Forwarded to the recipient's live sessions only; never 
 - A message to a recipient with no live session is persisted with no delivery timestamp and the [IM Send (810)](#im-send-810) reply carries `OfflineQueued`.
 - On the recipient's next login, after roster sync, the server drains the recipient's undelivered queue oldest-first and pushes each message via [IM Deliver (811)](#im-deliver-811). A message is marked delivered upon the recipient's `Delivered` acknowledgement.
 - The queue is bounded by `MaxOfflinePerRecipient`; when full, further sends return `QueueFull`. Delivered messages and over-age messages are pruned per `OfflineRetentionDays`.
-- Offline delivery applies to **text messages only**. Calls, typing, file transfers and [sealed messages](#signed-and-sealed-messages) require both peers online and are never queued (`OfflineUndeliverable`).
+- Offline delivery applies to **text messages only**. Calls, typing, and file transfers require both peers online and are never queued (`OfflineUndeliverable`).
 
 ---
 
@@ -855,7 +838,7 @@ Request/reply. Reads a Login's profile.
 
 **Request fields:** `DATA_FRIEND_LOGIN` (REQUIRED).
 
-**Reply fields:** `DATA_FRIEND_LOGIN` and `FieldUserName` always, with `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE` (optional; see [Identity Fields](#identity-fields)); plus `DATA_FRIEND_CAPABILITIES`, the `DATA_PROFILE_*` fields, `DATA_BUDDY_ICON_HASH` (see [Buddy Icons](Capabilities-Buddy-Icons.md)) and `DATA_FRIEND_DEVICE_CERT` (see [Device certificates](#device-certificates)) when the caller is an accepted friend (or is the subject), or `DATA_REASON_CODE` = `NotFriends` when not. Servers MUST rate-limit this alongside the other discovery transactions.
+**Reply fields:** `DATA_FRIEND_LOGIN` and `FieldUserName` always; plus `DATA_FRIEND_CAPABILITIES`, the `DATA_PROFILE_*` fields and `DATA_BUDDY_ICON_HASH` (see [Buddy Icons](Capabilities-Buddy-Icons.md)) when the caller is an accepted friend (or is the subject), or `DATA_REASON_CODE` = `NotFriends` when not. Servers MUST rate-limit this alongside the other discovery transactions.
 
 ### Set User Info (826)
 
@@ -879,96 +862,16 @@ Results carry no profile detail whatsoever: finding someone is not the same as b
 
 ---
 
-## Portable Identity
-
-> **Status:** Proposal by Misha Nasledov ([@mishan](https://github.com/mishan)), hxd-ng. The numbers marked *proposed* are to be confirmed, and the Janus reference server implements none of this section.
-
-An account MAY be linked to a **portable identity**: an Ed25519 identity key that a user holds across servers, and device certificates signed by it, as defined by [hxd-ng's identity spec](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md). This section is what messaging carries for such an account. Everything in it is optional: a server that does not link accounts to identities sends none of these fields and refuses no request it accepts today, and a client that knows nothing of them sees no change.
-
-What does not change:
-
-- **The bare identity is still the Login.** Roster rows, blocks, queues and authorization stay keyed by Login. The fingerprint travels beside it, never in its place.
-- **`guest` and `admin` stay out.** A session that proved a key but is logged in as `guest` is still `guest`, and the [reserved logins](#reserved-logins) rule applies to it unchanged. An operator who wants identity users to message gives them accounts of their own.
-- **The sender is the session.** The server attributes a message to the Login, and the identity, that the session authenticated as.
-
-**Negotiation.** A client sets `CAPABILITY_IDENTITY` (bit 13, proposed) when it understands the fields below; it need not have an identity of its own. A server confirms it only when it implements this section. A client sets `CAPABILITY_SEALED_MESSAGES` (bit 14, proposed) only when its session proved, at login, a device key whose certificate allows messages, and it can open sealed messages for that key; a server confirms it only alongside bit 13, and only for such a session. Both fit in `DATA_FRIEND_CAPABILITIES`, so a sender can see whether a friend's session can receive sealed messages.
-
-### Identity Fields
-
-| Field | Carries |
-|---|---|
-| `DATA_FRIEND_IDENTITY` | The account's identity **fingerprint**: the SHA-256 digest of its 32-byte identity public key ([identity spec section 3.2](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md#32-fingerprint)) |
-| `DATA_FRIEND_HANDLE` | The account's registrar handle, `name@registrar`, when the server accepted an attestation for it ([identity spec section 3.5](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md#35-attestation)) |
-
-- A server sends them only for an account linked to an identity, the handle only beside the fingerprint, and only where it would show that link to an ordinary user of the server, by its own policy or the account holder's setting. A fingerprint lets anyone recognize the same person on every server where they use the key, so it is the user's to share.
-- They are **public-card fields**, like `FieldUserName`: sent for entries in every roster state, in [Friend Request (804)](#friend-request-804), and in the results of [Find User (822)](#find-user-822), [User Search (823)](#user-search-823) and [Get User Info (825)](#get-user-info-825), to friends and non-friends alike. A fingerprint is the hash of a public key and a handle is made to be told to people; neither says whether anyone is signed in.
-- They follow the [complete-entry rule](#an-entry-group-is-complete-not-incremental): an entry without them is one whose account shows no identity.
-- A server MAY send them to a session that did not negotiate `CAPABILITY_IDENTITY`, which ignores them as unknown fields. Of the rules for receiving them, only the rename rule below depends on the bit.
-
-A client treats `DATA_FRIEND_IDENTITY` as the durable key for a row: two entries with the same fingerprint are the same person, even under different Logins or on different servers, and a client MAY offer to merge local state (aliases, history) across them. The Login remains the address.
-
-### Renames and Rotation
-
-**Rename.** When an account linked to an identity is renamed, a friend's session that negotiated `CAPABILITY_IDENTITY` receives one [Roster Entry (801)](#roster-entry-801) for the new Login, carrying `DATA_FRIEND_IDENTITY`, with no `Removed` before it, and MUST rename the row it holds under that fingerprint in place, keeping its alias and local state. Every other session, and every session for an account that shows no identity, receives the removal followed by the fresh entry, as under [Persistence](#persistence). A client that keys rows by Login therefore never sees a Login change without a `Removed`.
-
-**Rotation.** An identity can rotate to a successor key ([identity spec section 8.5](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md#85-rotation)), after which the account carries a new fingerprint under the same Login. The server sends a [Roster Entry (801)](#roster-entry-801) with the new fingerprint to every online friend, and no `Removed`; the account's queue, blocks and receipts follow it unchanged. A client that receives an entry whose Login matches a row it holds and whose fingerprint differs, with no `Removed` for that Login in between, treats it as a rotation: the row keeps its state and takes the new fingerprint. A Login that passes to another account always arrives after a `Removed`, so the two cannot be confused. A client SHOULD tell its user when a friend's fingerprint changes, since on the wire a rotation looks the same as a server substituting a key.
-
-### Lookup and Blocking by Key
-
-- **[Find User (822)](#find-user-822)** accepts exactly one of `DATA_FRIEND_LOGIN`, `DATA_FRIEND_HANDLE` or `DATA_FRIEND_IDENTITY`. The reply keeps its shape and always carries `DATA_FRIEND_LOGIN`, which the caller addresses from then on. A request carrying none of them, or more than one, is a failure with no reason code. A handle or fingerprint with no account here is `AccountNotFound`, the same answer as for a Login, so a miss does not say whether the person is absent or merely unattested here.
-- **[User Search (823)](#user-search-823)** matches `DATA_FRIEND_HANDLE` on substring, as it matches Login and display name, under the same `DATA_DISCOVERABLE` preference. Fingerprints are not searched: nobody types a fragment of a hash.
-- **[Block User (806)](#block-user-806)** and **[Unblock User (807)](#unblock-user-807)** accept `DATA_FRIEND_IDENTITY` in place of `DATA_FRIEND_LOGIN`. A fingerprint linked to an account here blocks that account's Login, as if it had been named. One linked to no account, such as a key holder logged in as `guest`, can still reach people with a classic Send Instant Message (108), and a block by its fingerprint is the only kind that sticks to it: the server stores it against the fingerprint and refuses a 108 to any of the caller's sessions from a session that proved that key. This is stronger than a Login block, which covers messaging transactions only, because the key holder has no messaging session to block. Such a block names no Login, so it appears in no [Roster Entry (801)](#roster-entry-801), whose groups open with one, and it does not count toward `MaxRosterSize`; a server bounds these blocks separately, and a client that wants to list them keeps its own record.
-
-The enumeration rules apply unchanged: the rate limits, `AccountNotFound` for a subject that has blocked the caller, and no presence for non-friends.
-
-### Signed and Sealed Messages
-
-A message between two accounts linked to identities can be **signed** by the sender's device key, so that no server can alter it or write one in the sender's name, and **sealed**: encrypted to one of the recipient's devices, so that no server can read it. The sealed form is the one the Server Linking Extension's [user keys draft](Server-Link-User-Keys.md#sealed-messages-in-link-private-message-905) uses for private messages across links, with a deniable variant beside it. This section is what [IM Send (810)](#im-send-810), [IM Deliver (811)](#im-deliver-811) and the [offline queue](#offline-delivery) must carry for it; beyond the checks listed here, the server treats it as opaque.
-
-Each message is sent in one of four forms, the sender's choice:
-
-| Form | IM Send carries | Who can attribute it |
-|---|---|---|
-| Plain | `DATA_MESSAGE_BODY` | Nobody: the server's word is all there is |
-| Signed | `DATA_MESSAGE_BODY` and `DATA_MESSAGE_SIGNED` | Anyone who holds it: a signature is transferable |
-| Sealed and signed | `DATA_MESSAGE_SEALED` and `DATA_MESSAGE_SEALED_TO` | The recipient, who can also prove it to others |
-| Sealed deniably | `DATA_MESSAGE_SEALED` and `DATA_MESSAGE_SEALED_TO` | The recipient alone: HPKE's auth mode convinces the recipient that the sender's device wrote it, and nobody else, since the recipient's key could have made the same box |
-
-**Signed messages.** `DATA_MESSAGE_SIGNED` is the signed message in detached form: a CBOR map in deterministic encoding, signed by the sender device's Ed25519 key under the domain `hl-identity/message/v1`, covering a 16-byte message ID, the time it was signed, the recipient's identity fingerprint, the sender's device certificate and the text, with the text itself left out because it travels in `DATA_MESSAGE_BODY`. It is at most 1020 bytes.
-
-- The sender's session MUST have negotiated `CAPABILITY_IDENTITY` and `CAPABILITY_TEXT_ENCODING` and proved a device key at login. The signature covers the body as UTF-8, with each CR LF pair and then each lone CR replaced by LF, at most 4096 bytes; a client verifies after doing the same to the body it receives.
-- The message ID is the `DATA_MESSAGE_GUID`. Deduplication by `(GUID, recipient)` is unchanged.
-- The server SHOULD check it before accepting the send: that the signature verifies, that the certificate belongs to the identity linked to the sender's account, that the recipient fingerprint is the one linked to the recipient's, that the ID is the GUID, that its signed time is within a few minutes of the server's clock (the sender signs a held message again before sending it), and that the signer has not used the ID for a message with other content. It refuses a send that fails with `BadSignature`, and one that carries `DATA_MESSAGE_SIGNED` to a recipient with no linked identity with `FieldError` text and no reason code.
-- The server stores it with the message and delivers it unchanged beside the body, live and from the offline queue, to every recipient session that negotiated `CAPABILITY_TEXT_ENCODING`. To any other session it sends the body alone, because the text that session receives is no longer the text that was signed.
-
-**Sealed messages.** `DATA_MESSAGE_SEALED` is the sealed message: either a whole signed message, padded and encrypted with HPKE (RFC 9180) to one recipient device's X25519 key (`device_enc` in its certificate), or the same message without a signature, sealed in HPKE's auth mode under the sender device's own certified `device_enc` key. Its first byte says which. `DATA_MESSAGE_SEALED_TO` is the SHA-256 digest of the `device_enc` key it was sealed to.
-
-- A client MUST NOT send a sealed message unless the server confirmed `CAPABILITY_SEALED_MESSAGES`. A sealed send carries no `DATA_MESSAGE_BODY` and no `DATA_MESSAGE_SIGNED`, since a plaintext body beside it would make sealing it pointless; a send that carries either is a failure with no reason code.
-- **A sealed message is for one device.** The server delivers it only to the recipient's sessions that confirmed `CAPABILITY_SEALED_MESSAGES` and proved the device whose `device_enc` key hashes to `DATA_MESSAGE_SEALED_TO`. The Login's other sessions are not sent it. A sender who wants each of the recipient's live devices to have the message seals one copy per device, each with its own GUID and so its own message ID, and deduplication and receipts work per copy as they do per message.
-- **Sealed messages are not queued.** If no such session is live, the send fails with `NoDeviceKeys`, and with `OfflineUndeliverable` when the recipient has no live session at all. The recipient judges a sealed message's age by its own clock and refuses one sealed more than 24 hours before it is opened, as the user keys draft has it, so a queue that holds messages for days would deliver what the recipient then drops. Sealed messages are online only in this version. Sealing mail for a device that is offline is planned for a later one: it needs a construction that marks a message as mail, so the recipient judges it by when it was queued rather than refusing it as stale, and offline queue rules for a sealed body. A sending client that is told `NoDeviceKeys` fetches the certificates again; it does not fall back to sending in the clear.
-- `MaxMessageBytes` bounds `DATA_MESSAGE_BODY` only. A sealed message is padded so that its size hides its length, and is bounded by its construction instead, at most 17,152 bytes; a server refuses a larger one with `MessageTooLong`.
-- The server MUST NOT alter, re-encode, store or log the contents of `DATA_MESSAGE_SEALED`.
-
-#### Device certificates
-
-To seal a message, a sender needs the recipient device's certificate. [Get User Info (825)](#get-user-info-825) returns, to an accepted friend only, one `DATA_FRIEND_DEVICE_CERT` for each of the subject's devices that has a live session confirming `CAPABILITY_SEALED_MESSAGES`: the certificate the device presented at login ([identity spec section 3.3](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md#33-device-certificate)), unexpired, not revoked as far as the server knows, allowing messages, and at most 512 bytes. It is friend-only for the same reason as `DATA_FRIEND_CAPABILITIES`: it changes with the subject's devices and sessions, which a stranger has no business knowing.
-
-**The sending client checks each certificate** against the subject's `DATA_FRIEND_IDENTITY`: that its identity key hashes to the fingerprint, that the identity key's signature on it verifies, that it has not expired, and that it allows messages. It seals only to a certificate that passes, and treats one that fails as absent. A server that handed out bare keys could substitute its own and read everything; a certificate it cannot forge, checked against the fingerprint, is what prevents that.
-
-**The receiving client checks the sender**, in the order the construction gives: the recipient fingerprint, the message's age, that its ID has not been accepted from that sender before, the certificate inside the message against the sender's `DATA_FRIEND_IDENTITY`, and the signature, or for a deniable box that the certificate's `device_enc` key is the one that authenticated it. A message that fails is shown as unverified, never as from that friend.
-
----
-
 ## Persistence
 
 This section is informative; the on-disk representation is a server implementation detail. A conforming server MUST persist the friend graph and undelivered messages across restarts. Presence, typing, calls, and in-flight transfers are live-only.
 
-A server SHOULD also persist, per account: the discovery preference (`DATA_DISCOVERABLE`), the published [profile](#user-profiles), the last self-set status text, and the buddy icon with its hash (see [Buddy Icons](Capabilities-Buddy-Icons.md)), restoring them on login. A server that implements [Portable Identity](#portable-identity) persists the blocks made by fingerprint with the friend graph.
+A server SHOULD also persist, per account: the discovery preference (`DATA_DISCOVERABLE`), the published [profile](#user-profiles), the last self-set status text, and the buddy icon with its hash (see [Buddy Icons](Capabilities-Buddy-Icons.md)), restoring them on login.
 
 Three account-lifecycle events reach into the friend graph, and each MUST leave it consistent:
 
 - **Deletion.** Remove all roster rows referencing the Login (in either direction), purge its undelivered messages, and notify online friends with a removal [Roster Entry (801)](#roster-entry-801).
-- **Rename.** Rewrite all references atomically and notify affected online friends - a removal for the stale Login followed by a fresh entry for the new one, since the Login is the roster key and a client cannot rename a row it identifies by that key. For an account linked to an identity, a session that negotiated `CAPABILITY_IDENTITY` receives the fresh entry alone (see [Renames and Rotation](#renames-and-rotation)).
+- **Rename.** Rewrite all references atomically and notify affected online friends - a removal for the stale Login followed by a fresh entry for the new one, since the Login is the roster key and a client cannot rename a row it identifies by that key.
 - **Revocation of `AccessMessaging`.** Treat as a deletion of the messaging identity: the account can no longer participate, so leaving its rows in other people's rosters would leave friends addressing a Login the server will refuse every transaction for.
 
 ---
@@ -980,12 +883,8 @@ Three account-lifecycle events reach into the friend graph, and each MUST leave 
 - **Enumeration resistance.** [Find User (822)](#find-user-822) and [User Search (823)](#user-search-823) MUST be rate-limited per account. Directory search MUST return only opted-in accounts. Exact-handle resolution leaks only existence, never presence or capabilities, for non-friends.
 - **Spam control.** Because messaging requires mutual acceptance, only accepted friends can queue offline messages. Offline queues are bounded (`MaxOfflinePerRecipient`), and per-account send rate limits SHOULD reuse the server's existing flood-control mechanism.
 - **Public handle.** A messaging-enabled account's Login is a public handle; account security rests entirely on the password. Operators SHOULD NOT reuse a privileged administrative login as a messaging handle.
-- **Accounts without passwords.** An account linked to an identity may log in by proving its key, with no password at all. For such an account the Login being public exposes nothing. The [reserved logins](#reserved-logins) rule is unaffected: it is about what those accounts are, not how they authenticate.
-- **Transport encryption.** Apart from [sealed messages](#signed-and-sealed-messages), this extension defines no payload encryption of its own. Over the relay path the server observes message and file content, identical to the trust model of the base Hotline protocol. Deployments requiring confidentiality on the wire SHOULD use the [HOPE](HOPE-Secure-Login.md) encrypted transport. The optional direct file path MAY provide end-to-end confidentiality via the WebRTC data channel's DTLS, but this is never mandatory (vintage clients cannot rely on it).
-- **Sealed messages.** A [sealed message](#signed-and-sealed-messages) is the exception: no server can read it, including the one that carries it. The server still sees who messages whom, when, and roughly how much. A client that seals to a certificate it did not check against the recipient's fingerprint has sealed to whoever supplied the certificate, and the fingerprint is only as good as the server's word: a server that replaces a friend's fingerprint and serves a matching certificate can read what is sealed to it. On first contact, only comparing fingerprints out of band protects against that.
-- **Signed messages are evidence.** A signature is transferable: whoever holds a signed message, sealed or not, can prove to anyone that the sender's device wrote it. That is what a sender chooses by signing, and why a deniable form exists beside it. Clients SHOULD let the user choose, and SHOULD show which form each message arrived in.
-- **Downgrade.** A server can strip a signature or refuse to deliver a sealed message, and a client that silently falls back sends in the clear. Clients SHOULD remember which friends they have exchanged signed or sealed messages with, and warn before sending to one of them in the clear or when a message from one arrives without its signature.
-- **Identifier spoofing.** The server MUST derive the authenticated Login from the session, never from a client-supplied `DATA_FRIEND_LOGIN`, when attributing the *sender* of any transaction. The same holds for `DATA_FRIEND_IDENTITY` and `DATA_FRIEND_HANDLE`: a server takes them from the account it resolved, and a fingerprint in a request is a lookup key, not a claim.
+- **Transport encryption.** This extension defines no payload encryption of its own. Over the relay path the server observes message and file content, identical to the trust model of the base Hotline protocol. Deployments requiring confidentiality on the wire SHOULD use the [HOPE](HOPE-Secure-Login.md) encrypted transport. The optional direct file path MAY provide end-to-end confidentiality via the WebRTC data channel's DTLS, but this is never mandatory (vintage clients cannot rely on it).
+- **Identifier spoofing.** The server MUST derive the authenticated Login from the session, never from a client-supplied `DATA_FRIEND_LOGIN`, when attributing the *sender* of any transaction.
 
 ---
 
@@ -1003,8 +902,6 @@ A conforming messaging client:
 8. Parses repeated entries by group, attributing each `FieldUserName` (102) to the `DATA_FRIEND_LOGIN` that opened its group, and stores the name and status text so offline friends still have both.
 9. Replaces a stored roster entry with the group that arrives in [Roster Entry (801)](#roster-entry-801) rather than merging into it, so a cleared alias or status clears (see [An entry group is complete, not incremental](#an-entry-group-is-complete-not-incremental)).
 10. Sends `DATA_PRESENCE_STATUS_TEXT` present-but-empty to clear a status, never omitted (see [Clearing the status text](#clearing-the-status-text)).
-11. Treats `DATA_FRIEND_IDENTITY`, where present, as the durable key for a roster row, and applies [Renames and Rotation](#renames-and-rotation) when it negotiated `CAPABILITY_IDENTITY`.
-12. Seals only to device certificates it checked against the recipient's fingerprint, does not fall back to the clear on `NoDeviceKeys`, and shows a signed or sealed message that fails its checks as unverified, never as from that friend (see [Signed and Sealed Messages](#signed-and-sealed-messages)).
 
 ## Server Behaviour
 
@@ -1021,12 +918,10 @@ A conforming messaging server:
 9. Sends `FieldUserName` (102) and `DATA_PRESENCE_STATUS_TEXT` with roster entries as well as presence changes, so both reach a client that signed in after they were last set. For the name it prefers the published profile over a live session's, so the value outlives the session.
 10. Withholds `DATA_FRIEND_CAPABILITIES` from a caller who is not an accepted friend of the subject, on every discovery transaction and in [Friend Request (804)](#friend-request-804) (see [User Discovery](#user-discovery)), and from everyone while the subject is `Invisible`.
 11. Terminates transfer-port protection per peer on a relay rather than copying bytes between the two connections (see [The splice is not always a byte copy](#the-splice-is-not-always-a-byte-copy)).
-12. Takes identity fields from the account it resolved, never from the client, and sends the fingerprint only where it would show it to an ordinary user (see [Identity Fields](#identity-fields)).
-13. Carries signed and sealed messages unchanged: it delivers a sealed message only to sessions that proved the device it was sealed to, and a signed one with its signature to every recipient session that negotiated `CAPABILITY_TEXT_ENCODING` (see [Signed and Sealed Messages](#signed-and-sealed-messages)).
 
 ## Implementation Notes
 
-- **Reference allocations.** In the Janus reference server the capability bits, access bit, transactions, and fields are allocated as in this document, except those marked *proposed* under [Portable Identity](#portable-identity), which it does not implement.
+- **Reference allocations.** In the Janus reference server the capability bits, access bit, transactions, and fields are allocated as in this document.
 - **Roster removal encoding.** [Roster Entry (801)](#roster-entry-801) signals a removal with the reserved `DATA_ROSTER_STATE` value `0` (`Removed`); all other values are live relationship states. A removal is therefore a state, not a separate transaction, and a client applying deltas needs no special case for it beyond deleting the row.
 - **Call media.** Once a [Call Accept (819)](#call-accept-819) completes, all subsequent media negotiation and transport follow the [voice chat extension](Capabilities-Voice.md) unchanged; this extension does not alter SDP/ICE/SFU behaviour.
 - **Date encoding.** `DATA_MESSAGE_TIMESTAMP` deliberately uses a plain Unix-epoch UInt64 rather than the legacy Hotline 8-byte date structure, to avoid the 1904-epoch ambiguity described in [DATA_CAPABILITIES](Capabilities.md#date-format-selection). The field is Unix seconds unconditionally: it is a distinct encoding rather than a negotiated reading of the Hotline date, so `CAPABILITY_MODERN_DATES` does not apply to it and a client need not advertise that bit to decode it.
