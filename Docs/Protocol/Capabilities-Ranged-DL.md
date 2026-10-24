@@ -1,6 +1,6 @@
 # Ranged Download Extension
 
-> Last updated: October 16, 2026
+> Last updated: October 24, 2026
 >
 > **Status:** Implemented by the reference server, Janus, from 2.0.26.
 
@@ -45,7 +45,7 @@ With a range, the server sends exactly what was asked for and closes the transfe
 ## Compatibility and Negotiation
 
 - A new capability bit, `CAPABILITY_RANGED_DOWNLOAD` (bit 12, mask `0x1000`), in `DATA_CAPABILITIES`. A client advertises it at login; a server that supports ranges confirms it.
-- A client MUST NOT send a range unless the server confirmed the bit. Without it, the client falls back to resuming and hanging up.
+- A client MUST NOT send a range unless the server confirmed the bit. Without it, the client falls back to resuming and hanging up. That resume is an ordinary one, the RFLT without transfer options, since transfer options with an RFLT ask for the rest of a preview (see [Preview or Resume](Capabilities-Large-File.md#preview-or-resume)); from offset `0` a plain preview does.
 - The bit does not depend on `CAPABILITY_LARGE_FILES` (bit 0). A client MAY advertise, and a server MAY confirm, bit 12 without bit 0. The session is then a **32-bit session** for ranges; when both bits are confirmed, it is a **64-bit session**.
 - A server that confirms bit 12 MUST accept 32-bit ranges in either kind of session.
 
