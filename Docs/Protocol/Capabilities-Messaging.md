@@ -1,12 +1,14 @@
 # Instant Messaging Extension
 
-> Last updated: September 30, 2026
+> Last updated: October 25, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This document describes the instant messaging extension to the Hotline protocol. It adds a presence-based buddy-list messaging layer - friends, presence, one-to-one instant messages with offline store-and-forward, user-to-user file transfer, and call signaling - on top of an otherwise unmodified Hotline server. The extension is optional and capability-gated: a client that does not negotiate it observes no change in behaviour, and no new transaction is ever sent to it.
 
 For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
+
+The [messaging identity draft](Capabilities-Messaging-Identity.md), which is not adopted, proposes identity fingerprints and signed and sealed messages on top of this extension. Its numbers are reserved here; nothing in it is part of this document.
 
 ## Table of Contents
 
@@ -141,6 +143,7 @@ This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x0
 | 6 | `0x0040` | `CAPABILITY_MESSAGING` | Client supports the instant messaging layer: roster, presence, IM, receipts, discovery, and call signaling |
 | 7 | `0x0080` | `CAPABILITY_DIRECT_TRANSFER` | Client supports optional peer-to-peer (hole-punched) file transfer; absence means transfers use the server relay |
 | 8 | `0x0100` | `CAPABILITY_MESSENGER_SESSION` | The session is a pure instant messenger; the server hides it from the classic user list and suppresses its join/leave announcements |
+| 13 | `0x2000` | | Reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (`CAPABILITY_IDENTITY`), which is not adopted |
 
 `CAPABILITY_MESSAGING` is the master switch for the entire extension. A client MUST set bit 6 to participate; the server confirms it in the login reply only when the messaging subsystem is enabled and the account holds the [access privilege](#access-privilege). If the server does not echo bit 6, the client MUST NOT send any transaction defined in this document.
 
@@ -306,7 +309,7 @@ All fields are carried using standard Hotline field framing. Field IDs are chose
 | `0x0623` | 1571 | `DATA_MAX_ICON_BYTES` | UInt32 | Server's effective `Messaging.MaxIconBytes`, never above 65535. Login reply only; absent when buddy icons are not supported. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 | `0x0624` | 1572 | `DATA_MAX_ICON_DIMENSION` | UInt32 | Server's effective `Messaging.MaxIconDimension`, never below 64. Login reply only. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 
-Field ID `0x061F` is reserved for a future messaging field, and `0x0625`–`0x0627` for further server limits. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension.
+Field IDs `0x061F` and `0x0628`–`0x062B` are reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md), which is not adopted, `0x062C`–`0x062F` for future messaging fields, and `0x0625`–`0x0627` for further server limits. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension.
 
 Existing fields reused by this extension: `FieldUserID` (103), `FieldUserName` (102), the `FieldFile*` family (200–213) for file metadata in offers, and the `FieldVoice*` family (`0x01F5`–`0x01F9`) for SDP/ICE during a call.
 
@@ -387,6 +390,7 @@ repeat count times:
 | 12 | `RosterFull` | Caller's roster is at `MaxRosterSize`, counting entries in every state - a roster can be full of people the caller has blocked |
 | 13 | `MessageTooLong` | Encoded body exceeds `MaxMessageBytes`, or a buddy icon exceeds `MaxIconBytes` |
 | 14 | `InvalidImage` | A buddy icon is not an accepted format, cannot be decoded, or exceeds the server's dimension or frame limits (see [Buddy Icons](Capabilities-Buddy-Icons.md)) |
+| 15–16 | | Reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (`NoDeviceKeys`, `BadSignature`) |
 
 `MessageTooLong` exists because it is the one refusal a client can act on precisely: it knows exactly which message was rejected and can offer to split or trim it, where a generic failure leaves it able only to report that something went wrong. Servers predating this code return a failure with `FieldError` text and no reason code, so clients MUST treat an oversize body as rejected on the error code alone and use the reason code only to improve the message they show.
 
@@ -921,7 +925,7 @@ A conforming messaging server:
 
 ## Implementation Notes
 
-- **Reference allocations.** In the Janus reference server the capability bits, access bit, transactions, and fields are allocated as in this document.
+- **Reference allocations.** In the Janus reference server the capability bits, access bit, transactions, and fields are allocated as in this document. The numbers reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (capability bit 13, fields `0x061F` and `0x0628`–`0x062B`, reason codes 15 and 16) are not implemented, and Janus never confirms bit 13.
 - **Roster removal encoding.** [Roster Entry (801)](#roster-entry-801) signals a removal with the reserved `DATA_ROSTER_STATE` value `0` (`Removed`); all other values are live relationship states. A removal is therefore a state, not a separate transaction, and a client applying deltas needs no special case for it beyond deleting the row.
 - **Call media.** Once a [Call Accept (819)](#call-accept-819) completes, all subsequent media negotiation and transport follow the [voice chat extension](Capabilities-Voice.md) unchanged; this extension does not alter SDP/ICE/SFU behaviour.
 - **Date encoding.** `DATA_MESSAGE_TIMESTAMP` deliberately uses a plain Unix-epoch UInt64 rather than the legacy Hotline 8-byte date structure, to avoid the 1904-epoch ambiguity described in [DATA_CAPABILITIES](Capabilities.md#date-format-selection). The field is Unix seconds unconditionally: it is a distinct encoding rather than a negotiated reading of the Hotline date, so `CAPABILITY_MODERN_DATES` does not apply to it and a client need not advertise that bit to decode it.
