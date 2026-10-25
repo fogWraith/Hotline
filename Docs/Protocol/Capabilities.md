@@ -1,6 +1,6 @@
 # DATA_CAPABILITIES – Session Capability Negotiation
 
-> Last updated: October 16, 2026
+> Last updated: October 25, 2026
 
 `DATA_CAPABILITIES` is a field used during the Hotline login sequence to negotiate protocol extensions between client and server. Each extension is represented by a single bit in a bitmask, allowing both sides to advertise and confirm support for specific features.
 
@@ -70,6 +70,7 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | 10 | `0x0400` | `CAPABILITY_VIDEO` | Camera video and screen sharing inside voice rooms. Only meaningful alongside bit 2: a client MUST NOT set bit 10 without bit 2, and a server MUST NOT confirm bit 10 unless it also confirms bit 2 - video has no meaning without the voice room that carries it. Delivery is opt-in per stream, so a session without this bit receives no video media sections and no video RTP. | See [Video Chat Extension](Capabilities-Video.md) |
 | 11 | `0x0800` | `CAPABILITY_SERVER_LINK` | The session is a server link, not a user. Set only by a server dialing a peer; confirmed only for an account configured as that peer's link account, only alongside bit 1, and only on a session protected by HOPE ChaCha20-Poly1305 or verified TLS. A confirmed session is hidden from the user list, skips the agreement, and may use only the link transactions (900–919). Links relay users between servers and must form a tree. | See [Server Linking Extension](Capabilities-Server-Link.md) |
 | 12 | `0x1000` | `CAPABILITY_RANGED_DOWNLOAD` | Download File (202) as a preview with an offset and a length (`DATA_RANGE_OFFSET` `0x01FC`, `DATA_RANGE_LENGTH` `0x01FD`; 32-bit, or 64-bit alongside bit 0): the server sends exactly that byte range of the data fork and ends the transfer normally, so a viewer can read parts of an archive without downloading it or hanging up. A client MUST NOT send a range unless the server confirmed the bit. | See [Ranged Download Extension](Capabilities-Ranged-DL.md) |
+| 13 | `0x2000` | `CAPABILITY_IDENTITY` | **Reserved**, not adopted. Proposed by the [messaging identity draft](Capabilities-Messaging-Identity.md) for clients that understand identity fingerprints and signed and sealed instant messages, only alongside bit 6. A server MUST NOT confirm it unless it implements that draft. | See [Messaging Identity Draft](Capabilities-Messaging-Identity.md) |
 | 13–63 | - | *Reserved* | Available for future extensions | - |
 
 ---
@@ -130,7 +131,7 @@ If the server does not support any of the client's advertised capabilities, `DAT
 ## Implementation Notes
 
 - **Server-side overrides:** The server may grant capabilities beyond what the client advertises. For example, a server may enable large-file mode for known clients (via a whitelist) even if they did not set `CAPABILITY_LARGE_FILES`. Similarly, a global toggle can enable a capability for all clients. This does **not** extend to `CAPABILITY_MODERN_DATES`, which selects a wire format the client must already be able to parse; see [Date Format Selection](#date-format-selection).
-- **Bit width:** While currently bits 0–9 are defined, implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
+- **Bit width:** Bits 0–12 are defined and bit 13 is reserved, so a 2-byte field has two bits left. Implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
 - **Unknown bits:** Both client and server should ignore bits they do not recognise. Do not reject a connection because of unknown capability bits.
 - **Absence handling:** If `DATA_CAPABILITIES` is not present in the login request, the server should treat the client as having zero capabilities. If not present in the reply, the client should treat the session as standard mode.
 
