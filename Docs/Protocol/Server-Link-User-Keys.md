@@ -1,6 +1,6 @@
 # Draft: User Keys for the Server Linking Extension
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the [Server Linking Extension](Capabilities-Server-Link.md) unless that document says so. It proposes field IDs `0x0642`-`0x0644` and `0x0646`, transaction 915, link feature bit 4 and reason code 13, all unassigned at the time of writing (the fields and the transaction from the extension's reserved ranges). [Signed Messages](#signed-messages) adds field IDs `0x0647`-`0x0648` and reason code 14, which the extension reserved for this draft on 2026-10-25.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the [Server Linking Extension](Capabilities-Server-Link.md) unless that document says so. It proposes field IDs `0x0642`-`0x0644` and `0x0646`, transaction 915, link feature bit 4 and reason code 13, all unassigned at the time of writing (the fields and the transaction from the extension's reserved ranges). [Signed Messages](#signed-messages) adds field IDs `0x0647`-`0x0648` and reason code 14, which the extension reserved for this draft on 2026-10-25. [Key Flags](#key-flags) adds field ID `0x0649` and reason code 15, still to be confirmed: the field from the range the extension reserves for link growth, and the code from the gap below `Shutdown`.
 
 An optional addition to the [Server Linking Extension](Capabilities-Server-Link.md), written in that document's format and linking to its sections. User keys are those of [hxd-ng's identity spec](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md): an Ed25519 identity key that a user holds across servers, and device certificates signed by it.
 
@@ -33,6 +33,25 @@ The [user group](Capabilities-Server-Link.md#the-user-group) gains one optional 
 - Every other server passes it on unchanged under [Relaying Fields](Capabilities-Server-Link.md#relaying-fields), including servers that implement nothing in this document, provided they implement the revision of the extension that added Relaying Fields. A relay from before that revision strips the field, and the users behind it appear without a fingerprint.
 
 It costs a user group 36 bytes of the 1024 its fields outside the baseline may use.
+
+### Key Flags
+
+What a user's client does with their key is seen at their home server alone, so a receiver cannot tell a ghost that can receive a sealed message from one that cannot without asking, nor a user who signs from one who does not until a signed line arrives. The user group gains a second optional field, beside the fingerprint:
+
+| Field | Required | Notes |
+|---|---|---|
+| `DATA_LINK_USER_KEY_FLAGS` | No | What the session's client does with its key |
+
+| Bit | Mask | Name | Meaning |
+|---|---|---|---|
+| 0 | `0x0001` | `KEY_FLAG_SIGNS` | The session has signed a lobby line |
+| 1 | `0x0002` | `KEY_FLAG_SEALED` | The session's client can receive sealed messages, under a certificate that allows messages |
+
+- **Only beside `DATA_LINK_USER_KEY`**, and only the home server adds it. A receiver ignores it in a group without a fingerprint. Absent is all bits clear. Bits 2-15 are sent as zero and ignored.
+- **It can change during a session**, unlike the fingerprint: a client that resumes on another device may say otherwise, and a certificate expires. The home server sends the user group again in [Link User Update (902)](Capabilities-Server-Link.md#link-user-update-902), as for any other change. `KEY_FLAG_SIGNS` is set only once the session has signed a lobby line, and stays set for the session, so it says what the user has chosen and never announces a default.
+- **It is a hint, and the home server's statement**, like the fingerprint. `KEY_FLAG_SEALED` does not make [Link Device Keys](#link-device-keys-915) succeed, which still answers for the session as it is when asked. A receiving server MAY tell its clients, without asking, that a ghost whose group lacks it cannot receive sealed messages, but a client that has exchanged sealed messages with that fingerprint still asks with 915 and does not take a cleared flag as final. `KEY_FLAG_SIGNS` lets a client warn of a stripped signature from a user whose signed line it has not yet seen. A server on the path can clear either bit, or set one, as it can strip the fingerprint (Downgrade, under [Security Considerations](#security-considerations)), so a flag that no signed line bears out is not evidence: a client that warns on it says the line arrived unsigned, not that it was altered.
+
+It costs a user group 6 bytes of the 1024 its fields outside the baseline may use.
 
 ### Presenting Keys
 
@@ -93,7 +112,8 @@ The construction is defined by hxd-ng's [end-to-end messages document](https://g
 - **`FieldData` carries a placeholder**, because 905 requires it, and so that a recipient whose session cannot open the message still has something to read. The sending server sets it to the fixed text `[Encrypted message]`, and it MUST NOT carry any of the message. `FieldQuotingMsg` MUST be absent: the quote is inside the sealed message. A receiving client ignores `FieldOptions` on a sealed message and uses the options inside it, which nobody on the path can change.
 - Relaying servers pass the field on unchanged, under Relaying Fields, whether or not they implement this document.
 - **The home server delivers** the sealed message to the target session through its own client protocol, with the time it received it. A sender's client encrypts only after Link Device Keys succeeded for that same target. If the network's paths change in between and a relay from before Relaying Fields comes onto the path, the sealed field is stripped and the recipient sees only the placeholder; a sender cannot know that its message arrived sealed.
-- **The home server checks `DATA_LINK_SEALED_TO`** against the `device_enc` key of the target session's current certificate, and answers `NoDeviceKeys` if they differ, if the field is missing beside a sealed field, or if the target can no longer receive sealed messages. A sending client that is told so fetches the certificate again; it does not fall back to sending in the clear.
+- **The home server checks `DATA_LINK_SEALED_TO`** against the `device_enc` key of the target session's current certificate, and answers `NoDeviceKeys` if they differ, if the field is missing beside a sealed field, or if the target can no longer receive sealed messages. A sending client that is told so fetches the certificate again; it does not fall back to sending in the clear. It answers `SenderUnkeyed` if the sending ghost's user group carries no fingerprint there, since the recipient could not check who sealed it, and answers it before `NoDeviceKeys`, since fetching again does not help with it. The sender's group and its 905 take the same path, so this is a server on the path stripping the fingerprint on purpose, or a path that changed: a sending client that is told so reports that its own key is not shown to that user, and does not fall back to sending in the clear either.
+- **The originating server refuses a sealed message locally** when its own user's fingerprint is not exported over that link, as after a login without a key, since the home server would refuse it as `SenderUnkeyed`.
 - The ordinary checks of 905 apply unchanged: the sender must be exported over the link, the target must be a user exported over it, exclusions and refusals of private messages apply, and rate limits count a sealed message like any other.
 
 ### Signed Messages
@@ -124,7 +144,7 @@ The signed message is defined by the same end-to-end messages document. It is a 
 A signed message names its certificate by SHA-256, so whoever checks it needs the certificate first. It is fetched with [Link Device Keys (915)](#link-device-keys-915) and kept by its hash, so one fetch serves every line and message the same device signs.
 
 - **A server fetches in its own name**, whether it checks a line itself or one of its clients needs the certificate to verify one. A client cannot send 915, and a fetch in the server's name keeps the client's identity off the link.
-- **A server's own request** is a 915 without `DATA_LINK_USER_ID`. It is answered without the requester's checks of step 3 and step 5 (a current ghost, exclusion, refusing private messages) and without the condition that the client can receive sealed messages, and only for a target session that the home server has seen sign: one that has signed a lobby line, or, for a session that has signed only private messages, only over the links those messages went out on. Having no ghost behind it, it is held to the per-link rate limit. Everything else in 915 applies unchanged: the user group's fingerprint, and the certificate's own checks.
+- **A server's own request** is a 915 without `DATA_LINK_USER_ID`. It is answered without the requester's checks of step 3 and step 5 (a current ghost, exclusion, refusing private messages) and without the condition that the client can receive sealed messages, and only for a target session that the home server has seen sign: one that has signed a lobby line, or, for a session that has signed only private messages, only over the links those messages went out on. Having no ghost behind it, it is held to the per-link rate limit. For a session it has not seen sign, the home server answers `NoDeviceKeys`, as for one with no certificate, since the requester does the same either way, leaving the line unverified. Everything else in 915 applies unchanged: the user group's fingerprint, and the certificate's own checks.
 - **Only an exported fingerprint can be checked.** 915 never sends the certificate of a user whose fingerprint is not exported, so a signed message from such a user cannot be verified across links.
 - **The reply is the certificate of the device the session proves now.** A receiver checks that its SHA-256 is the one the message names, and a message whose certificate does not match cannot be checked.
 - **The cost.** A line cannot be checked until its certificate has been fetched, nor at all once its home server no longer answers for that session: after the sender has left, or after the session has moved to another device. Lobby chat is read as it arrives, so this costs little there.
@@ -151,7 +171,7 @@ It costs a server group 36 bytes of the 1024 its fields outside the baseline may
 |---|---|---|---|
 | 4 | `0x0010` | `LINK_FEATURE_USER_KEYS` | Link Device Keys (915) crosses the link |
 
-The fingerprint, the sealed field, the signed field and the discovery key need no feature: they are fields of existing transactions and groups, and [Relaying Fields](Capabilities-Server-Link.md#relaying-fields) carries them across servers that implement it. Only the new transaction needs every link on its path to support it.
+The fingerprint, the key flags, the sealed field, the signed field and the discovery key need no feature: they are fields of existing transactions and groups, and [Relaying Fields](Capabilities-Server-Link.md#relaying-fields) carries them across servers that implement it. Only the new transaction needs every link on its path to support it.
 
 ### Additions to the Tables
 
@@ -165,6 +185,7 @@ Data objects:
 | `0x0646` | 1606 | `DATA_LINK_SEALED_TO` | Binary (32) | The SHA-256 of the `device_enc` key a sealed message was sealed to, in 905 |
 | `0x0647` | 1607 | `DATA_LINK_SIGNED` | Binary (at most 256) | A signed message in detached link form, in 904 and 905 |
 | `0x0648` | 1608 | `DATA_LINK_DISCOVERY_KEY` | Binary (32) | A server's discovery key, in its server group |
+| `0x0649` | 1609 | `DATA_LINK_USER_KEY_FLAGS` | UInt16 | What a user's client does with their key, in their user group (proposed, to be confirmed) |
 
 Transactions:
 
@@ -176,10 +197,11 @@ Reason codes:
 
 | Code | Name | Used in | Meaning |
 |---|---|---|---|
-| 13 | `NoDeviceKeys` | 905 and 915 replies | The target session has no device certificate that allows messages, its client cannot receive sealed messages, or (905) the message was sealed to another device key. |
+| 13 | `NoDeviceKeys` | 905 and 915 replies | The target session has no device certificate that allows messages, its client cannot receive sealed messages, (905) the message was sealed to another device key, or (915, a server's own request) the home server has not seen the session sign. |
 | 14 | `BadSignature` | 905 reply | The message's `DATA_LINK_SIGNED` does not verify, or is not scoped to the target, at a home server that checks it |
+| 15 | `SenderUnkeyed` | 905 reply | A sealed message's sending ghost carries no fingerprint at the target's home server (proposed, to be confirmed) |
 
-The [Messaging identity draft](Capabilities-Messaging-Identity.md) has reasons of the same names in the messaging list, as 15 and 16. They differ because 13 and 14 are taken in the messaging list.
+The [Messaging identity draft](Capabilities-Messaging-Identity.md) has reasons of the same names in the messaging list, as 15 and 16. They differ because 13 and 14 are taken in the messaging list. Link code 15, `SenderUnkeyed`, has no counterpart there, since a messaging server knows its own sender's key.
 
 **Relaying Fields for 915.** Link Device Keys falls under [Relaying Fields](Capabilities-Server-Link.md#relaying-fields) in both directions, with these baselines; any other field counts toward the 1024-byte bound:
 
@@ -193,7 +215,7 @@ This needs a small change in the extension, which today lists by number the tran
 ### Security Considerations
 
 - **What end to end means here.** No server can read a sealed message, its home servers included, and no server can seal one in another user's name, unless it also replaces that user's fingerprint. What stops a server from substituting its own device certificate, the recipient's or the sender's, is the fingerprint, and the fingerprint is only as good as the home server's word and the honesty of every relay in between, since user groups are not signed. A server that actively replaces a fingerprint and serves a matching certificate can read what it is sent, or seal messages in that user's name, and so can any server on the path that does so. **On first contact, only comparing fingerprints out of band protects against that.**
-- **Downgrade.** Any server on the path can make encryption fail, by stripping a fingerprint or refusing Link Device Keys, and a client that silently falls back sends in the clear. Clients SHOULD remember contacts by fingerprint, together with the name and home server they were seen under; warn when a remembered contact appears without a fingerprint or with a different one; warn before sending unencrypted to someone they have exchanged sealed messages with; show for each message whether it was sealed; and seal a reply only to a certificate matching the fingerprint the message it answers was verified under, since a ghost's ID can pass to someone else.
+- **Downgrade.** Any server on the path can make encryption fail, by stripping a fingerprint, clearing its key flags or refusing Link Device Keys, and a client that silently falls back sends in the clear. Clients SHOULD remember contacts by fingerprint, together with the name and home server they were seen under; warn when a remembered contact appears without a fingerprint or with a different one; warn before sending unencrypted to someone they have exchanged sealed messages with; show for each message whether it was sealed; and seal a reply only to a certificate matching the fingerprint the message it answers was verified under, since a ghost's ID can pass to someone else.
 - **Deniable boxes.** A recipient can prove nothing about a deniable box, which is its purpose, so a moderator cannot check a reported one either. And whoever steals a device's `device_enc` private key can write deniable boxes to that device that open as from anyone whose certificate they hold, which a signed box does not allow.
 - **Signatures are evidence.** A signed line or message proves to anyone who holds it that the sender's device wrote it, in that scope, on every server it reached and in every log that kept it. Signing is therefore the sender's choice, line by line, and a client SHOULD NOT sign for a user who has not chosen it.
 - **Passive reading is what this stops**, and that covers most of the risk on a network: operators who log, a relay that is breached, chat logs copied off a disk. None of them can read a sealed message.
