@@ -1,6 +1,6 @@
 # Draft: Portable Identity for the Instant Messaging Extension
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the [Instant Messaging Extension](Capabilities-Messaging.md) unless that document says so. It proposes field IDs `0x061F` and `0x0628`-`0x062B`, capability bit 13 and reason codes 15 and 16, all unassigned at the time of writing. Until it is adopted, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the [Instant Messaging Extension](Capabilities-Messaging.md) unless that document says so. It proposes field IDs `0x061F` and `0x0628`-`0x062B`, capability bit 13 and reason codes 15 and 16, all unassigned at the time of writing, which the extension reserved for this draft on 2026-10-25. Until it is adopted, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
 
 An optional addition to the [Instant Messaging Extension](Capabilities-Messaging.md), written in that document's format and linking to its sections. Identity keys are those of [hxd-ng's identity spec](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md): an Ed25519 identity key that a user holds across servers, and device certificates signed by it.
 
