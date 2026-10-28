@@ -1,6 +1,6 @@
 # Draft: User Keys for the Server Linking Extension
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the [Server Linking Extension](Capabilities-Server-Link.md) unless that document says so. It proposes field IDs `0x0642`-`0x0644` and `0x0646`, transaction 915, link feature bit 4 and reason code 13, all unassigned at the time of writing (the fields and the transaction from the extension's reserved ranges). [Signed Messages](#signed-messages) adds field IDs `0x0647`-`0x0648` and reason code 14, which the extension reserved for this draft on 2026-10-25. [Key Flags](#key-flags) adds field ID `0x0649` and reason code 15, still to be confirmed: the field from the range the extension reserves for link growth, and the code from the gap below `Shutdown`.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the [Server Linking Extension](Capabilities-Server-Link.md) unless that document says so. It proposes field IDs `0x0642`-`0x0644` and `0x0646`, transaction 915, link feature bit 4 and reason code 13, all unassigned at the time of writing (the fields and the transaction from the extension's reserved ranges). [Signed Messages](#signed-messages) adds field IDs `0x0647`-`0x0648` and reason code 14, which the extension reserved for this draft on 2026-10-25. [Key Flags](#key-flags) adds field ID `0x0649` and reason code 15, which the extension reserved for this draft on 2026-10-27.
 
 An optional addition to the [Server Linking Extension](Capabilities-Server-Link.md), written in that document's format and linking to its sections. User keys are those of [hxd-ng's identity spec](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md): an Ed25519 identity key that a user holds across servers, and device certificates signed by it.
 
@@ -185,7 +185,7 @@ Data objects:
 | `0x0646` | 1606 | `DATA_LINK_SEALED_TO` | Binary (32) | The SHA-256 of the `device_enc` key a sealed message was sealed to, in 905 |
 | `0x0647` | 1607 | `DATA_LINK_SIGNED` | Binary (at most 256) | A signed message in detached link form, in 904 and 905 |
 | `0x0648` | 1608 | `DATA_LINK_DISCOVERY_KEY` | Binary (32) | A server's discovery key, in its server group |
-| `0x0649` | 1609 | `DATA_LINK_USER_KEY_FLAGS` | UInt16 | What a user's client does with their key, in their user group (proposed, to be confirmed) |
+| `0x0649` | 1609 | `DATA_LINK_USER_KEY_FLAGS` | UInt16 | What a user's client does with their key, in their user group |
 
 Transactions:
 
@@ -199,7 +199,7 @@ Reason codes:
 |---|---|---|---|
 | 13 | `NoDeviceKeys` | 905 and 915 replies | The target session has no device certificate that allows messages, its client cannot receive sealed messages, (905) the message was sealed to another device key, or (915, a server's own request) the home server has not seen the session sign. |
 | 14 | `BadSignature` | 905 reply | The message's `DATA_LINK_SIGNED` does not verify, or is not scoped to the target, at a home server that checks it |
-| 15 | `SenderUnkeyed` | 905 reply | A sealed message's sending ghost carries no fingerprint at the target's home server (proposed, to be confirmed) |
+| 15 | `SenderUnkeyed` | 905 reply | A sealed message's sending ghost carries no fingerprint at the target's home server |
 
 The [Messaging identity draft](Capabilities-Messaging-Identity.md) has reasons of the same names in the messaging list, as 15 and 16. They differ because 13 and 14 are taken in the messaging list. Link code 15, `SenderUnkeyed`, has no counterpart there, since a messaging server knows its own sender's key.
 
