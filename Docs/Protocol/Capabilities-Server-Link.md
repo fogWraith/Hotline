@@ -1,6 +1,6 @@
 # Server Linking Extension
 
-> Last updated: October 27, 2026
+> Last updated: October 28, 2026
 
 > **Status:** Accepted, Implemented by the reference server, Janus, from 2.0.18.
 
@@ -1086,6 +1086,14 @@ Her [user keys draft](Server-Link-User-Keys.md) is kept beside this document.
 ---
 
 ## Changes
+
+### October 27, 2026: User Keys Draft
+
+The [user keys draft](Server-Link-User-Keys.md) adds signed lobby lines and private messages, the home server's discovery key, key flags, and a server's own Link Device Keys (915) request. The numbers it takes are reserved for it.
+
+- **`0x0647`–`0x0648` and reason code 14 reserved for the user keys draft** on October 25, for `DATA_LINK_SIGNED`, `DATA_LINK_DISCOVERY_KEY` and `BadSignature`.
+- **`0x0649` and reason code 15 reserved for the user keys draft**, for `DATA_LINK_USER_KEY_FLAGS` and `SenderUnkeyed`. Field IDs `0x064A`–`0x064F` remain for link growth.
+- The draft is not adopted.
 
 ### October 9, 2026: User Keys and User Transport Drafts
 
