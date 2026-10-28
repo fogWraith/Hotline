@@ -1,6 +1,6 @@
 # Instant Messaging Extension
 
-> Last updated: October 25, 2026
+> Last updated: October 28, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -336,7 +336,7 @@ repeat count times:
 | 0 | `Offline` | Not present. Sent only in [Presence Changed (809)](#presence-changed-809) to report a friend who has disconnected or is `Invisible`. A client MUST NOT set its own presence to `Offline` in [Set Presence (808)](#set-presence-808). |
 | 1 | `Online` | Available |
 | 2 | `Away` | Idle / temporarily away |
-| 3 | `Invisible` | Appears offline to friends; still receives presence and messages |
+| 3 | `Invisible` | Appears offline to friends; still receives presence and messages. Hides presence, not activity (see [Security Considerations](#security-considerations)) |
 | 4 | `Busy` | Do-not-disturb; messages still delivered, UI SHOULD signal reluctance |
 
 ### Roster State
@@ -615,6 +615,8 @@ Server-initiated notification sent to a client when one of its accepted friends 
 
 The rule a server needs is simple: send 809 only when the Login was visible before the change or is visible after it. Entering `Invisible` passes (visible before), as does leaving it (visible after); everything in between does not.
 
+This silence is about presence. It does not make an `Invisible` Login unreachable, and a friend who messages it can still tell that it is signed in; see *Invisible hides presence, not activity* under [Security Considerations](#security-considerations).
+
 `FieldUserName` carries the name the friend currently goes by, which is why this transaction is also how a [Set User Info (826)](#set-user-info-826) change reaches their friends. A client MUST apply it to its stored roster entry rather than only to a live presence indicator: the name has to survive that friend going offline, or the buddy list falls back to bare account names for everyone who is not signed in.
 
 ---
@@ -888,6 +890,7 @@ Three account-lifecycle events reach into the friend graph, and each MUST leave 
 - **Spam control.** Because messaging requires mutual acceptance, only accepted friends can queue offline messages. Offline queues are bounded (`MaxOfflinePerRecipient`), and per-account send rate limits SHOULD reuse the server's existing flood-control mechanism.
 - **Public handle.** A messaging-enabled account's Login is a public handle; account security rests entirely on the password. Operators SHOULD NOT reuse a privileged administrative login as a messaging handle.
 - **Transport encryption.** This extension defines no payload encryption of its own. Over the relay path the server observes message and file content, identical to the trust model of the base Hotline protocol. Deployments requiring confidentiality on the wire SHOULD use the [HOPE](HOPE-Secure-Login.md) encrypted transport. The optional direct file path MAY provide end-to-end confidentiality via the WebRTC data channel's DTLS, but this is never mandatory (vintage clients cannot rely on it).
+- **Invisible hides presence, not activity.** `Invisible` keeps a Login out of its friends' presence: no 809 announces it, and `DATA_PRESENCE_STATE` and `DATA_FRIEND_CAPABILITIES` are withheld. It does not hide that the Login is signed in from a friend who interacts with it, because an `Invisible` session still receives messages and answers for them. [IM Send (810)](#im-send-810) replies `OK` when a live session takes the message and `OfflineQueued` when none does; the recipient's client sends a `Delivered` [receipt (812)](#im-acknowledge-812) automatically, and a `Read` receipt when the user views the message; and [typing (813)](#im-typing-813) reaches the friend as it would from a visible user. Each of these tells the sender that someone is signed in. This is deliberate: hiding them would mean a message that claims to be queued while it is read, and receipts held back from the person who sent it, and a `Read` receipt would still give the user away the moment they read the message. Servers MUST NOT disguise the reply or hold back receipts to conceal an `Invisible` recipient. Clients SHOULD tell a user who goes `Invisible` that friends they exchange messages with can still see that they are signed in.
 - **Identifier spoofing.** The server MUST derive the authenticated Login from the session, never from a client-supplied `DATA_FRIEND_LOGIN`, when attributing the *sender* of any transaction.
 
 ---
