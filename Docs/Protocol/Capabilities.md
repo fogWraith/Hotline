@@ -1,6 +1,6 @@
 # DATA_CAPABILITIES – Session Capability Negotiation
 
-> Last updated: October 25, 2026
+> Last updated: October 29, 2026
 
 `DATA_CAPABILITIES` is a field used during the Hotline login sequence to negotiate protocol extensions between client and server. Each extension is represented by a single bit in a bitmask, allowing both sides to advertise and confirm support for specific features.
 
@@ -8,6 +8,7 @@
 
 - [Overview](#overview)
 - [Field Definition](#field-definition)
+  - [Field Width](#field-width)
 - [Negotiation Flow](#negotiation-flow)
 - [Defined Capability Bits](#defined-capability-bits)
 - [Usage in Login (107)](#usage-in-login-107)
@@ -33,9 +34,23 @@ The standard Hotline protocol provides no general mechanism for clients and serv
 | Field ID | `0x01F0` (496 decimal) |
 | Name | `DATA_CAPABILITIES` |
 | Type | Unsigned integer (big-endian) |
-| Width | Variable; typically 2 bytes, expandable to 8 bytes (64-bit) |
+| Width | 2, 4 or 8 bytes: the narrowest that holds every bit set (see [Field Width](#field-width)) |
 
-The field is a bitmask. Each bit represents a specific protocol extension. Unrecognised bits should be ignored by both sides.
+The field is a bitmask. Each bit represents a specific protocol extension. Bit *n* has the value `1 << n`, so bit 0 is the least significant bit of the integer and the last bit on the wire: bit 2 alone is `00 04`. Unrecognised bits should be ignored by both sides.
+
+### Field Width
+
+The width follows the highest bit the sender sets:
+
+| Highest bit set | Width | Example |
+|---|---|---|
+| None, or bits 0–15 | 2 bytes | Bits 1 and 6: `00 42` |
+| Bits 16–31 | 4 bytes | Bits 1 and 16: `00 01 00 02` |
+| Bits 32–63 | 8 bytes | Bits 1 and 40: `00 00 01 00 00 00 00 02` |
+
+- **A sender MUST use the narrowest width that holds every bit it sets.** This applies to the client's Login (107) and the server's reply alike. 2 and 4 bytes are the widths of an ordinary Hotline integer, so an implementation that reads integers that way understands every field that sets nothing above bit 31, and a field that sets nothing above bit 15 is the 2 bytes every deployed implementation expects.
+- **A receiver MUST accept any width** and reads the field as a big-endian unsigned integer. One wider than 8 bytes is read by its low 64 bits, the ones that can carry a defined capability. A receiver MUST NOT reject a field because of its width, since earlier implementations sent 8 bytes for any bit above 15, and some send 1.
+- **Never read it as a fixed 2 bytes.** Taking the first 2 bytes of a 4- or 8-byte field yields its top bits, and every capability in it is lost without an error.
 
 ---
 
@@ -71,7 +86,10 @@ If `DATA_CAPABILITIES` is absent from either the request or reply, no extension 
 | 11 | `0x0800` | `CAPABILITY_SERVER_LINK` | The session is a server link, not a user. Set only by a server dialing a peer; confirmed only for an account configured as that peer's link account, only alongside bit 1, and only on a session protected by HOPE ChaCha20-Poly1305 or verified TLS. A confirmed session is hidden from the user list, skips the agreement, and may use only the link transactions (900–919). Links relay users between servers and must form a tree. | See [Server Linking Extension](Capabilities-Server-Link.md) |
 | 12 | `0x1000` | `CAPABILITY_RANGED_DOWNLOAD` | Download File (202) as a preview with an offset and a length (`DATA_RANGE_OFFSET` `0x01FC`, `DATA_RANGE_LENGTH` `0x01FD`; 32-bit, or 64-bit alongside bit 0): the server sends exactly that byte range of the data fork and ends the transfer normally, so a viewer can read parts of an archive without downloading it or hanging up. A client MUST NOT send a range unless the server confirmed the bit. | See [Ranged Download Extension](Capabilities-Ranged-DL.md) |
 | 13 | `0x2000` | `CAPABILITY_IDENTITY` | **Reserved**, not adopted. Proposed by the [messaging identity draft](Capabilities-Messaging-Identity.md) for clients that understand identity fingerprints and signed and sealed instant messages, only alongside bit 6. A server MUST NOT confirm it unless it implements that draft. | See [Messaging Identity Draft](Capabilities-Messaging-Identity.md) |
-| 13–63 | - | *Reserved* | Available for future extensions | - |
+| 14 | `0x4000` | `CAPABILITY_DEVICE_PROOF` | **Reserved**, not adopted. Proposed by the [device proof draft](Capabilities-Device-Proof.md) for a session that proves a device key on the classic wire, with Get Device Challenge (1020) and Prove Device (1021). Independent of every other bit. A server MUST NOT confirm it unless it implements that draft. | See [Device Proof Draft](Capabilities-Device-Proof.md) |
+| 15 | `0x8000` | `CAPABILITY_FRIENDSHIPS` | **Reserved**, not adopted. Proposed by version 2 of the [messaging identity draft](Capabilities-Messaging-Identity.md) for portable friendships, only alongside bits 6 and 13. A server MUST NOT confirm it unless it implements that version. | See [Messaging Identity Draft](Capabilities-Messaging-Identity.md) |
+| 16 | `0x00010000` | `CAPABILITY_CARDS` | **Draft**, not implemented. A card store: the server keeps cards and libraries and answers queries for them (List Libraries 1000, Query Library 1001, Get Card 1002, and writes 1003–1008), so a client need not walk a folder of `.card` files. Only alongside bit 1; a server MUST NOT confirm it on a server link (bit 11). A client MUST NOT send the transactions unless the server confirmed the bit, and walks otherwise. | See [Card Store Extension](Capabilities-Cards.md) |
+| 17–63 | - | *Reserved* | Available for future extensions | - |
 
 ---
 
@@ -131,7 +149,8 @@ If the server does not support any of the client's advertised capabilities, `DAT
 ## Implementation Notes
 
 - **Server-side overrides:** The server may grant capabilities beyond what the client advertises. For example, a server may enable large-file mode for known clients (via a whitelist) even if they did not set `CAPABILITY_LARGE_FILES`. Similarly, a global toggle can enable a capability for all clients. This does **not** extend to `CAPABILITY_MODERN_DATES`, which selects a wire format the client must already be able to parse; see [Date Format Selection](#date-format-selection).
-- **Bit width:** Bits 0–12 are defined and bit 13 is reserved, so a 2-byte field has two bits left. Implementations should use a width that accommodates future growth. An 8-byte (64-bit) field provides 64 capability slots.
+- **Bit width:** Bits 0–12 and 16 are defined and bits 13–15 are reserved for drafts, so a 2-byte field is full and a session that sets bit 16 sends 4 bytes, as [Field Width](#field-width) gives. An 8-byte field provides 64 capability slots.
+- **Numbers beside the bits.** The device proof draft (bit 14) has transactions 1020–1021 and fields `0x0420`–`0x0424`, with 1022–1029 and `0x0425`–`0x042F` reserved for its growth. No other document lists them, so they are recorded here.
 - **Unknown bits:** Both client and server should ignore bits they do not recognise. Do not reject a connection because of unknown capability bits.
 - **Absence handling:** If `DATA_CAPABILITIES` is not present in the login request, the server should treat the client as having zero capabilities. If not present in the reply, the client should treat the session as standard mode.
 
