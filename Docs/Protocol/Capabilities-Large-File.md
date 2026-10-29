@@ -1,6 +1,6 @@
 # Large File Extension
 
-> Last updated: October 24, 2026
+> Last updated: October 29, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -520,7 +520,7 @@ This applies to folder downloads and folder uploads alike.
 - Resume: the 64-bit offset (`DATA_OFFSET64`) determines the byte position to resume from. The 64-bit transfer length in the HTXF handshake reflects the **remaining** bytes to transfer (total size minus offset), not the full file size. This holds for a resumed large-file upload too: a server sizing the copy from the total waits for bytes the client already sent and will never send again.
 - **Error handling:** Servers MUST return an error reply (Flags = 1 in the transaction header) if a client requests a large-file operation but is not authorised for large-file mode. For HTXF, the server MUST close the transfer connection if any of `HTXF_FLAG_LARGE_FILE`, `HTXF_FLAG_SIZE64`, `HTXF_FLAG_RESUME` or `HTXF_FLAG_FFO` is set by an unauthorised peer. A server MUST NOT silently ignore an unauthorised flag and fall back to legacy framing: the flag describes the payload, so ignoring it means parsing the stream one way while the peer wrote it another. Implementations SHOULD log the rejection at warning level, naming the offending flag and the file, so that the client author has something actionable.
 
-- **`DATA_CAPABILITIES` width:** The `DATA_CAPABILITIES` field is typically 2 bytes (16 bits), expandable to 8. Only bit 0 (`CAPABILITY_LARGE_FILES`) is defined by *this* extension; other bits are allocated by other extensions and a peer will routinely advertise several at once (see [DATA_CAPABILITIES](Capabilities.md) for the registry). Implementations MUST mask for bit 0 rather than comparing the whole field, and MUST ignore bits they do not recognise rather than rejecting the field.
+- **`DATA_CAPABILITIES` width:** The `DATA_CAPABILITIES` field is 2, 4 or 8 bytes wide, the narrowest that holds the bits set, and a receiver accepts any width ([Field Width](Capabilities.md#field-width)). Only bit 0 (`CAPABILITY_LARGE_FILES`) is defined by *this* extension; other bits are allocated by other extensions and a peer will routinely advertise several at once (see [DATA_CAPABILITIES](Capabilities.md) for the registry). Implementations MUST mask for bit 0 rather than comparing the whole field, and MUST ignore bits they do not recognise rather than rejecting the field.
 
 ### Unauthorised `HTXF_FLAG_LARGE_FILE`
 
