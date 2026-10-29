@@ -1,6 +1,6 @@
 # Draft: Device Proof on the Classic Wire
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes a capability bit, two transactions and five field IDs, all for assignment; I have left them unnumbered so they can come from wherever suits, outside the [Instant Messaging Extension](Capabilities-Messaging.md)'s ranges, since nothing here depends on messaging. Of the two bits left in a 2-byte `DATA_CAPABILITIES`, I suggest 14 for this one.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the protocol unless another document says so. It uses capability bit 14, transactions 1020 and 1021 and field IDs `0x0420`-`0x0424`, which fogWraith reserved for this draft on 2026-10-29, with transactions 1022-1029 and fields `0x0425`-`0x042F` kept for its growth; they lie outside the [Instant Messaging Extension](Capabilities-Messaging.md)'s ranges, since nothing here depends on messaging. Until it is adopted, they are used only between servers and clients that have chosen to try it.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -105,30 +105,30 @@ Each of these MAY treat a session proved this way as one that proved its key at 
 
 ## Additions to the Tables
 
-Capability bit, for assignment:
+Capability bit:
 
 | Bit | Mask | Name | Description |
 |---|---|---|---|
-| TBD | TBD | `CAPABILITY_DEVICE_PROOF` | The session can prove a device key with Get Device Challenge and Prove Device |
+| 14 | `0x4000` | `CAPABILITY_DEVICE_PROOF` | The session can prove a device key with Get Device Challenge and Prove Device |
 
-Transactions, for assignment:
+Transactions:
 
 | ID | Name | Type | Description |
 |---|---|---|---|
-| TBD | Get Device Challenge | Request/reply | Get a TRTP server challenge for the host the client dialed |
-| TBD | Prove Device | Request/reply | Prove a device key, and optionally link an identity |
+| 1020 (`0x03FC`) | Get Device Challenge | Request/reply | Get a TRTP server challenge for the host the client dialed |
+| 1021 (`0x03FD`) | Prove Device | Request/reply | Prove a device key, and optionally link an identity |
 
-Fields, for assignment:
+Fields:
 
-| Name | Type | Description |
-|---|---|---|
-| `DATA_PROOF_HOST` | String (at most 260) | The host the client dialed |
-| `DATA_SERVER_CHALLENGE` | Binary (at most 576) | A TRTP server challenge |
-| `DATA_DEVICE_PROOF` | Binary (at most 576) | A device proof |
-| `DATA_DEVICE_CERT` | Binary (at most 512) | A device certificate (identity spec section 3.3) |
-| `DATA_USER_CARD` | Binary (at most 16384) | A user card (identity spec section 3.4), only to link |
+| ID | Name | Type | Description |
+|---|---|---|---|
+| `0x0420` | `DATA_PROOF_HOST` | String (at most 260) | The host the client dialed |
+| `0x0421` | `DATA_SERVER_CHALLENGE` | Binary (at most 576) | A TRTP server challenge |
+| `0x0422` | `DATA_DEVICE_PROOF` | Binary (at most 576) | A device proof |
+| `0x0423` | `DATA_DEVICE_CERT` | Binary (at most 512) | A device certificate (identity spec section 3.3) |
+| `0x0424` | `DATA_USER_CARD` | Binary (at most 16384) | A user card (identity spec section 3.4), only to link |
 
-`DATA_DEVICE_CERT` is the messaging identity draft's `DATA_FRIEND_DEVICE_CERT` in shape. It has a name of its own because nothing here is about friends; if fogWraith would rather reuse that field's ID, nothing changes but the name.
+`DATA_DEVICE_CERT` is the messaging identity draft's `DATA_FRIEND_DEVICE_CERT` in shape, with an ID of its own because this draft does not depend on messaging.
 
 ## Server Behavior
 
