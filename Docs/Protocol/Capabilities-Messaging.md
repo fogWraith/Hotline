@@ -1,6 +1,6 @@
 # Instant Messaging Extension
 
-> Last updated: October 28, 2026
+> Last updated: October 29, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -8,7 +8,7 @@ This document describes the instant messaging extension to the Hotline protocol.
 
 For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
-The [messaging identity draft](Capabilities-Messaging-Identity.md), which is not adopted, proposes identity fingerprints and signed and sealed messages on top of this extension. Its numbers are reserved here; nothing in it is part of this document.
+Two drafts, neither adopted, build on this extension: the [messaging identity draft](Capabilities-Messaging-Identity.md), which proposes identity fingerprints, signed and sealed messages and, in its version 2, portable friendships, and the [message requests draft](Capabilities-Messaging-Requests.md), which lets a user receive messages from non-friends as requests held until approved. Their numbers are reserved here; nothing in either is part of this document.
 
 ## Table of Contents
 
@@ -144,6 +144,7 @@ This extension defines three bits in the `DATA_CAPABILITIES` bitmask (field `0x0
 | 7 | `0x0080` | `CAPABILITY_DIRECT_TRANSFER` | Client supports optional peer-to-peer (hole-punched) file transfer; absence means transfers use the server relay |
 | 8 | `0x0100` | `CAPABILITY_MESSENGER_SESSION` | The session is a pure instant messenger; the server hides it from the classic user list and suppresses its join/leave announcements |
 | 13 | `0x2000` | | Reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (`CAPABILITY_IDENTITY`), which is not adopted |
+| 15 | `0x8000` | | Reserved for version 2 of the [messaging identity draft](Capabilities-Messaging-Identity.md) (`CAPABILITY_FRIENDSHIPS`), which is not adopted |
 
 `CAPABILITY_MESSAGING` is the master switch for the entire extension. A client MUST set bit 6 to participate; the server confirms it in the login reply only when the messaging subsystem is enabled and the account holds the [access privilege](#access-privilege). If the server does not echo bit 6, the client MUST NOT send any transaction defined in this document.
 
@@ -262,7 +263,7 @@ All transaction IDs are chosen from the free 800-block (`0x0320`+), which does n
 | 827 | `0x033B` | Set Buddy Icon | Client → Server; Server → Client | Set or clear the caller's buddy icon; echoed as a notification to the caller's other sessions. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 | 828 | `0x033C` | Get Buddy Icon | Client → Server | Fetch a friend's (or one's own) buddy icon. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 
-Transaction IDs 829–839 are reserved for future messaging growth.
+Transaction IDs 829–832 are reserved for the [message requests draft](Capabilities-Messaging-Requests.md) and 833–834 for version 2 of the [messaging identity draft](Capabilities-Messaging-Identity.md), neither of which is adopted. Transaction IDs 835–839 are reserved for future messaging growth.
 
 ---
 
@@ -309,7 +310,7 @@ All fields are carried using standard Hotline field framing. Field IDs are chose
 | `0x0623` | 1571 | `DATA_MAX_ICON_BYTES` | UInt32 | Server's effective `Messaging.MaxIconBytes`, never above 65535. Login reply only; absent when buddy icons are not supported. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 | `0x0624` | 1572 | `DATA_MAX_ICON_DIMENSION` | UInt32 | Server's effective `Messaging.MaxIconDimension`, never below 64. Login reply only. See [Buddy Icons](Capabilities-Buddy-Icons.md) |
 
-Field IDs `0x061F` and `0x0628`–`0x062B` are reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md), which is not adopted, `0x062C`–`0x062F` for future messaging fields, and `0x0625`–`0x0627` for further server limits. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension.
+Field IDs `0x061F`, `0x0628`–`0x062B` and `0x0658`–`0x065C` are reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md), and `0x0625` and `0x0650`–`0x0657` for the [message requests draft](Capabilities-Messaging-Requests.md), neither of which is adopted. `0x062C`–`0x062F` and `0x065D`–`0x066F` are reserved for future messaging fields, and `0x0626`–`0x0627` for further server limits. `0x0650`–`0x066F` is the extension's second field block, opened on October 29, 2026 because the first had too few IDs left for both drafts. The limits were given their own sub-block rather than the next free general IDs because only three of those were left, and a server's configurable caps are the category most likely to grow; `0x061D`, `0x061E`, `0x0623` and `0x0624` have since gone to the [Buddy Icons](Capabilities-Buddy-Icons.md) extension.
 
 Existing fields reused by this extension: `FieldUserID` (103), `FieldUserName` (102), the `FieldFile*` family (200–213) for file metadata in offers, and the `FieldVoice*` family (`0x01F5`–`0x01F9`) for SDP/ICE during a call.
 
@@ -391,6 +392,8 @@ repeat count times:
 | 13 | `MessageTooLong` | Encoded body exceeds `MaxMessageBytes`, or a buddy icon exceeds `MaxIconBytes` |
 | 14 | `InvalidImage` | A buddy icon is not an accepted format, cannot be decoded, or exceeds the server's dimension or frame limits (see [Buddy Icons](Capabilities-Buddy-Icons.md)) |
 | 15–16 | | Reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (`NoDeviceKeys`, `BadSignature`) |
+| 17 | | Reserved for the [message requests draft](Capabilities-Messaging-Requests.md) (`Requested`) |
+| 18–19 | | Reserved for version 2 of the [messaging identity draft](Capabilities-Messaging-Identity.md) (`Withdrawn`, `Stale`) |
 
 `MessageTooLong` exists because it is the one refusal a client can act on precisely: it knows exactly which message was rejected and can offer to split or trim it, where a generic failure leaves it able only to report that something went wrong. Servers predating this code return a failure with `FieldError` text and no reason code, so clients MUST treat an oversize body as rejected on the error code alone and use the reason code only to improve the message they show.
 
@@ -641,7 +644,7 @@ Server-initiated notification delivering a message to a recipient session.
 
 ### IM Acknowledge (812)
 
-Request/reply from the recipient's client to the server, which forwards the receipt to the sender. A `Delivered` receipt SHOULD be sent automatically on receipt; a `Read` receipt is sent when the user views the message. The server records the receipt and forwards it to the sender's live sessions; if the sender is offline, a `Read` receipt is retained and forwarded on the sender's next login (a `Delivered` receipt MAY be dropped if the sender is offline).
+Request/reply from the recipient's client to the server, which forwards the receipt to the sender. A `Delivered` receipt SHOULD be sent automatically on receipt; a `Read` receipt is sent when the user views the message. A client MAY let its user turn off `Read` receipts; a server forwards whatever receipts it is sent, and neither requires nor withholds them. The server records the receipt and forwards it to the sender's live sessions; if the sender is offline, a `Read` receipt is retained and forwarded on the sender's next login (a `Delivered` receipt MAY be dropped if the sender is offline).
 
 **Request fields:** `DATA_MESSAGE_GUID` (REQUIRED), `DATA_ACK_TYPE` (REQUIRED), `DATA_FRIEND_LOGIN` (REQUIRED, the original sender).
 
@@ -890,7 +893,7 @@ Three account-lifecycle events reach into the friend graph, and each MUST leave 
 - **Spam control.** Because messaging requires mutual acceptance, only accepted friends can queue offline messages. Offline queues are bounded (`MaxOfflinePerRecipient`), and per-account send rate limits SHOULD reuse the server's existing flood-control mechanism.
 - **Public handle.** A messaging-enabled account's Login is a public handle; account security rests entirely on the password. Operators SHOULD NOT reuse a privileged administrative login as a messaging handle.
 - **Transport encryption.** This extension defines no payload encryption of its own. Over the relay path the server observes message and file content, identical to the trust model of the base Hotline protocol. Deployments requiring confidentiality on the wire SHOULD use the [HOPE](HOPE-Secure-Login.md) encrypted transport. The optional direct file path MAY provide end-to-end confidentiality via the WebRTC data channel's DTLS, but this is never mandatory (vintage clients cannot rely on it).
-- **Invisible hides presence, not activity.** `Invisible` keeps a Login out of its friends' presence: no 809 announces it, and `DATA_PRESENCE_STATE` and `DATA_FRIEND_CAPABILITIES` are withheld. It does not hide that the Login is signed in from a friend who interacts with it, because an `Invisible` session still receives messages and answers for them. [IM Send (810)](#im-send-810) replies `OK` when a live session takes the message and `OfflineQueued` when none does; the recipient's client sends a `Delivered` [receipt (812)](#im-acknowledge-812) automatically, and a `Read` receipt when the user views the message; and [typing (813)](#im-typing-813) reaches the friend as it would from a visible user. Each of these tells the sender that someone is signed in. This is deliberate: hiding them would mean a message that claims to be queued while it is read, and receipts held back from the person who sent it, and a `Read` receipt would still give the user away the moment they read the message. Servers MUST NOT disguise the reply or hold back receipts to conceal an `Invisible` recipient. Clients SHOULD tell a user who goes `Invisible` that friends they exchange messages with can still see that they are signed in.
+- **Invisible hides presence, not activity.** `Invisible` keeps a Login out of its friends' presence: no 809 announces it, and `DATA_PRESENCE_STATE` and `DATA_FRIEND_CAPABILITIES` are withheld. It does not hide that the Login is signed in from a friend who interacts with it, because an `Invisible` session still receives messages and answers for them. [IM Send (810)](#im-send-810) replies `OK` when a live session takes the message and `OfflineQueued` when none does; the recipient's client sends a `Delivered` [receipt (812)](#im-acknowledge-812) automatically, and a `Read` receipt when the user views the message unless they have turned `Read` receipts off; and [typing (813)](#im-typing-813) reaches the friend as it would from a visible user. Each of these tells the sender that someone is signed in, and turning off `Read` receipts leaves the reply and the `Delivered` receipt. This is deliberate: hiding them would mean a message that claims to be queued while it is read, and receipts held back from the person who sent it, and a `Read` receipt would still give the user away the moment they read the message. Servers MUST NOT disguise the reply or hold back receipts to conceal an `Invisible` recipient. Clients SHOULD tell a user who goes `Invisible` that friends they exchange messages with can still see that they are signed in.
 - **Identifier spoofing.** The server MUST derive the authenticated Login from the session, never from a client-supplied `DATA_FRIEND_LOGIN`, when attributing the *sender* of any transaction.
 
 ---
@@ -903,7 +906,7 @@ A conforming messaging client:
 2. Restates its presence with [Set Presence (808)](#set-presence-808) after every login, reconnects included, then issues [Get Roster (800)](#get-roster-800) and handles streamed [Roster Entry (801)](#roster-entry-801) and pending [Friend Request (804)](#friend-request-804) notifications.
 3. Gates call and direct-transfer UI on each friend's `DATA_FRIEND_CAPABILITIES`: it MUST NOT offer a voice call to a friend lacking `CAPABILITY_VOICE`, nor a direct transfer to one lacking `CAPABILITY_DIRECT_TRANSFER`.
 4. Generates a unique `DATA_MESSAGE_GUID` per message and retries idempotently using the same GUID.
-5. Sends `Delivered` receipts automatically and `Read` receipts on display.
+5. Sends `Delivered` receipts automatically, and `Read` receipts on display unless its user has turned them off.
 6. Ignores unrecognised fields and transaction types.
 7. Decides success from the transaction header's error code, not from `DATA_REASON_CODE`, and shows `FieldError` (100) text when a failure carries no reason code (see [Reply Shape](#reply-shape)).
 8. Parses repeated entries by group, attributing each `FieldUserName` (102) to the `DATA_FRIEND_LOGIN` that opened its group, and stores the name and status text so offline friends still have both.
@@ -928,7 +931,7 @@ A conforming messaging server:
 
 ## Implementation Notes
 
-- **Reference allocations.** In the Janus reference server the capability bits, access bit, transactions, and fields are allocated as in this document. The numbers reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (capability bit 13, fields `0x061F` and `0x0628`–`0x062B`, reason codes 15 and 16) are not implemented, and Janus never confirms bit 13.
+- **Reference allocations.** In the Janus reference server the capability bits, access bit, transactions, and fields are allocated as in this document. The numbers reserved for the [messaging identity draft](Capabilities-Messaging-Identity.md) (capability bits 13 and 15, transactions 833–834, fields `0x061F`, `0x0628`–`0x062B` and `0x0658`–`0x065C`, reason codes 15, 16, 18 and 19) and for the [message requests draft](Capabilities-Messaging-Requests.md) (transactions 829–832, fields `0x0625` and `0x0650`–`0x0657`, reason code 17) are not implemented, and Janus confirms neither bit.
 - **Roster removal encoding.** [Roster Entry (801)](#roster-entry-801) signals a removal with the reserved `DATA_ROSTER_STATE` value `0` (`Removed`); all other values are live relationship states. A removal is therefore a state, not a separate transaction, and a client applying deltas needs no special case for it beyond deleting the row.
 - **Call media.** Once a [Call Accept (819)](#call-accept-819) completes, all subsequent media negotiation and transport follow the [voice chat extension](Capabilities-Voice.md) unchanged; this extension does not alter SDP/ICE/SFU behaviour.
 - **Date encoding.** `DATA_MESSAGE_TIMESTAMP` deliberately uses a plain Unix-epoch UInt64 rather than the legacy Hotline 8-byte date structure, to avoid the 1904-epoch ambiguity described in [DATA_CAPABILITIES](Capabilities.md#date-format-selection). The field is Unix seconds unconditionally: it is a distinct encoding rather than a negotiated reading of the Hotline date, so `CAPABILITY_MODERN_DATES` does not apply to it and a client need not advertise that bit to decode it.
