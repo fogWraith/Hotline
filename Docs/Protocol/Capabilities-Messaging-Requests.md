@@ -33,7 +33,7 @@ An [IM Send (810)](Capabilities-Messaging.md#im-send-810) from a session that un
 
 0. **No such Login, or one the server refuses for messaging:** as [Find User (822)](Capabilities-Messaging.md#find-user-822) answers it. These sends count toward Find User's rate limit, since they now say whether a Login exists.
 1. **The recipient has blocked the caller:** `AccountNotFound`, before any bound is checked, as Find User answers it, carrying to 810 the extension's SHOULD for [Add Friend (802)](Capabilities-Messaging.md#add-friend-802).
-2. **The recipient has approved the caller** ([Approvals](#approvals)): an IM, answered `OfflineQueued`, whether or not the recipient takes requests.
+2. **An approval between the two, given by either** ([Approvals](#approvals)), **or a request from the recipient waiting for the caller, which this send approves:** an IM, answered `OfflineQueued`, whether or not the recipient takes requests.
 3. **The caller has blocked the recipient, or the recipient does not take requests:** `NotFriends`, as today.
 4. **Otherwise:** a request, answered `Requested`, and stored, held or dropped by the [bounds](#bounds).
 
