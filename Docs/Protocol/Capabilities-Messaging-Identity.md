@@ -1,6 +1,6 @@
 # Draft: Portable Identity for the Instant Messaging Extension
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng), version 2. **Not adopted**: nothing here is part of the [Instant Messaging Extension](Capabilities-Messaging.md) unless that document says so. Version 1 proposed field IDs `0x061F` and `0x0628`-`0x062B`, capability bit 13 and reason codes 15 and 16, which the extension reserved for this draft on 2026-10-25. Version 2 adds the [portable friendships](#portable-friendships) below, and with them a capability bit, fields, transactions and reason codes, all shown here as placeholders for the extension to assign ([Additions to the Tables](#additions-to-the-tables)). It is proposed together with the [Device Proof extension](Capabilities-Device-Proof.md), which it cites. Until it is adopted, all of it is used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng), version 2. **Not adopted**: nothing here is part of the [Instant Messaging Extension](Capabilities-Messaging.md) unless that document says so. Version 1 proposed field IDs `0x061F` and `0x0628`-`0x062B`, capability bit 13 and reason codes 15 and 16, which the extension reserved for this draft on 2026-10-25. Version 2 adds the [portable friendships](#portable-friendships) below, and with them capability bit 15, fields `0x0658`-`0x065C`, transactions 833 and 834 and reason codes 18 and 19, which fogWraith reserved for this draft on 2026-10-29 ([Additions to the Tables](#additions-to-the-tables)). A server that implements version 2 checks every friendship object it is given, where a server of version 1 need check nothing cryptographic. The objects are defined in hxd-ng's [friendship objects](https://github.com/mishan/hxd-ng/blob/main/docs/proposals/friendship-objects.md) proposal, with [test vectors](https://github.com/mishan/hxd-ng/blob/main/docs/identity-test-vectors.json) built from hxd-ng's implementation. It is proposed together with the [Device Proof extension](Capabilities-Device-Proof.md), which it cites. Until it is adopted, all of it is used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
 
 An optional addition to the [Instant Messaging Extension](Capabilities-Messaging.md), written in that document's format and linking to its sections. Identity keys are those of [hxd-ng's identity spec](https://github.com/mishan/hxd-ng/blob/main/docs/hotline-ng-identity.md): an Ed25519 identity key that a user holds across servers, and device certificates signed by it.
 
@@ -56,7 +56,7 @@ Each of these reaches only a session confirmed `CAPABILITY_FRIENDSHIPS`, or answ
 | Bit | Mask | Name | Meaning |
 |---|---|---|---|
 | 13 | `0x2000` | `CAPABILITY_IDENTITY` | The client understands the identity field and signed and sealed messages |
-| TBD | TBD | `CAPABILITY_FRIENDSHIPS` | The client implements [portable friendships](#portable-friendships) |
+| 15 | `0x8000` | `CAPABILITY_FRIENDSHIPS` | The client implements [portable friendships](#portable-friendships) |
 
 A client sets bit 13 when it understands the fields of version 1; it need not have an identity of its own. A server confirms it only when it implements at least version 1 of this document, and only alongside `CAPABILITY_MESSAGING` (bit 6). A client sets `CAPABILITY_FRIENDSHIPS` only beside bit 13, and a server confirms it only beside both. A server sends `DATA_FRIEND_OFFER`, `DATA_FRIENDSHIP`, `DATA_FRIEND_WITHDRAW`, `DATA_FRIENDSHIP_HASH` and `DATA_IDENTITY_ROTATION` only to sessions confirmed both bits; any other session of the same account is sent what version 1 sends, so its Friend Request (804) carries no offer.
 
@@ -165,7 +165,7 @@ Accounts without an identity, and accounts none of whose clients set `CAPABILITY
 
 ### The Objects
 
-Four signed objects, each deterministic CBOR under a domain of its own, signed by a device key and carrying that device's certificate, are defined in hxd-ng's [friendship objects](https://github.com/mishan/hxd-ng/blob/main/docs/proposals/friendship-objects.md) document with their checks; test vectors are to follow there:
+Four signed objects, each deterministic CBOR under a domain of its own, signed by a device key and carrying that device's certificate, are defined in hxd-ng's [friendship objects](https://github.com/mishan/hxd-ng/blob/main/docs/proposals/friendship-objects.md) document with their checks and their [test vectors](https://github.com/mishan/hxd-ng/blob/main/docs/identity-test-vectors.json):
 
 - an **offer** (`hl-identity/friend-offer/v1`, at most 1 KiB), from one identity to another's fingerprint, with a random ID and an expiry no more than 30 days after it was signed;
 - an **acceptance** (`hl-identity/friend-accept/v1`, at most 1 KiB), by the offered identity, naming the offer by its hash;
@@ -293,7 +293,7 @@ A device's revocation does not invalidate what it signed: a device is revoked wh
 
 ## Additions to the Tables
 
-Data objects. Version 1's are from `0x061F` and `0x0628`-`0x062B`, as the extension reserved them; `0x062C`-`0x062F` stay the extension's. Version 2's are placeholders, too many for the extension's remaining messaging block, for the extension to place:
+Data objects. Version 1's are from `0x061F` and `0x0628`-`0x062B`, as the extension reserved them; `0x062C`-`0x062F` stay the extension's. Version 2's are in the extension's second messaging block, `0x0650`-`0x066F`, after the message requests draft's:
 
 | ID (hex) | Dec | Name | Type | Description |
 |---|---|---|---|---|
@@ -302,22 +302,22 @@ Data objects. Version 1's are from `0x061F` and `0x0628`-`0x062B`, as the extens
 | `0x0629` | 1577 | `DATA_MESSAGE_SIGNED` | Binary (at most 1020) | A signed message in detached form, in 810 and 811 |
 | `0x062A` | 1578 | `DATA_MESSAGE_SEALED` | Binary (at most 17,152) | A sealed message, in 810 and 811 |
 | `0x062B` | 1579 | `DATA_MESSAGE_SEALED_TO` | Binary (32) | The SHA-256 of the `device_enc` key a sealed message was sealed to, in 810 and 811 |
-| TBD | | `DATA_FRIEND_OFFER` | Binary (at most 1024) | An offer, in 802 and 804, and in 803 canceling an upgrade offer |
-| TBD | | `DATA_FRIENDSHIP` | Binary (at most 2080) | A friendship, in 805, Present Friendships and Get Friendships' reply |
-| TBD | | `DATA_FRIEND_WITHDRAW` | Binary (at most 1024) | A withdrawal, in 803, 806, a `Removed` 801, and Present Friendships and its reply |
-| TBD | | `DATA_FRIENDSHIP_HASH` | Binary (32) | A friendship hash, in 800 and 801 (up to two in an entry), Get Friendships and its reply; or a pair hash, in Present Friendships' reply |
-| TBD | | `DATA_IDENTITY_ROTATION` | Binary (at most 512) | A rotation record, in Get Friendships' reply. **Repeated**, in chain order |
+| `0x0658` | 1624 | `DATA_FRIEND_OFFER` | Binary (at most 1024) | An offer, in 802 and 804, and in 803 canceling an upgrade offer |
+| `0x0659` | 1625 | `DATA_FRIENDSHIP` | Binary (at most 2080) | A friendship, in 805, Present Friendships and Get Friendships' reply |
+| `0x065A` | 1626 | `DATA_FRIEND_WITHDRAW` | Binary (at most 1024) | A withdrawal, in 803, 806, a `Removed` 801, and Present Friendships and its reply |
+| `0x065B` | 1627 | `DATA_FRIENDSHIP_HASH` | Binary (32) | A friendship hash, in 800 and 801 (up to two in an entry), Get Friendships and its reply; or a pair hash, in Present Friendships' reply |
+| `0x065C` | 1628 | `DATA_IDENTITY_ROTATION` | Binary (at most 512) | A rotation record, in Get Friendships' reply. **Repeated**, in chain order |
 
 Every field is well inside the 65,535 bytes a field's length allows, and Present Friendships' largest request, 32 objects of at most 2080 bytes, is about 66 KiB; a client sends fewer objects to a server whose largest transaction is smaller.
 
-Transactions, request/reply, from the extension's unallocated 829-839:
+Transactions, request/reply:
 
 | ID | Name | Request | Reply |
 |---|---|---|---|
-| TBD | Present Friendships | `DATA_FRIENDSHIP` and `DATA_FRIEND_WITHDRAW`, up to 32 | groups of `DATA_FRIENDSHIP_HASH`, `DATA_REASON_CODE`, and `DATA_FRIEND_WITHDRAW` for `Withdrawn` |
-| TBD | Get Friendships | `DATA_FRIENDSHIP_HASH` and `DATA_FRIEND_IDENTITY`, up to 32 | groups of the field answered, then `DATA_FRIENDSHIP` or `DATA_IDENTITY_ROTATION` where there are any |
+| 833 | Present Friendships | `DATA_FRIENDSHIP` and `DATA_FRIEND_WITHDRAW`, up to 32 | groups of `DATA_FRIENDSHIP_HASH`, `DATA_REASON_CODE`, and `DATA_FRIEND_WITHDRAW` for `Withdrawn` |
+| 834 | Get Friendships | `DATA_FRIENDSHIP_HASH` and `DATA_FRIEND_IDENTITY`, up to 32 | groups of the field answered, then `DATA_FRIENDSHIP` or `DATA_IDENTITY_ROTATION` where there are any |
 
-Capability bit: `CAPABILITY_FRIENDSHIPS`, for the extension to choose ([Capability Bits](#capability-bits)).
+Capability bit: 15, `CAPABILITY_FRIENDSHIPS` ([Capability Bits](#capability-bits)).
 
 Reason codes:
 
@@ -325,10 +325,10 @@ Reason codes:
 |---|---|---|
 | 15 | `NoDeviceKeys` | A sealed message names a device key no live sealed-capable session of the recipient proved, or the recipient has none |
 | 16 | `BadSignature` | A signed message does not verify, is not scoped to the recipient, or reuses the message ID of another message by the same signer; a friendship object that fails its checks |
-| TBD (proposed 18) | `Withdrawn` | A withdrawal this server holds ends the friendship |
-| TBD (proposed 19) | `Stale` | A friendship object's signed time is not within `S` of the server's clock |
+| 18 | `Withdrawn` | A withdrawal this server holds ends the friendship |
+| 19 | `Stale` | A friendship object's signed time is not within `S` of the server's clock |
 
-The user keys draft has reasons named `NoDeviceKeys` and `BadSignature` in the link's list, as 13 and 14. They are different numbers because 13 and 14 are taken here. I propose 18 and 19 for `Withdrawn` and `Stale`, after the message requests draft's `Requested` (17), or 17 and 18 if `Requested` is not assigned.
+The user keys draft has reasons named `NoDeviceKeys` and `BadSignature` in the link's list, as 13 and 14. They are different numbers because 13 and 14 are taken here. `Withdrawn` and `Stale` follow the message requests draft's `Requested` (17).
 
 `MessageTooLong` (13) also covers a sealed message over 17,152 bytes, and IM Send's reply may carry `NoDeviceKeys`, `OfflineUndeliverable` or `BadSignature`.
 
@@ -362,7 +362,7 @@ A client that also sets `CAPABILITY_FRIENDSHIPS`:
 
 ## Implementation Notes
 
-- hxd-ng implements the identity spec's objects in `crates/hl-identity`, including device certificates and their verification, and will be the reference implementation of version 2. A server that implements only version 1 need check nothing cryptographic: the signature check is a MAY, and only clients open sealed messages. A server that implements portable friendships checks every object it is given, using the checks hxd-ng's [friendship objects](https://github.com/mishan/hxd-ng/blob/main/docs/proposals/friendship-objects.md) define, with test vectors to follow there.
+- hxd-ng implements the identity spec's objects in `crates/hl-identity`, including device certificates and their verification, and will be the reference implementation of version 2. A server that implements only version 1 need check nothing cryptographic: the signature check is a MAY, and only clients open sealed messages. A server that implements portable friendships checks every object it is given, using the checks hxd-ng's [friendship objects](https://github.com/mishan/hxd-ng/blob/main/docs/proposals/friendship-objects.md) define, against its [test vectors](https://github.com/mishan/hxd-ng/blob/main/docs/identity-test-vectors.json).
 - The construction of signed and sealed messages is the one hxd-ng's [end-to-end messages document](https://github.com/mishan/hxd-ng/blob/main/docs/e2e-messages.md) defines for Hotline-ng and server links. One difference: on a link, a detached signed message carries its certificate's SHA-256 in place of the certificate, to fit Link Chat (904), while here it carries the certificate as that document does, so a message read from the offline queue still verifies after its sender has left.
 
 ---
