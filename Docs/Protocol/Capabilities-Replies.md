@@ -1,12 +1,12 @@
 # Draft: Replies
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 18, transactions 717 and 718, field IDs `0x0F20`–`0x0F24`, `0x0F2A`, `0x0F2E`–`0x0F30` and `0x0F32`, history sub-field type `0x0020`, repeated `DATA_LINE_ID` in Get Chat History (700) requests, reason codes 0–2, 6, 12 and 13, and notification type 0. All of them lie within the blocks the [Structured Chat](Capabilities-Structured-Chat.md) draft proposes be kept for this family, and were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng), merged as a draft. **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 18, transactions 717 and 718, field IDs `0x0F20`–`0x0F24`, `0x0F2E`–`0x0F30` and `0x0F32`, history sub-field type `0x0020`, repeated `DATA_LINE_ID` in Get Chat History (700) requests, and notification type 0. All of them lie within the blocks the [Structured Chat](Capabilities-Structured-Chat.md) draft proposes be kept for this family, and were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This extension lets a line of chat or a private message say which message it answers. The server stores and relays the reference as the sender gave it, and never resolves it for a capable reader. On the classic wire it names a chat line by the ID the [Structured Chat](Capabilities-Structured-Chat.md) draft gives it, and gives a private message a reference of its own. An author may ask to be told when someone answers them.
 
-It builds on [Structured Chat](Capabilities-Structured-Chat.md), which carries a chat line as data on Chat Message (106), and defines the targets, notifications, reason field and reply shape that its companions use. The [Reactions](Capabilities-Reactions.md) draft attaches emoji to the same targets, and the [Server Emoji](Capabilities-Server-Emoji.md) draft adds a server's own emoji to text and reactions. Each has its own capability bit, and a server may offer any of them beside Structured Chat, or Server Emoji alone. For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md). Kept lines' IDs are the [Chat History Extension](Capabilities-Chat-History.md)'s, and instant messages are the [Instant Messaging Extension](Capabilities-Messaging.md)'s.
+It builds on [Structured Chat](Capabilities-Structured-Chat.md), which carries a chat line as data on Chat Message (106), and defines the targets and notifications that its companions use; the family's reason field and reply shape are Structured Chat's. The [Reactions](Capabilities-Reactions.md) draft attaches emoji to the same targets, and the [Server Emoji](Capabilities-Server-Emoji.md) draft adds a server's own emoji to text and reactions. Each has its own capability bit, and a server may offer any of them beside Structured Chat, or Server Emoji alone. For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md). Kept lines' IDs are the [Chat History Extension](Capabilities-Chat-History.md)'s, and instant messages are the [Instant Messaging Extension](Capabilities-Messaging.md)'s.
 
 ## Table of Contents
 
@@ -15,7 +15,6 @@ It builds on [Structured Chat](Capabilities-Structured-Chat.md), which carries a
   - [Capability Bit](#capability-bit)
   - [Server Configuration](#server-configuration)
   - [Login Reply](#login-reply)
-  - [Reply Shape](#reply-shape)
 - [Targets](#targets)
   - [Line IDs](#line-ids)
   - [Private Message References](#private-message-references)
@@ -29,7 +28,6 @@ It builds on [Structured Chat](Capabilities-Structured-Chat.md), which carries a
 - [Text Encoding](#text-encoding)
 - [Across Server Links](#across-server-links)
 - [Data Objects](#data-objects)
-- [Reason Codes](#reason-codes)
 - [Performance Considerations](#performance-considerations)
 - [Security Considerations](#security-considerations)
 - [Hotline-ng Binding](#hotline-ng-binding)
@@ -40,7 +38,7 @@ It builds on [Structured Chat](Capabilities-Structured-Chat.md), which carries a
 
 ## What Does Not Change
 
-- **A client that does not negotiate bit 18 is sent no reply field.** A server MUST NOT synthesize a separate line or any field on its behalf. It MAY decorate the formatted line that client is sent, and nothing else ([How Other Readers See a Reply](#how-other-readers-see-a-reply)).
+- **A client that does not negotiate bit 18 is sent no reply field.** A server MUST NOT synthesize a separate line or any field on its behalf. Its operator MAY choose to have the formatted line that client is sent decorated, and nothing else ([How Other Readers See a Reply](#how-other-readers-see-a-reply)).
 - **The text the sender typed is never changed, and never read.** It is stored and relayed as typed. A server MAY decorate only the formatted line, or a 104's text, it sends to a session without bit 18; the stored text, the raw text of a [structured line](Capabilities-Structured-Chat.md), what a bit-18 session is sent, and anything signed are never altered. Nothing here has the server parse the text: a reference is a field the sender's client sends beside it.
 - **Live chat stays one flat stream.** There are no threads. A reply is a pointer a capable client MAY draw as a short quote or a jump link; it does not move the line anywhere.
 - **Private chats are never stored.** Their lines carry [ephemeral IDs](Capabilities-Structured-Chat.md#ephemeral-line-ids) so they can be answered while they are on screen. Those IDs live in the server's memory for the life of the chat and are never written anywhere; the Chat History Extension's rule that private chats are not persisted holds unchanged. A private message that the server does not store is treated the same way.
@@ -68,17 +66,13 @@ Recommended settings (implementation-defined):
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `Replies.Enabled` | bool | `false` | Store and relay `DATA_REPLY_TO` |
-| `Replies.ClassicForm` | `none` \| `nick` \| `quote` | `nick` | How a reply's formatted line is decorated for a session without bit 18 ([How Other Readers See a Reply](#how-other-readers-see-a-reply)) |
+| `Replies.ClassicForm` | `none` \| `nick` \| `quote` | `none` | How a reply's formatted line is decorated for a session without bit 18 ([How Other Readers See a Reply](#how-other-readers-see-a-reply)) |
 | `Replies.ClassicQuoteLength` | int | `40` | The longest excerpt `quote` copies, in characters |
 | `Notifications.DefaultTypes` | bitmask | replies | What a session that never [set its notifications](#set-notifications-717) is told of |
 
 ### Login Reply
 
 When bit 18 is confirmed, the login reply MUST carry `DATA_REPLY_TARGETS`: the [target kinds](#packed-target) this server keeps and relays in `DATA_REPLY_TO`, as `1 << kind`. A client MUST NOT send a kind the field leaves out, and a server that receives one drops the reference.
-
-### Reply Shape
-
-Set Notifications (717), and the companions' requests, reply in the [Instant Messaging Extension's reply shape](Capabilities-Messaging.md#reply-shape). A failure has a non-zero error code and `FieldError` (100) text written for the user, and SHOULD carry `DATA_CHAT_REASON` ([Reason Codes](#reason-codes)). A success MAY carry `DATA_CHAT_REASON` set to `OK`, and clients MUST NOT require it.
 
 ---
 
@@ -97,6 +91,7 @@ A reply names its **target**: the message it answers, by an identifier that the 
 - **A line's message ID** is the one identifier of a public line that the server assigns and every reader holds. It is opaque and compared for order and equality only.
 - **An instant message's GUID** is generated by its sender and delivered with it in IM Deliver (811). IM Acknowledge (812) already names a message by the GUID and its sender's Login, and this draft names it the same way.
 - **A private chat's line and a classic private message** carry no identifier today, and a private chat's line is never stored, so the server gives each an identifier of its own.
+- **Kind 6 is never assigned.** Bit 6 of the [Reactions](Capabilities-Reactions.md#login-reply) draft's `DATA_REACTION_TARGETS` offers stored private messages apart from unstored ones, and is not a kind.
 
 ### Line IDs
 
@@ -117,7 +112,7 @@ Each goes only to a session that negotiated bit 18 or bit 19 (the [Reactions](Ca
 
 **A reference MUST NOT reveal the volume of the server, or of any mailbox.** Both kinds are random. A store's own ordered message number, which may serve a client as a paging cursor, is never a reference. No published extension tells a classic client that it is reading a stored message or what its identifier is, so this draft is the first to put one on the wire ([Open Questions](#open-questions)).
 
-**A reply's reference is never checked for a bit-18 reader against the store**, or against any memory of what was sent; the one lookup is to decorate a recipient's own copy ([How Other Readers See a Reply](#how-other-readers-see-a-reply)). Its reader resolves it from its own mailbox or its own copy, so a reference to another pair's message shows them nothing. Answering by whether a message still exists would let a sender learn whether it was read or deleted. A server needs no memory of the references it has stamped. The [Reactions](Capabilities-Reactions.md#who-reacts-and-as-whom) draft looks a stored reference up for a party within that party's view, and answers the same whether or not it finds the message.
+**A reply's reference is never checked for a bit-18 reader against the store**, or against any memory of what was sent; the one lookup is to decorate a recipient's own copy ([How Other Readers See a Reply](#how-other-readers-see-a-reply)). Its reader resolves it from its own mailbox or its own copy, so a reference to another pair's message shows them nothing. Answering by whether a message still exists would let a sender learn whether it was read or deleted. A server needs no memory of the references it has stamped. The [Reactions](Capabilities-Reactions.md#who-reacts-and-as-whom) draft, where a server offers reactions on stored private messages, looks a stored reference up for a party within that party's view, and answers the same whether or not it finds the message.
 
 ### Packed Target
 
@@ -156,14 +151,15 @@ The server keeps the reference wherever it keeps the line or message itself, and
 
 ### How Other Readers See a Reply
 
-A reply to an old message can read as a non sequitur to a client that cannot draw it, and people in classic chat already write `alice: ` before an answer by hand. So that clients with a reply button do not train them out of a habit every other reader depends on, a server MAY decorate the **formatted** text it sends a session without bit 18: `FieldData` of Chat Message (106), and the text of Server Message (104) for a private message's reply. `Replies.ClassicForm` chooses how:
+A reply to an old message can read as a non sequitur to a client that cannot draw it, and people in classic chat already write `alice: ` before an answer by hand. So that clients with a reply button do not train them out of a habit every other reader depends on, a server MAY, where its operator chooses, decorate the **formatted** text it sends a session without bit 18: `FieldData` of Chat Message (106), and the text of Server Message (104) for a private message's reply. `Replies.ClassicForm` chooses how:
 
 | Value | The reader sees |
 |---|---|
-| `none` | The reply as typed, as today |
-| `nick` (default) | The IRC convention: the target's author's nick and a colon before the text, as in `\r          bob:  alice: yes, it is quick for me` |
+| `none` (default) | The reply as typed, as today |
+| `nick` | The IRC convention: the target's author's nick and a colon before the text, as in `\r          bob:  alice: yes, it is quick for me` |
 | `quote` | A short excerpt of the target, as in `\r          bob:  [re alice: has anyone tried the new build on a Qua…] yes, it is quick for me` |
 
+- **Off by default.** Turning Replies on changes nothing a classic client is sent, and puts no target lookup on the relay path, until an operator chooses `nick` or `quote`. A client that parses `who: text` out of relayed lines, such as a bridge relay, could misread a decorated line, so decorating is the choice of an operator who knows the clients on their server.
 - **Only the formatted line.** The decoration goes before the reply's text, inside the line the server formats, never as a line of its own. The text as typed is what the server stores, what a structured line's raw text carries (so a session with bit 17 and not bit 18 finds it undecorated in its entry), what a bit-18 session is sent, what Link Chat (904) carries, and what any signature covers. A multi-line send is decorated on its first segment only, though a server prefixes each segment with the nick.
 - **Never an emote.** A line with `is_action` (`\r *** bob waves`) is never decorated: a client that splits a line at its first colon would read `*** bob alice` as the speaker.
 - **Never anywhere else.** IM Deliver (811) is never decorated, and neither is Chat History's legacy replay: the replay is history, and decorating it would cost a lookup for every line replayed.
@@ -181,6 +177,8 @@ A reply to an old message can read as a non sequitur to a client that cannot dra
 A line's entry, in a Get Chat History (700) reply and as a [structured line](Capabilities-Structured-Chat.md#chat-history) on Chat Message (106) alike, carries sub-field `0x0020` `REPLY_TO`, the line's `DATA_REPLY_TO` as kept, to sessions that negotiated bit 18. It is in the family's range, whose registry, audience rule, tombstone rule and reply-size rule the [Structured Chat](Capabilities-Structured-Chat.md#chat-history) draft gives.
 
 **Lines by ID.** So that a client can draw the quotes of a page's replies in one request, Get Chat History (700) takes `DATA_LINE_ID` repeated, at most 50, in place of the cursors (a request that carries both ignores the cursors), from a session that negotiated bit 18 as well as bit 4. It is a Get Chat History request like any other, checked under `AccessReadChatHistory`. The reply is the entries of those lines in ascending ID order, under the reader's own read checks: a line the reader cannot read, a line in another channel, and one that does not exist are left out alike, and a tombstone is sent as one. When the entries do not all fit the server's limit on one reply's size, the server drops the highest IDs and sets `DATA_HISTORY_HAS_MORE` to `1`, and the client asks again for the IDs after the last one returned; otherwise `DATA_HISTORY_HAS_MORE` is `0`. The server sends lines, never excerpts embedded in a reply. A client SHOULD fetch quotes only for replies on screen, batched, and a server MAY cache by-ID results.
+
+**Chat History's Reply-To.** Chat History proposes core sub-field `0x0002` `Reply-To ID` for the same purpose. When this draft is adopted, `0x0002` is retired in favor of `0x0020`, so that a reply has one spelling. The family keeps its own blocks rather than chat history's 705–709 ([Additions to the Tables](Capabilities-Structured-Chat.md#additions-to-the-tables)).
 
 ---
 
@@ -203,6 +201,8 @@ A message's author may ask to be told when someone answers it, so a client can b
 ### Set Notifications (717)
 
 **Client → Server (request/reply).** Requires bit 18 or 19.
+
+It replies in the family's [reply shape](Capabilities-Structured-Chat.md#reply-shape).
 
 **Request fields:** `DATA_NOTIFY_TYPES` (UInt32), the types this session wants. **Reply fields:** `DATA_NOTIFY_TYPES`, the types the server will send it, leaving out any it does not offer or the session's bits do not allow.
 
@@ -253,7 +253,6 @@ Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#dat
 | `0x0F22` | 3874 | `DATA_REPLY_TARGETS` | UInt16 | Login reply: target kinds kept in replies, `1 << kind` |
 | `0x0F23` | 3875 | `DATA_PM_ID` | Binary (17) | A private message's [reference](#private-message-references): `u8 flags` (bit 0 stored), 16 bytes |
 | `0x0F24` | 3876 | `DATA_TARGET` | Binary (at most 128) | A target named by a notification, or by a companion's request |
-| `0x0F2A` | 3882 | `DATA_CHAT_REASON` | UInt16 | The family's [reason code](#reason-codes) |
 | `0x0F2E` | 3886 | `DATA_NOTIFY_TYPES` | UInt32 | [Notification](#notifications) types, a bitmask |
 | `0x0F2F` | 3887 | `DATA_NOTIFY_TYPE` | UInt16 | One notification's type |
 | `0x0F30` | 3888 | `DATA_NOTIFY_SOURCE` | Binary (at most 128) | The message that caused a notification, as a target |
@@ -261,27 +260,10 @@ Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#dat
 
 ---
 
-## Reason Codes
-
-`DATA_CHAT_REASON` carries one enumeration for this draft and its companions, which define the codes they add.
-
-| Code | Name | Meaning |
-|---|---|---|
-| 0 | `OK` | Success |
-| 1 | `NoSuchTarget` | The target does not exist, was removed, or is out of the caller's reach; these are not told apart |
-| 2 | `NotAllowed` | The caller may not do this |
-| 3–5 | | [Reactions](Capabilities-Reactions.md#reason-codes) |
-| 6 | `RateLimited` | Slow down |
-| 7–11 | | [Server Emoji](Capabilities-Server-Emoji.md#reason-codes) |
-| 12 | `InvalidTarget` | A malformed target, or a kind the server does not accept |
-| 13 | `TooManyTargets` | More targets than one request may carry |
-
----
-
 ## Performance Considerations
 
 - **Encode once.** A line or message is encoded once for each set of recipients whose bits select the same fields and sub-fields ([Structured Chat](Capabilities-Structured-Chat.md#performance-considerations)), not once per recipient.
-- **Decoration.** The target is read by its ID once, before the line is formatted, on the relay path, and only when some reader lacks bit 18; it is not the notification lookup, which comes after commit. A decorated line is then formatted once per class of reader: one more format for `nick`, and for `quote` at most one per access the excerpt depends on.
+- **Decoration.** The target is read by its ID once, before the line is formatted, on the relay path, and only when decoration is on and some reader lacks bit 18; it is not the notification lookup, which comes after commit. A decorated line is then formatted once per class of reader: one more format for `nick`, and for `quote` at most one per access the excerpt depends on.
 - **Batch reads.** Quotes for a page's replies are one 700 [by ID](#chat-history), for replies on screen only.
 - **Author lookup.** A notification needs one line's author, by the line's own ID. The lookup happens after the line or the companion's act is committed, off the commit path.
 - **Ordering.** The cheap rule is a per-channel watermark, the highest line ID whose relay has finished. A notification naming a line above it waits, and a companion's act naming one waits or is refused as for a missing target.
@@ -343,16 +325,15 @@ Transactions, from the block 710–719 the [Structured Chat](Capabilities-Struct
 | 717 (`0x02CD`) | Set Notifications | Request/reply | Choose the notification types a session is sent |
 | 718 (`0x02CE`) | Notification | Server → client | A reply to, or a companion's act on, the author's line |
 
-Fields, from the block `0x0F20`–`0x0F4F` kept for this family: `0x0F20`–`0x0F24`, `0x0F2A`, `0x0F2E`–`0x0F30` and `0x0F32`, as in [Data Objects](#data-objects).
+Fields, from the block `0x0F20`–`0x0F4F` kept for this family: `0x0F20`–`0x0F24`, `0x0F2E`–`0x0F30` and `0x0F32`, as in [Data Objects](#data-objects).
 
-Chat history: sub-field `0x0020` `REPLY_TO`, in the range `0x0020`–`0x002F` kept for this family; and repeated `DATA_LINE_ID` in a Get Chat History request ([Lines by ID](#chat-history)), a change to that extension's request.
+Chat history: sub-field `0x0020` `REPLY_TO`, in the range `0x0020`–`0x002F` kept for this family; and repeated `DATA_LINE_ID` in a Get Chat History request ([Lines by ID](#chat-history)), a change to that extension's request; and, on adoption, the retirement of Chat History's proposed core sub-field `0x0002` Reply-To ID in favor of `0x0020`.
 
-Reason codes 0–2, 6, 12 and 13, in the family's enumeration; notification type 0.
+Notification type 0.
 
 ---
 
 ## Open Questions
 
-1. **Where the numbers live.** Would you rather they sat inside the chat history extension's space: replies as its proposed `Reply-To ID` sub-field `0x0002`, the transactions in 705–709? 705–709 is five numbers, and a report transaction has been asked for there too, so this family proposes a block of its own. Where the line itself lives is asked in the [Structured Chat](Capabilities-Structured-Chat.md#open-questions) draft.
-2. **Private message references.** No extension tells a classic client that it is reading a stored private message. Should `DATA_PM_ID` be this draft's, or belong to an offline-message extension of its own?
-3. **Sealed messages.** Should a sealed message's reply reference, and the [Server Emoji](Capabilities-Server-Emoji.md) draft's refs, travel inside the sealed body, hidden from the server and checked by the recipient? That is the messaging identity draft's to agree.
+1. **Private message references.** No extension tells a classic client that it is reading a stored private message. Should `DATA_PM_ID` be this draft's, or belong to an offline-message extension of its own?
+2. **Sealed messages.** Should a sealed message's reply reference, and the [Server Emoji](Capabilities-Server-Emoji.md) draft's refs, travel inside the sealed body, hidden from the server and checked by the recipient? That is the messaging identity draft's to agree.

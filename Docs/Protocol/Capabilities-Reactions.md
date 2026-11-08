@@ -1,12 +1,12 @@
 # Draft: Reactions
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 19, transactions 710–712, field IDs `0x0F25`–`0x0F27`, `0x0F29`, `0x0F2B`–`0x0F2D` and `0x0F31`, history sub-field types `0x0021` and `0x0023`, reason codes 3–5, and notification type 1, all within the blocks the [Structured Chat](Capabilities-Structured-Chat.md) draft proposes be kept for this family. It also asks for an access bit, React, from the extension allocation, without proposing its number. All of these were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng), merged as a draft. **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 19, transactions 710–712, field IDs `0x0F25`–`0x0F27`, `0x0F29`, `0x0F2B`–`0x0F2D` and `0x0F31`, history sub-field types `0x0021` and `0x0023`, reason codes 3–5, and notification type 1, all within the blocks the [Structured Chat](Capabilities-Structured-Chat.md) draft proposes be kept for this family. It also asks for an access bit, React, from the extension allocation, without claiming a number; 69 is the likely one ([Access Bit](#access-bit)). All of these were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This extension lets a user attach an emoji to a message, and everyone who can read the message see the counts and who reacted. A reaction is a Unicode emoji, or, where the [Server Emoji](Capabilities-Server-Emoji.md) draft is also offered, one of the server's own. A message's author may ask to be told of reactions to it.
 
-It builds on the [Structured Chat](Capabilities-Structured-Chat.md) draft, which gives chat lines the IDs a reaction names them by, and the [Replies](Capabilities-Replies.md) draft, which defines the targets a reaction names, the notification mechanism, the reason field and the reply shape. This document uses them by reference and does not repeat them. A server may offer reactions without replies: everything this draft takes from the Replies draft is confirmed by bit 19 as well, and bit 19 needs bit 17 beside it. For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
+It builds on the [Structured Chat](Capabilities-Structured-Chat.md) draft, which gives chat lines the IDs a reaction names them by, and the [Replies](Capabilities-Replies.md) draft, which defines the targets a reaction names and the notification mechanism. The reason field and the reply shape are Structured Chat's. This document uses them by reference and does not repeat them. A server may offer reactions without replies: everything this draft takes from the Replies draft is confirmed by bit 19 as well, and bit 19 needs bit 17 beside it. For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
 ## Table of Contents
 
@@ -41,7 +41,7 @@ It builds on the [Structured Chat](Capabilities-Structured-Chat.md) draft, which
 
 - **A client that does not negotiate bit 19 never sees a reaction.** A server MUST NOT synthesize a "*** alice reacted 👍" line, or anything else, for it.
 - **Everything a server already enforces still applies.** A reaction needs a permission of its own and read access to its target ([Who Reacts](#who-reacts-and-as-whom)), and costs what the server's spam accounting charges for it.
-- The [Replies](Capabilities-Replies.md#what-does-not-change) draft's rules hold: the text the sender typed is never read or changed, a server MAY decorate only the formatted line of a reply for a session without bit 18, and private chats are never stored. A reaction is never shown that way: it decorates nothing.
+- The [Replies](Capabilities-Replies.md#what-does-not-change) draft's rules hold: the text the sender typed is never read or changed, only the formatted line of a reply may be decorated, at the operator's choice, for a session without bit 18, and private chats are never stored. A reaction is never shown that way: it decorates nothing.
 
 ---
 
@@ -57,7 +57,7 @@ Bit 19 follows the [Replies](Capabilities-Replies.md#capability-bit) draft's rul
 
 ### Access Bit
 
-One access bit is requested from the extension allocation. Bits 55–60 are taken, and this draft names no number it was not given.
+One access bit is requested from the extension allocation. Bits 55–60 are taken, and Janus uses 64–68 for Cards, so `AccessReact` would most likely land at 69, and the [Server Emoji](Capabilities-Server-Emoji.md#access-bit) draft's `AccessManageEmoji` at 70. Neither is allocated, and this draft claims neither.
 
 | Name | Allows |
 |---|---|
@@ -76,6 +76,7 @@ Recommended settings (implementation-defined):
 | `Reactions.MaxPerUserPerTarget` | int | `5` | Keys one account may have on one message at once |
 | `Reactions.LiveWindow` | int | `200` | Each channel's most recent lines whose reaction changes are pushed live (711); older lines' are fetched on demand |
 | `Reactions.RateBurst`, `Reactions.RatePerSecond` | int | `10`, `1` | Per-account reaction rate: a burst, then a steady rate |
+| `Reactions.StoredMessages` | bool | `false` | Accept reactions on stored private messages, bit 6 of `DATA_REACTION_TARGETS` ([Login Reply](#login-reply)). It costs what the server keeps for the sender's view ([When the Target Goes Away](#when-the-target-goes-away)) |
 | `Reactions.ReadOnlyChannels` | `allow` \| `deny` | `allow` | Whether a reader who may not post in a channel may react there. A server whose channels have settings MAY let each channel override it |
 
 Reactions on ephemeral lines are held within the [Structured Chat](Capabilities-Structured-Chat.md#server-configuration) draft's `StructuredChat.EphemeralWindow` and `StructuredChat.EphemeralMaxBytes`.
@@ -86,11 +87,13 @@ When bit 19 is confirmed, the login reply carries:
 
 | Field | | Value |
 |---|---|---|
-| `DATA_REACTION_TARGETS` | MUST | The [target kinds](Capabilities-Replies.md#packed-target) this server accepts reactions on, as `1 << kind` |
+| `DATA_REACTION_TARGETS` | MUST | The [target kinds](Capabilities-Replies.md#packed-target) this server accepts reactions on, as `1 << kind`, bit 5 for unstored private messages alone, and bit 6 for stored ones |
 | `DATA_MAX_REACTION_KEYS` | SHOULD | `Reactions.MaxKeysPerTarget` |
 | `DATA_MAX_REACTIONS_PER_USER` | SHOULD | `Reactions.MaxPerUserPerTarget` |
 
-A client MUST NOT send a kind `DATA_REACTION_TARGETS` leaves out, and a server that receives one in 710 or 712 refuses it `InvalidTarget`.
+**Stored private messages are optional.** Kind 5 names both kinds of private message, told apart by the reference's stored bit. In this field, bit 5 (`0x0020`) offers kind 5 targets with an ephemeral reference, and bit 6 (`0x0040`), which is no target kind, those with a durable one. A server MAY offer line and instant-message reactions without bit 6, and then keeps none of the sender's view ([When the Target Goes Away](#when-the-target-goes-away)). What this draft says of stored private message targets applies only where bit 6 is set.
+
+A client MUST NOT send a target `DATA_REACTION_TARGETS` leaves out, and a server that receives one in 710 or 712 refuses it `InvalidTarget`, by the target's own bytes alone.
 
 ---
 
@@ -122,7 +125,7 @@ A Unicode key:
 - **Ephemeral line targets:** the caller MUST be a current member of the chat, or for chat 0 a reader of public chat, and the line MUST be among the chat's most recent `StructuredChat.EphemeralWindow` ephemeral lines and relayed while the caller was a member. Anything else is `NoSuchTarget`.
 - **Line ID 0.** A line or ephemeral line target with line ID `0` names a line sent to one session ([Lines Sent to One Session](Capabilities-Structured-Chat.md#lines-sent-to-one-session)) and is `NoSuchTarget`.
 - **Instant-message targets** are checked exactly as [IM Acknowledge (812)](Capabilities-Messaging.md#im-acknowledge-812) is. The request names the conversation's other party in `DATA_FRIEND_LOGIN`, beside the target's own sender Login and GUID. The server checks that the caller and that party are friends or have an approval ([message requests draft](Capabilities-Messaging-Requests.md)), and that neither has blocked the other, and relays the reaction to that party. It never keeps or looks up the message: the party's client matches the GUID it holds, and a reaction to a GUID nobody holds is noise to a friend, nothing more. No relationship, and a block, are both `NoSuchTarget`. An instant message is an instant-message target wherever the server keeps it, in its offline queue or in a mailbox beside private messages, and never a stored private message target: a reaction naming it by a stored reference is dropped like one naming nothing, so that one message has one set of reactions. A server that lists instant messages among stored ones MUST mark each and give its GUID, as the [Hotline-ng binding](#hotline-ng-binding) does.
-- **Stored private message targets** (a durable reference, stored bit set): the request carries the target alone. The server looks the message up by its reference among the messages the caller sent or received, within the caller's view ([When the Target Goes Away](#when-the-target-goes-away)). If it finds one, it applies the reaction, keeps it with the message, and tells the parties as [Reaction Changed](#reaction-changed-711) says. If it finds none, because the message is outside the caller's view, is someone else's or never existed, or because the other party has blocked the caller, it drops the reaction silently. **The reply is identical either way**: the same success, with no count, in the same shape, and a server SHOULD do the same work on both paths, so that timing is the only side channel left.
+- **Stored private message targets** (a durable reference, stored bit set), where the server offers them (bit 6): the request carries the target alone. The server looks the message up by its reference among the messages the caller sent or received, within the caller's view ([When the Target Goes Away](#when-the-target-goes-away)). If it finds one, it applies the reaction, keeps it with the message, and tells the parties as [Reaction Changed](#reaction-changed-711) says. If it finds none, because the message is outside the caller's view, is someone else's or never existed, or because the other party has blocked the caller, it drops the reaction silently. **The reply is identical either way**: the same success, with no count, in the same shape, and a server SHOULD do the same work on both paths, so that timing is the only side channel left.
 - **Unstored private message targets** (an ephemeral reference): the request names the other party's session in `FieldUserID`, as a 108 does. The server checks only that the caller could send that session a 108, and relays the reaction to it, held nowhere, never checking the reference: the party's client resolves it from what it was sent, and a reaction to a reference it does not hold is noise. A server that would refuse the 108, for a block or otherwise, refuses the reaction with `NoSuchTarget`. Hotline-ng has no ephemeral private message references yet.
 - A user MAY react to their own message.
 - **Order.** A reaction naming a line above the channel's [relay watermark](Capabilities-Replies.md#performance-considerations) waits until the line is relayed, or is answered `NoSuchTarget`.
@@ -141,7 +144,7 @@ A Unicode key:
 | `DATA_REACTION_KEY` | Binary | Yes, but for action 3 | The [key](#reaction-keys) |
 | `DATA_REACTION_ACTION` | UInt16 | Yes | `1` add, `2` remove, `3` clear the target (moderators only) |
 
-**Reply fields:** on success for a line or ephemeral line target, `DATA_REACTION_COUNT`, the key's count after the act; for a private message target, nothing beyond success, whatever became of the reaction. Refusals use the [reply shape](Capabilities-Replies.md#reply-shape) with `DATA_CHAT_REASON`. A server MAY commit reactions in groups, and MAY reply before the reaction is durable.
+**Reply fields:** on success for a line or ephemeral line target, `DATA_REACTION_COUNT`, the key's count after the act; for a private message target, nothing beyond success, whatever became of the reaction. Refusals use the [reply shape](Capabilities-Structured-Chat.md#reply-shape) with `DATA_CHAT_REASON`. A server MAY commit reactions in groups, and MAY reply before the reaction is durable.
 
 - Adding a key the caller already holds, or removing one it does not, succeeds, changes nothing and announces nothing.
 - Action 3 removes every reaction on a line or ephemeral line target. It is a moderation act: a server SHOULD allow it only to an account that may remove other users' content there, for example one holding `ACCESS_DISCONNECT_USER` (22), refuse it `NotAllowed` otherwise, and record it as it records its other moderation.
@@ -172,7 +175,7 @@ A client keeps a target's reactions from Get Chat History or Get Reactions and r
 
 **Ephemeral line targets** are counted in memory for the chat's most recent `StructuredChat.EphemeralWindow` ephemeral lines, within `StructuredChat.EphemeralMaxBytes`. A line that leaves the window takes its reactions with it, unannounced, and everything is dropped when the chat closes or the server restarts. There is no summary to fetch later: a member who joins later sees no earlier reactions.
 
-**Stored private message targets** are kept with the message, so their summary survives a logoff and reaches every device. A change is told as a summary to the live sessions of both parties that negotiated bit 19, other than the reactor's own: to the recipient's once the message has been delivered to it, and to the sender's only while the sender's view lasts ([When the Target Goes Away](#when-the-target-goes-away)). A dropped reaction is told to nobody. A client that sees the message later reads its summary from Get Reactions, or, on Hotline-ng, from the inbox row.
+**Stored private message targets**, where offered, are kept with the message, so their summary survives a logoff and reaches every device. A change is told as a summary to the live sessions of both parties that negotiated bit 19, other than the reactor's own: to the recipient's once the message has been delivered to it, and to the sender's only while the sender's view lasts ([When the Target Goes Away](#when-the-target-goes-away)). A dropped reaction is told to nobody. A client that sees the message later reads its summary from Get Reactions, or, on Hotline-ng, from the inbox row.
 
 **Unstored private message targets** are relayed as change groups and held nowhere, as a live read receipt is. A reaction goes to the session named, if it is still connected and negotiated bit 19, and is otherwise dropped.
 
@@ -190,12 +193,12 @@ Refreshes what a client holds, and says who reacted. Who reacted is shown to eve
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `DATA_TARGET` | Binary | Yes, repeated, at most 50 | Line targets, ephemeral line targets in the window, and stored private message targets. An instant-message target, or an unstored private message target, is refused `InvalidTarget` |
+| `DATA_TARGET` | Binary | Yes, repeated, at most 50 | Line targets, ephemeral line targets in the window, and stored private message targets where the server offers them. An instant-message target, or an unstored private message target, is refused `InvalidTarget` |
 | `DATA_REACTION_KEY` | Binary | No | With exactly one target: list who holds this key |
 
-More than 50 targets is refused `TooManyTargets`. Refusals use the [reply shape](Capabilities-Replies.md#reply-shape) with `DATA_CHAT_REASON`. A server SHOULD price 712 in its spam points as 1 plus 1 for every 10 targets, rounding up.
+More than 50 targets is refused `TooManyTargets`. Refusals use the [reply shape](Capabilities-Structured-Chat.md#reply-shape) with `DATA_CHAT_REASON`. A server SHOULD price 712 in its spam points as 1 plus 1 for every 10 targets, rounding up.
 
-**Reply fields:** for each target the caller can read, in request order, `DATA_TARGET`, one `DATA_REACTION_SUMMARY` and, when the caller's account holds keys on it, one `DATA_REACTION_MINE`. A target the caller cannot read, a tombstoned line, and one that does not exist are left out alike, under the same read rules as Send Reaction, history's permission included. A stored private message target is always answered, with the summary when the caller is a party whose view includes it ([When the Target Goes Away](#when-the-target-goes-away)), and with an empty summary otherwise: anyone else, a party whose view has ended included, sees nothing, in the same shape a party sees for a message with no reactions. With `DATA_REACTION_KEY`, the group is followed by one `FieldUserName` (102) per reactor, newest first, at most 100, each the nick the reactor had when they reacted. A server MUST answer it for any reader of the target, and for a stored private message only within the caller's view. Logins are never sent.
+**Reply fields:** for each target the caller can read, in request order, `DATA_TARGET`, one `DATA_REACTION_SUMMARY` and, when the caller's account holds keys on it, one `DATA_REACTION_MINE`. A target the caller cannot read, a tombstoned line, and one that does not exist are left out alike, under the same read rules as Send Reaction, history's permission included. A stored private message target, where offered, is always answered, with the summary when the caller is a party whose view includes it ([When the Target Goes Away](#when-the-target-goes-away)), and with an empty summary otherwise: anyone else, a party whose view has ended included, sees nothing, in the same shape a party sees for a message with no reactions. With `DATA_REACTION_KEY`, the group is followed by one `FieldUserName` (102) per reactor, newest first, at most 100, each the nick the reactor had when they reacted. A server MUST answer it for any reader of the target, and for a stored private message only within the caller's view. Logins are never sent.
 
 A summary has two parts, so that the shared part can be built once and cached:
 
@@ -241,7 +244,7 @@ A Reactions notification (718) carries `DATA_REACTION_KEY` when it stands for on
 - **A line removed by a moderator** (tombstoned) loses its reactions, and history shows the tombstone with none.
 - **A line pruned by retention** takes its reactions with it.
 - **An ephemeral line** loses its reactions when it leaves the window, and all of them go when the chat closes or the server restarts.
-- **A stored private message** is seen by each party for a time of its own. The sender's view, its reactions and the right to add them, lasts from when the message was sent until the server's retention for an unread message has passed, by the server's clock, whatever its pruning has yet to do. Nothing the recipient does moves it: a server that deletes the message sooner, because it was read or at the recipient's request, MUST keep its reference, its parties, when it was sent, its reactions and, where it deduplicates resends, what it matches them by, until the sender's view ends, and answer the sender from them as from the message. A server that deduplicates resends of a private message, as the Hotline-ng binding's `msg` does by `guid`, MUST answer a resend the same whether or not the first was read or deleted. Lengthening the retention for unread messages reopens the sender's view of messages already past its old end, and with it the difference between those that were read and those that were not. The recipient's view lasts as long as the message is kept for it, and MAY last until the sender's ends. Once the sender's view has ended, the sender is answered as a non-party and told nothing more of the message; a reaction the recipient adds then is the recipient's alone. A message deleted with an account takes its reactions with it.
+- **A stored private message**, on a server that offers reactions on them (bit 6), is seen by each party for a time of its own. The sender's view, its reactions and the right to add them, lasts from when the message was sent until the server's retention for an unread message has passed, by the server's clock, whatever its pruning has yet to do. Nothing the recipient does moves it: a server that deletes the message sooner, because it was read or at the recipient's request, MUST keep its reference, its parties, when it was sent, its reactions and, where it deduplicates resends, what it matches them by, until the sender's view ends, and answer the sender from them as from the message. A server that deduplicates resends of a private message, as the Hotline-ng binding's `msg` does by `guid`, MUST answer a resend the same whether or not the first was read or deleted. Lengthening the retention for unread messages reopens the sender's view of messages already past its old end, and with it the difference between those that were read and those that were not. The recipient's view lasts as long as the message is kept for it, and MAY last until the sender's ends. Once the sender's view has ended, the sender is answered as a non-party and told nothing more of the message; a reaction the recipient adds then is the recipient's alone. A message deleted with an account takes its reactions with it. A server without bit 6 keeps none of this.
 - **A user's reactions** go when their account is deleted.
 - **A purge of a person** removes their reactions within the purge's own scope: a purge of the last hour's content removes the reactions they made in that hour, and a purge of everything removes them all. It is announced only for targets inside each channel's live window, as summaries in that channel's next batch; older lines are refreshed when a client shows them. For a stored private message, it is announced as [Reaction Changed](#reaction-changed-711) says for one.
 - **A server emoji removed from the catalog** stays in the reactions that use it, as the [Server Emoji](Capabilities-Server-Emoji.md#manage-emoji-716) draft says.
@@ -262,7 +265,7 @@ Reactions stay on the server where they were made. Users there may react to a li
 
 ## Data Objects
 
-Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#data-objects)). `DATA_TARGET`, `DATA_CHAT_REASON` and the notification fields this draft uses are the [Replies](Capabilities-Replies.md#data-objects) draft's. Integers are big-endian.
+Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#data-objects)). `DATA_TARGET` and the notification fields this draft uses are the [Replies](Capabilities-Replies.md#data-objects) draft's, and `DATA_CHAT_REASON` is the [Structured Chat](Capabilities-Structured-Chat.md#data-objects) draft's. Integers are big-endian.
 
 | ID (hex) | Decimal | Name | Type | Description |
 |---|---|---|---|---|
@@ -270,7 +273,7 @@ Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#dat
 | `0x0F26` | 3878 | `DATA_REACTION_ACTION` | UInt16 | 1 add, 2 remove, 3 clear (or cleared), 4 summary |
 | `0x0F27` | 3879 | `DATA_REACTION_COUNT` | UInt32 | A key's count on a target |
 | `0x0F29` | 3881 | `DATA_REACTION_SUMMARY` | Binary | Packed keys and counts for one target, shared by every reader |
-| `0x0F2B` | 3883 | `DATA_REACTION_TARGETS` | UInt16 | Login reply: target kinds accepted, as `DATA_REPLY_TARGETS` |
+| `0x0F2B` | 3883 | `DATA_REACTION_TARGETS` | UInt16 | Login reply: target kinds accepted, as `DATA_REPLY_TARGETS`, and bit 6 for stored private messages ([Login Reply](#login-reply)) |
 | `0x0F2C` | 3884 | `DATA_MAX_REACTION_KEYS` | UInt32 | Login reply: `Reactions.MaxKeysPerTarget` |
 | `0x0F2D` | 3885 | `DATA_MAX_REACTIONS_PER_USER` | UInt32 | Login reply: `Reactions.MaxPerUserPerTarget` |
 | `0x0F31` | 3889 | `DATA_REACTION_MINE` | Binary | The reader's own keys, as indexes into a summary; always last in its group |
@@ -279,7 +282,7 @@ Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#dat
 
 ## Reason Codes
 
-The family's enumeration is the [Replies](Capabilities-Replies.md#reason-codes) draft's. This draft adds:
+The family's enumeration is the [Structured Chat](Capabilities-Structured-Chat.md#reason-codes) draft's. This draft adds:
 
 | Code | Name | Meaning |
 |---|---|---|
@@ -326,7 +329,7 @@ For a server that also speaks the [Hotline-ng](https://github.com/mishan/hxd-ng/
 | `react` | `target`, `key`, `remove?` (default `false`), and `with` (the other party's login) for an `im` target; or `target` and `clear: true` | `{ "count"? }` | `no_such_target`, `access_denied` (no react bit, a guest, a hidden messenger, a read-only channel that denies, a clear without the right), `bad_request` (an invalid key or target), `too_many_reactions`, `rate_limited`, `no_such_emoji` | a write |
 | `reactions` | `targets` (1–50, line and `pm` targets), `key?` with exactly one target | `{ "reactions": [ { "target", "keys": [ { "key", "count" } ], "mine"?: [ indexes ], "from"?: [ { "nick" } ] } ] }` | `bad_request` (an instant-message target, or more than 50) | 1 + ceil(targets / 10) |
 
-A key is `{ "emoji": "👍" }`, or `{ "custom": 1234 }` with [Server Emoji](Capabilities-Server-Emoji.md#hotline-ng-binding). Event `reactions_changed`: `{ "changes": [ { "target", "action": "summary", "keys", "mine"? } | { "target", "action": "clear" } | { "target", "action": "add" | "remove", "key", "from": { "login" } } ] }`, batched per room as 711 is. A `history` line carries `reactions: [ { "key", "count" } ]`, the shared part, and `reactions_mine: [ indexes ]`, the reader's. An `inbox` row carries the same two for a stored private message, and so does a `msg` event that delivers one that waited; a `msg` delivered live carries neither. An instant message's `inbox` row, and a `msg` that hands one over as mail, carry `im: true` and its `guid`, which with `from.login` make the `im` target that reacts to it. A `pm` target takes the target alone, and `react` answers it `{}` whether the reaction was applied or dropped. After `resync_required`, a client asks `reactions` again for the targets it shows, beside its `history` catch-up. The login block `reactions`: `{ "targets": ["line", "im", "pm"], "max_keys": 20, "max_per_user": 5 }`. The `reactions` notification type is the Replies binding's `notify`.
+A key is `{ "emoji": "👍" }`, or `{ "custom": 1234 }` with [Server Emoji](Capabilities-Server-Emoji.md#hotline-ng-binding). Event `reactions_changed`: `{ "changes": [ { "target", "action": "summary", "keys", "mine"? } | { "target", "action": "clear" } | { "target", "action": "add" | "remove", "key", "from": { "login" } } ] }`, batched per room as 711 is. A `history` line carries `reactions: [ { "key", "count" } ]`, the shared part, and `reactions_mine: [ indexes ]`, the reader's. An `inbox` row carries the same two for a stored private message, and so does a `msg` event that delivers one that waited; a `msg` delivered live carries neither. An instant message's `inbox` row, and a `msg` that hands one over as mail, carry `im: true` and its `guid`, which with `from.login` make the `im` target that reacts to it. A `pm` target takes the target alone, and `react` answers it `{}` whether the reaction was applied or dropped. After `resync_required`, a client asks `reactions` again for the targets it shows, beside its `history` catch-up. The login block `reactions`: `{ "targets": ["line", "im", "pm"], "max_keys": 20, "max_per_user": 5 }`, listing `pm`, which names a stored message alone on this wire, only where the server offers what bit 6 offers on the classic wire. The `reactions` notification type is the Replies binding's `notify`.
 
 ---
 
@@ -352,13 +355,13 @@ Fields: `0x0F25`–`0x0F27`, `0x0F29`, `0x0F2B`–`0x0F2D` and `0x0F31`, as in [
 
 Chat history sub-fields `0x0021` `REACTIONS` and `0x0023` `REACTIONS_MINE`. Reason codes 3–5, in the family's enumeration. Notification type 1.
 
-Access bit: `AccessReact`, **requested**. Bits 55–60 are taken, and no number is named here.
+Access bit: `AccessReact`, **requested**, most likely at 69 ([Access Bit](#access-bit)); not allocated, and not claimed here.
 
 ---
 
 ## Open Questions
 
-1. **The access bit.** Which number would you give `AccessReact`, and is a server's interim fallback from `ACCESS_SEND_CHAT` acceptable?
+1. **The access bit.** Is 69 the number to allocate `AccessReact` at, and is a server's interim fallback from `ACCESS_SEND_CHAT` acceptable?
 2. **Unicode keys.** Is "one pictographic grapheme, byte-for-byte comparison" enough, or should servers canonicalize the variation selector so U+2764 and U+2764 U+FE0F always count together?
 3. **Telling a classic author.** A client without bit 19 is never shown a reaction in the room, and that stays. Should a server be allowed an optional notice, off by default, to the line's author alone, coalesced per window ("3 reactions to your line '…': 👍 2, 🎉 1")? Emoji are unmappable in Mac Roman, so such a notice would have to name them in words, or be offered only to UTF-8 sessions.
 4. **The sender's view.** Is ending it at the unread retention right, and should the login reply say how long it is, so that a client stops offering to react once it has passed?

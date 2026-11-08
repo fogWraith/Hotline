@@ -1,6 +1,6 @@
 # Draft: Structured Chat
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 17; field ID `0x0F33`, with a row for it in the Text Encoding Extension's embedded binary fields table; on Chat Message (106), `FieldUserID` (103), which servers descended from hxd already send, and `DATA_CHANNEL_ID` (`0x0F01`); and in Chat History, entry flag bit 3 (set only on a live line) and three rules for every entry: the nick capped as the user list caps it, the text after line-ending normalization, and a message cut at a character boundary to fit. It also proposes that transactions 710–719, field IDs `0x0F20`–`0x0F4F` and history sub-field types `0x0020`–`0x002F` be kept for this draft and the three that go with it, the [Replies](Capabilities-Replies.md), [Reactions](Capabilities-Reactions.md) and [Server Emoji](Capabilities-Server-Emoji.md) drafts. All of these were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng), merged as a draft. **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 17; field IDs `0x0F33`, with a row for it in the Text Encoding Extension's embedded binary fields table, and `0x0F2A`, the family's reason field, with reason codes 0–2, 6, 12 and 13; on Chat Message (106), `FieldUserID` (103), which servers descended from hxd already send, and `DATA_CHANNEL_ID` (`0x0F01`); and in Chat History, entry flag bit 3 (set only on a live line), message ID `0` never a history ID, and three rules for every entry: the nick capped as the user list caps it, the text after line-ending normalization, and a message cut at a character boundary to fit. It also proposes that transactions 710–719, field IDs `0x0F20`–`0x0F4F` and history sub-field types `0x0020`–`0x002F` be kept for this draft and the three that go with it, the [Replies](Capabilities-Replies.md), [Reactions](Capabilities-Reactions.md) and [Server Emoji](Capabilities-Server-Emoji.md) drafts. All of these were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -8,7 +8,7 @@ On the classic wire, a live chat line reaches a client only as the text the serv
 
 This extension sends the line as data as well. To a session that asks, every 106 that relays a line also carries the Chat History entry for that line, live: its ID, the time the server received it, its flags, the sender's icon and nick, and the text as sent. `FieldData` is unchanged by this draft, so a client that ignores the new field loses nothing, and a client that does not ask sees no change at all.
 
-It is the foundation of two drafts, its companions, that each attach something to a line: [Replies](Capabilities-Replies.md) names the line a message answers, and [Reactions](Capabilities-Reactions.md) puts emoji on a line. They name lines by the IDs this draft gives them, and Replies carries what it adds on 106 as a sub-field of the entry. A sibling, [Server Emoji](Capabilities-Server-Emoji.md), marks a server's emoji in text; it stands alone, and uses the entry's raw text where a client has it. For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
+It is the foundation of two drafts, its companions, that each attach something to a line: [Replies](Capabilities-Replies.md) names the line a message answers, and [Reactions](Capabilities-Reactions.md) puts emoji on a line. They name lines by the IDs this draft gives them, and Replies carries what it adds on 106 as a sub-field of the entry. A sibling, [Server Emoji](Capabilities-Server-Emoji.md), marks a server's emoji in text; it stands alone, uses the entry's raw text where a client has it, and shares the [reply shape](#reply-shape) and [reason codes](#reason-codes) this draft defines for the family. For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
 ## Table of Contents
 
@@ -17,7 +17,9 @@ It is the foundation of two drafts, its companions, that each attach something t
   - [Capability Bit](#capability-bit)
   - [Server Configuration](#server-configuration)
   - [Login Reply](#login-reply)
+  - [Reply Shape](#reply-shape)
 - [The Structured Line](#the-structured-line)
+  - [Nicks](#nicks)
   - [Beside the Entry](#beside-the-entry)
   - [Why One Packed Field](#why-one-packed-field)
   - [Example](#example)
@@ -38,6 +40,7 @@ It is the foundation of two drafts, its companions, that each attach something t
   - [Server Links](#server-links)
   - [Signed Lines](#signed-lines)
 - [Data Objects](#data-objects)
+- [Reason Codes](#reason-codes)
 - [Performance Considerations](#performance-considerations)
 - [Security Considerations](#security-considerations)
 - [Hotline-ng Binding](#hotline-ng-binding)
@@ -48,8 +51,8 @@ It is the foundation of two drafts, its companions, that each attach something t
 
 ## What Does Not Change
 
-- **`FieldData` on 106 is unchanged by this draft (the [Replies](Capabilities-Replies.md#how-other-readers-see-a-reply) draft lets a server decorate it for sessions without bit 18).** A capable session is sent the same formatted text as any other session of its class, byte for byte, beside the new field. A client that draws the formatted text and ignores the rest works as it does today.
-- **A client that does not negotiate bit 17 is sent no new field.** No field is added to anything it is sent. Two rules here apply to all of a server's sessions, and both only shrink or tidy values it already sends: the three [entry rules](#chat-history) for every 700 entry, and `FieldUserID` 0 for a speaker hidden from the recipient's user list ([Security Considerations](#security-considerations)).
+- **`FieldData` on 106 is unchanged by this draft.** A capable session is sent the same formatted text as any other session of its class, byte for byte, beside the new field. A client that draws the formatted text and ignores the rest works as it does today. The [Replies](Capabilities-Replies.md#how-other-readers-see-a-reply) draft lets an operator choose to decorate a reply's formatted text for sessions without bit 18, and by default does not, since a client that parses `who: text` out of a relayed line, such as a bridge relay, could misread a decorated one.
+- **A client that does not negotiate bit 17 is sent no new field.** No field is added to anything it is sent. Three rules here apply to all of a server's sessions, and each only shrinks or tidies values it already sends: the three [entry rules](#chat-history) for every 700 entry, `FieldUserID` 0 for a speaker hidden from the recipient's user list ([Security Considerations](#security-considerations)), and no user without a nick ([Nicks](#nicks)).
 - **Send Chat (105) is unchanged.** Its `FieldData` was always the raw text; this draft only hands it back.
 - **The structured line is never parsed back out of the formatted text.** It is built from what the server already knows when it formats the line.
 - **Private chats are never stored.** Their lines are numbered in memory, and the Chat History Extension's rule that private chats are not persisted holds unchanged.
@@ -66,6 +69,8 @@ It is the foundation of two drafts, its companions, that each attach something t
 | 17 | `0x00020000` | `CAPABILITY_STRUCTURED_CHAT` | Every 106 that relays a line to the session also carries the line as a Chat History entry in `DATA_CHAT_LINE`, with the sender's `FieldUserID` |
 
 This is a bit above 15, so a client that sets it sends `DATA_CAPABILITIES` in four bytes, and a server that confirms it answers in four ([Field Width](Capabilities.md#field-width)).
+
+A client offers its bits before it knows the server, so setting bit 17 sends four bytes to every server it logs in to, where a field of bits 0–15 is the two bytes every deployed implementation expects. Until the bit is allocated, a client SHOULD set it only where its user has chosen to: for a server, or by a setting of the client's own.
 
 - A server MUST NOT confirm bit 17 on a server link (bit 11). Links carry raw text already, in Link Chat (904).
 - A server MAY confirm bit 17 to a messenger session (bit 8). It is harmless: such a session is in no chat, and receives nothing to use it on.
@@ -88,6 +93,10 @@ This draft holds nothing per line itself, only a counter per chat. The window an
 
 Nothing beyond the confirmed bit. Every structured line says whether its ID is a history ID, an ephemeral one, or `0` for a line no one else was shown ([Line IDs](#line-ids)), so a client needs no server-wide statement of how lines are numbered.
 
+### Reply Shape
+
+The family's requests, those of the drafts built on this one and of [Server Emoji](Capabilities-Server-Emoji.md), reply in the [Instant Messaging Extension's reply shape](Capabilities-Messaging.md#reply-shape). A failure has a non-zero error code and `FieldError` (100) text written for the user, and SHOULD carry `DATA_CHAT_REASON` ([Reason Codes](#reason-codes)). A success MAY carry `DATA_CHAT_REASON` set to `OK`, and clients MUST NOT require it. This draft sends no request of its own; the shape and the reason codes are defined here because every draft of the family uses them, Server Emoji without bit 17.
+
 ---
 
 ## The Structured Line
@@ -100,11 +109,17 @@ To a session that negotiated bit 17, every 106 that relays a line MUST carry `DA
 | Timestamp | When the server received the line, or for a line the server writes, when it wrote it, as Unix seconds (int64, UTC): the same value its history entry has, where it was kept. A line the server writes for each recipient may differ by a second between them |
 | Flags | Chat History's flags, with their meanings: `is_action` (bit 0) for an emote, `is_server_msg` (bit 1) for a line the server wrote, and `is_ephemeral` (bit 3, proposed here) when the ID is an ephemeral one. `is_action` is never set on a server line, though a notice drawn `\r *** text` looks like an emote without a nick, and `is_deleted` (bit 2) is never set on a live line |
 | Icon ID | The sender's icon when the line was relayed; `0` for a server line |
-| Nick | The sender's nick as this recipient's user list shows it, unpadded and uncut by the formatter: what the client would otherwise parse out of `FieldData`. It is capped as this server's user list caps a nick (31 bytes on mhxd-descended servers), after conversion and at a character boundary, a ghost's tag kept by cutting the name before it, here and in the line's 700 entry alike ([Chat History](#chat-history)). For a server line, the same as its 700 entry: empty, or the server name where Chat History records one |
+| Nick | The sender's nick as this recipient's user list shows it, unpadded and uncut by the formatter: what the client would otherwise parse out of `FieldData`. It is capped as this server's user list caps a nick (31 bytes on mhxd-descended servers), after conversion and at a character boundary, a ghost's tag kept by cutting the name before it, here and in the line's 700 entry alike ([Chat History](#chat-history)). For a server line, the same as its 700 entry: empty, or the server name where Chat History records one. A user's line never has an empty nick ([Nicks](#nicks)) |
 | Message | The text the server relays, unformatted: for an emote, the action without the nick. It is the text the sender sent in 105, unless the server's own filters changed it, in which case it is the changed text that `FieldData` shows too. It never carries the decoration the [Replies](Capabilities-Replies.md#how-other-readers-see-a-reply) draft lets a server add to `FieldData` for a session without bit 18 |
 | Sub-fields | Every sub-field a 700 entry for this line would carry to this session ([Chat History](#chat-history)), except `EMOJI_REFS`, which 106 carries as `DATA_EMOJI_REFS` |
 
 A server builds the entry with the same encoder it uses for 700, so that a live line and its history entry cannot disagree. One 105 is one line: a server that formats a multi-line send into one 106 sends one entry, whose message keeps its line breaks, in the session's line ending as the Text Encoding Extension's [line-ending normalization](Capabilities-Text-Encoding.md#line-ending-normalization) gives it, on 106 and in 700 alike.
+
+A server that relays one 105 as several 106s, as one that sends each line of a multi-line send apart, keeps and numbers each part as a line of its own, and each 106 carries the entry of its own part, so that an ID names exactly the text one 106 showed. The sender then has several echoes for one send ([The Sender's Echo](#the-senders-echo)).
+
+### Nicks
+
+A server that confirms bit 17 MUST NOT leave a user without a nick, on any session's user list: a Login (107) whose `FieldUserName` (102) is empty takes the account's name, as one that sends none does, and an empty name in Agreed (121) or Set Client User Info (304) leaves the nick as it was. A name with nothing but control characters before its first NUL counts as empty, since a client that reads up to the NUL draws no name. Today's servers differ here, some keeping an empty name from any of the three, so a client still tells a server line by `is_server_msg` and never by an empty nick.
 
 ### Beside the Entry
 
@@ -115,6 +130,8 @@ The entry says what a line is, not where it was said or by which session, since 
 | `FieldUserID` (103) | Always, to a capable session | The sender's user ID on this server, `0` for a server line. Servers descended from hxd already send it on every 106, to every session; this draft makes it required for a capable session and gives it a meaning for every line |
 | `DATA_CHATID` (114) | For a line in a private chat, as today | The chat the line was said in |
 | `DATA_CHANNEL_ID` (`0x0F01`) | For a line in a persistent channel, as below | The channel whose history holds the line |
+
+A client knows its own line by `FieldUserID` only once it knows its own user ID, which Hotline has no one place to tell it. A server SHOULD tell a capable session its own user ID before it relays the session any line; some servers descended from hxd do, in the session's own user list row beside User Access (354) at login, though not all send that row. A client that does not yet know its own ID tells its echo by nick, and never takes a server line as its own.
 
 A user ID is a fact about the live session, recycled after the user leaves, so it never belongs in a history entry; on 106 it is what a client needs to find the sender in its user list, which a nick alone cannot do.
 
@@ -166,13 +183,13 @@ Every structured line a chat's readers share has an ID, so that the drafts built
 
 ### Kept Lines
 
-A line the server keeps in chat history carries its history ID, the one Get Chat History gives it, with `is_ephemeral` clear. It is opaque and, as Chat History says, compared for order and equality only. Today a classic client learns a line's ID only from 700; with bit 17 it learns it as the line arrives.
+A line the server keeps in chat history carries its history ID, the one Get Chat History gives it, with `is_ephemeral` clear. It is opaque and, as Chat History says, compared for order and equality only, and it is never `0`, the ID of a line that cannot be named ([Lines Sent to One Session](#lines-sent-to-one-session)). Today a classic client learns a line's ID only from 700; with bit 17 it learns it as the line arrives.
 
 ### Ephemeral Line IDs
 
 A line the server does not keep carries an ephemeral ID, with `is_ephemeral` set: every line of a private chat, and every public chat line on a server without history or that it otherwise does not keep, such as a notice it sends to the whole chat.
 
-- The ID comes from a counter of that chat's own, public chat being chat 0. The counter starts at a value drawn uniformly at random below 2^62, no later than the chat's first line, so it cannot wrap, and goes up by one per ephemeral line relayed. It is never stored, and it ends when the chat does or the server restarts.
+- The ID comes from a counter of that chat's own, public chat being chat 0. The counter starts at a value drawn uniformly at random below 2^62, no later than the chat's first line, so it cannot wrap, and goes up by one per ephemeral line relayed, before each. No ephemeral ID is `0`. It is never stored, and it ends when the chat does or the server restarts.
 - The ID means something only together with its chat ID. A chat ID reused later starts a new counter at a new random value, and the window the drafts built on this one apply refuses a stale ID anyway.
 - A server MUST NOT number ephemeral lines from a counter shared across chats, which would show every member how busy the server is. A per-chat counter with a random start shows nothing beyond the chat's own lines ([Line IDs and Volume](#line-ids-and-volume)).
 - A member is given no ID for a line relayed before they joined, since they were never sent it. The drafts built on this one treat such a line as one the member does not hold, though its ID can be guessed from the ones around it: a reaction to it is `NoSuchTarget`, and a reply naming it notifies no one.
@@ -226,7 +243,7 @@ Nothing changes in Send Chat (105). Its `FieldData` is the raw text, its `FieldC
 
 105 has no reply. A server already sends the sender its own line as a 106; to a capable sender that echo carries the structured line, ID included, and it is how a sender learns the ID of what it said. A server MUST send a capable sender its echo for every line it relays, even where it would otherwise skip it: the case this exists for is a sender that may send to a chat but not read it, which today gets no echo.
 
-A client matches echoes to its sends in order, chat by chat: one connection's lines to one chat are relayed in the order sent, and a server that commits each chat separately may relay lines to two chats in either order. A line the server drops, for flooding or because the chat is read-only, has no echo, so a client SHOULD treat a pending send to a chat whose echo has not come before the echo of a later one to the same chat as dropped.
+A client matches echoes to its sends in order, chat by chat: one connection's lines to one chat are relayed in the order sent, and a server that commits each chat separately may relay lines to two chats in either order. A line the server drops, for flooding or because the chat is read-only, has no echo, so a client SHOULD treat a pending send to a chat whose echo has not come before the echo of a later one to the same chat as dropped. A send a server relays in parts has an echo per part, in order, whose texts joined by line breaks are the text sent.
 
 ---
 
@@ -234,11 +251,13 @@ A client matches echoes to its sends in order, chat by chat: one connection's li
 
 A 700 entry and a live structured line for the same kept line describe it alike: the same ID, timestamp, flags, icon, nick and text, from one encoder. For that to hold, a server that confirms bit 17 applies three rules to every 700 entry it sends, to every session, as it does to the live entry: the nick is capped as the user list caps it, the text follows line-ending normalization, and a message too long for its entry is cut at a character boundary. Other Chat History servers MAY apply them; these are touches on Chat History ([Open Questions](#open-questions)). A client that has a line from 106 and receives it again in a catch-up page keeps one copy, matched by the conversation and the ID, `is_ephemeral` clear. A line with `is_ephemeral` set never appears in 700 and is never matched against it.
 
+**Catching up.** A kept line's history ID arrives live, so a client that reconnects SHOULD ask 700 for what it missed with `DATA_HISTORY_AFTER` set to the newest ID it was sent live in that conversation with `is_ephemeral` clear and not `0`, or the newest it holds from 700 where that is later. It then fetches only the lines it was never sent.
+
 **Sub-fields.** The entry's [optional sub-fields](Capabilities-Chat-History.md#optional-sub-fields-mini-tlv) are one registry for 106 and 700:
 
 | Range or type | Defined by | Sent to sessions with |
 |---|---|---|
-| `0x0001`–`0x000F` | Chat History, core | As that extension defines |
+| `0x0001`–`0x000F` | Chat History, core, its proposed `0x0002` Reply-To ID retired in favor of `0x0020` once [Replies](Capabilities-Replies.md#chat-history) is adopted | As that extension defines |
 | `0x0010`–`0x001F` (`0x0010`–`0x0014` allocated) | [Inline Media](Capabilities-Inline-Media.md), the attachment | Bit 3, as Chat History says |
 | `0x0020` `REPLY_TO` | [Replies](Capabilities-Replies.md#chat-history) | Bit 18 |
 | `0x0021` `REACTIONS`, `0x0023` `REACTIONS_MINE` | [Reactions](Capabilities-Reactions.md#chat-history), in 700 alone: a live line has none yet | Bit 19 |
@@ -289,10 +308,11 @@ The [user keys draft](Server-Link-User-Keys.md) notes that nothing yet delivers 
 
 ## Data Objects
 
-The family's field IDs are in `0x0F20`–`0x0F4F`, beside the chat history block (`0x0F01`–`0x0F1F`). This draft defines one; the drafts built on it define the rest of the block. Integers are big-endian.
+The family's field IDs are in `0x0F20`–`0x0F4F`, beside the chat history block (`0x0F01`–`0x0F1F`). This draft defines two, the line and the family's reason field; its companions define the rest of the block. Integers are big-endian.
 
 | ID (hex) | Decimal | Name | Type | Description |
 |---|---|---|---|---|
+| `0x0F2A` | 3882 | `DATA_CHAT_REASON` | UInt16 | The family's [reason code](#reason-codes), in the [reply shape](#reply-shape) of any of its drafts |
 | `0x0F33` | 3891 | `DATA_CHAT_LINE` | Binary (at most 65535) | One live line, as a [Chat History entry](Capabilities-Chat-History.md#history-entry-format), on Chat Message (106) to a session with bit 17 |
 
 Existing fields given a role on 106: `FieldUserID` (103), the sender; `DATA_CHATID` (114), as today; `DATA_CHANNEL_ID` (`0x0F01`), a persistent channel ([Beside the Entry](#beside-the-entry)).
@@ -302,6 +322,23 @@ Chat History entry flags:
 | Bit | Mask | Name | Description |
 |---|---|---|---|
 | 3 | `0x0008` | `is_ephemeral` | The message ID is an [ephemeral ID](#ephemeral-line-ids), not a history ID. Set only on a live line, never in a 700 entry |
+
+---
+
+## Reason Codes
+
+`DATA_CHAT_REASON` carries one enumeration for the family. The codes below are shared by its drafts; [Reactions](Capabilities-Reactions.md#reason-codes) and [Server Emoji](Capabilities-Server-Emoji.md#reason-codes) define the codes they add.
+
+| Code | Name | Meaning |
+|---|---|---|
+| 0 | `OK` | Success |
+| 1 | `NoSuchTarget` | The [target](Capabilities-Replies.md#targets) does not exist, was removed, or is out of the caller's reach; these are not told apart |
+| 2 | `NotAllowed` | The caller may not do this |
+| 3–5 | | [Reactions](Capabilities-Reactions.md#reason-codes) |
+| 6 | `RateLimited` | Slow down |
+| 7–11 | | [Server Emoji](Capabilities-Server-Emoji.md#reason-codes) |
+| 12 | `InvalidTarget` | A malformed target, or a kind the server does not accept |
+| 13 | `TooManyTargets` | More targets than one request may carry |
 
 ---
 
@@ -319,7 +356,7 @@ Chat History entry flags:
 - **Nothing new about the sender.** A structured line carries what the recipient's user list and the formatted line already show: a user ID, a nick and an icon. A server MUST NOT put a speaker on a structured line in a way the recipient's user list does not show them: a speaker who is not on it, such as one the server keeps out of the list, is sent with `FieldUserID` 0, `is_server_msg` clear, and the nick the formatted line shows. That `FieldUserID` 0 goes on every 106 to that recipient, capable or not: a period session that was still sent the real user ID would make the rule protect nothing. A user a server line names is one the recipient's list shows, or `0`.
 - **User IDs.** They are recycled, so a client MUST NOT treat one as naming a person beyond the session it saw on the user list, and never keeps it with a line it stores. The entry deliberately has none.
 - **Timestamps** are the server's receive time, or for its own lines its write time, which Chat History already serves to readers of the same lines.
-- **Line IDs.** A session with bit 17 is sent a kept line's history ID whether or not it may use 700, so it learns IDs it could not have fetched; an ID is opaque, and names a line the session was sent anyway. What an ID can reveal is volume, held to [Line IDs and Volume](#line-ids-and-volume). Ephemeral IDs count from a random start per chat, and a line sent to one session takes no number at all.
+- **Line IDs.** A session with bit 17 is sent a kept line's history ID whether or not it may use 700, so it learns IDs it could not have fetched; an ID is opaque, and names a line the session was sent anyway. What an ID can reveal is volume, held to [Line IDs and Volume](#line-ids-and-volume). With bit 17 a kept line's history ID arrives live, line by line, so where history is numbered from one counter across channels, a reader learns how much was said elsewhere between any two lines it sees, at a finer grain than the gaps in a 700 page show. Ephemeral IDs count from a random start per chat, and a line sent to one session takes no number at all.
 - **Private chats are never stored.** Their IDs live in a counter, and what the drafts built on this one keep about their lines lives in memory for the life of the chat, never written anywhere.
 - **Bounded input.** Nothing here is sent by a client. A field a companion adds to 105 is parsed, bounded and re-encoded by that companion's rules.
 
@@ -357,14 +394,16 @@ Capability bit, as a row of [Capabilities.md](Capabilities.md#defined-capability
 |---|---|---|---|
 | 17 | `0x00020000` | `CAPABILITY_STRUCTURED_CHAT` | **Draft**, not adopted. Every Chat Message (106) that relays a line also carries it as a Chat History entry in `DATA_CHAT_LINE` (`0x0F33`): its ID, time, flags, icon, nick and raw text, with the sender's `FieldUserID`. `FieldData` is unchanged by this draft. Never on a server link (bit 11). |
 
-Field `0x0F33` `DATA_CHAT_LINE`, as in [Data Objects](#data-objects), and as a row of the Text Encoding Extension's [Embedded Binary Fields](Capabilities-Text-Encoding.md#embedded-binary-fields) table: nick and message, each after a `u16` length, at the offsets of a `DATA_HISTORY_ENTRY`. The field MUST be built per encoding, as `DATA_HISTORY_ENTRY` is; a transcoder that converts it in place applies the nick cap, line endings and cut-to-fit after converting. `DATA_HISTORY_ENTRY` (`0x0F05`) has no row in that table either, and this draft offers one for both. Chat History: entry flag bit 3 `is_ephemeral`, a change to that extension's reserved flags; the sub-field range `0x0020`–`0x002F`; and, so that live and history agree, three rules for every entry a server that confirms bit 17 sends, which other Chat History servers MAY apply: the nick capped as the user list caps it, the text after line-ending normalization, and a message cut at a character boundary to fit ([Chat History](#chat-history)).
+Field `0x0F2A` `DATA_CHAT_REASON`, with the family's shared reason codes 0–2, 6, 12 and 13 ([Reason Codes](#reason-codes)).
 
-**The family's blocks.** Transactions 710–719, the free block after chat history's 700–709 and before inline media's 750; fields `0x0F20`–`0x0F4F`, beside chat history's `0x0F01`–`0x0F1F`; and history sub-field types `0x0020`–`0x002F`, beside core (`0x0001`–`0x000F`) and inline media (`0x0010`–`0x001F`). Kept for this draft, the two built on it and Server Emoji:
+Field `0x0F33` `DATA_CHAT_LINE`, as in [Data Objects](#data-objects), and as a row of the Text Encoding Extension's [Embedded Binary Fields](Capabilities-Text-Encoding.md#embedded-binary-fields) table: nick and message, each after a `u16` length, at the offsets of a `DATA_HISTORY_ENTRY`. The field MUST be built per encoding, as `DATA_HISTORY_ENTRY` is; a transcoder that converts it in place applies the nick cap, line endings and cut-to-fit after converting. `DATA_HISTORY_ENTRY` (`0x0F05`) has no row in that table either, and this draft offers one for both. Chat History: entry flag bit 3 `is_ephemeral`, a change to that extension's reserved flags; message ID `0` never a history ID; the sub-field range `0x0020`–`0x002F`; and, so that live and history agree, three rules for every entry a server that confirms bit 17 sends, which other Chat History servers MAY apply: the nick capped as the user list caps it, the text after line-ending normalization, and a message cut at a character boundary to fit ([Chat History](#chat-history)).
+
+**The family's blocks.** Transactions 710–719, the free block after chat history's 700–709 and before inline media's 750, rather than within chat history's own 705–709, which are too few for the family; fields `0x0F20`–`0x0F4F`, beside chat history's `0x0F01`–`0x0F1F`; and history sub-field types `0x0020`–`0x002F`, beside core (`0x0001`–`0x000F`) and inline media (`0x0010`–`0x001F`). Kept for this draft, the two built on it and Server Emoji:
 
 | Draft | Bit | Transactions | Fields | Sub-fields |
 |---|---|---|---|---|
-| Structured Chat | 17 | | `0x0F33` | |
-| [Replies](Capabilities-Replies.md#additions-to-the-tables) | 18 | 717, 718 | `0x0F20`–`0x0F24`, `0x0F2A`, `0x0F2E`–`0x0F30`, `0x0F32` | `0x0020` |
+| Structured Chat | 17 | | `0x0F2A`, `0x0F33` | |
+| [Replies](Capabilities-Replies.md#additions-to-the-tables) | 18 | 717, 718 | `0x0F20`–`0x0F24`, `0x0F2E`–`0x0F30`, `0x0F32` | `0x0020` |
 | [Reactions](Capabilities-Reactions.md#additions-to-the-tables) | 19 | 710–712 | `0x0F25`–`0x0F27`, `0x0F29`, `0x0F2B`–`0x0F2D`, `0x0F31` | `0x0021`, `0x0023` |
 | [Server Emoji](Capabilities-Server-Emoji.md#additions-to-the-tables) | 20 | 713–716 | `0x0F38`–`0x0F42` | `0x0022` |
 | Spare | | 719 | `0x0F28`, `0x0F34`–`0x0F37`, `0x0F43`–`0x0F4F` | `0x0024`–`0x002F` |

@@ -1,12 +1,12 @@
 # Draft: Server Emoji
 
-> **Status:** Draft proposal by Misha Nasledov (hxd-ng). **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 20, transactions 713–716, field IDs `0x0F38`–`0x0F42`, history sub-field type `0x0022`, and reason codes 7–11, all within the blocks the [Structured Chat](Capabilities-Structured-Chat.md) draft proposes be kept for this family. It also asks for an access bit, Manage Emoji, from the extension allocation, without proposing its number. All of these were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
+> **Status:** Draft proposal by Misha Nasledov (hxd-ng), merged as a draft. **Not adopted**: nothing here is part of the protocol unless another document says so. It proposes capability bit 20, transactions 713–716, field IDs `0x0F38`–`0x0F42`, history sub-field type `0x0022`, and reason codes 7–11, all within the blocks the [Structured Chat](Capabilities-Structured-Chat.md) draft proposes be kept for this family. It also asks for an access bit, Manage Emoji, from the extension allocation, without claiming a number; 70 is the likely one ([Access Bit](#access-bit)). All of these were unassigned at the time of writing; none is allocated. Until they are, they are used only between servers and clients whose operators and users have chosen to try it, and nothing here changes what is asked of a server or client that has not.
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This extension lets a server keep a small catalog of custom emoji, curated by people its operator trusts and shown to every capable client on that server. They are usable in text as `:name:`, which the sender's client marks as an emoji, and, where the [Reactions](Capabilities-Reactions.md) draft is also offered, as reactions.
 
-It stands alone beside the [Structured Chat](Capabilities-Structured-Chat.md) draft, using the raw text of its structured line where a client has it, and shares the [Replies](Capabilities-Replies.md) draft's reason field and reply shape, using them by reference. Images go through the pipeline of the [Inline Media Extension](Capabilities-Inline-Media.md). For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
+It stands alone beside the [Structured Chat](Capabilities-Structured-Chat.md) draft, using the raw text of its structured line where a client has it, and uses the family's [reason codes](Capabilities-Structured-Chat.md#reason-codes) and [reply shape](Capabilities-Structured-Chat.md#reply-shape) defined there. It needs nothing from the [Replies](Capabilities-Replies.md) draft. Images go through the pipeline of the [Inline Media Extension](Capabilities-Inline-Media.md). For the general capability negotiation mechanism, see [DATA_CAPABILITIES](Capabilities.md).
 
 ## Table of Contents
 
@@ -53,11 +53,11 @@ It stands alone beside the [Structured Chat](Capabilities-Structured-Chat.md) dr
 |---|---|---|---|
 | 20 | `0x00100000` | `CAPABILITY_SERVER_EMOJI` | The client reads the server's emoji catalog (713–715), sends and understands `DATA_EMOJI_REFS`, and, with bit 19, reactions keyed by a server emoji |
 
-Bit 20 follows the [Replies](Capabilities-Replies.md#capability-bit) draft's rules for its bit, except that it needs bit 1 alone, not bit 17: only beside bit 1, never on a server link, a statement of what the server can, sent in four bytes. It is meaningful without bits 18 and 19: emoji in text. A server that offers bit 20 without them sends no private message references; those belong to bits 18 and 19. A server MUST drop `DATA_EMOJI_REFS` from a sender that did not negotiate bit 20, and relay the rest.
+Bit 20 is held to the family's rules for a bit, except that it needs bit 1 alone, not bit 17: only beside bit 1, never on a server link, a statement of what the server can, sent in four bytes. It is meaningful without bits 18 and 19: emoji in text. A server that offers bit 20 without them sends no private message references; those belong to bits 18 and 19. A server MUST drop `DATA_EMOJI_REFS` from a sender that did not negotiate bit 20, and relay the rest.
 
 ### Access Bit
 
-One access bit is requested from the extension allocation, beside the [Reactions](Capabilities-Reactions.md#access-bit) draft's `AccessReact` and under the same terms: no number named, granted as any bit, bit 5 to edit it if it lands at 64 or above, and a clear bit meaning "may not".
+One access bit is requested from the extension allocation, beside the [Reactions](Capabilities-Reactions.md#access-bit) draft's `AccessReact` and under the same terms: most likely 70, after `AccessReact`'s likely 69, but not allocated and not claimed here, granted as any bit, bit 5 to edit it if it lands at 64 or above, and a clear bit meaning "may not".
 
 | Name | Allows |
 |---|---|
@@ -166,7 +166,7 @@ A server SHOULD rate-limit Get Emoji per session, with a burst large enough that
 | `2` rename | `DATA_EMOJI_ID`, `DATA_EMOJI_NAME` | Changes the name; ID, image and every use stay |
 | `3` remove | `DATA_EMOJI_ID` | Marks the entry removed |
 
-**Reply fields:** on success, the resulting `DATA_EMOJI_ENTRY` and the new `DATA_EMOJI_REVISION`. Refusals use the [reply shape](Capabilities-Replies.md#reply-shape) with `DATA_CHAT_REASON`: `NotAllowed` (before the image is decoded), `InvalidName`, `NameTaken`, `CatalogFull` (at `Emoji.MaxCount` live entries), `InvalidImage` (with no more said), `NoSuchEmoji`, `RateLimited`.
+**Reply fields:** on success, the resulting `DATA_EMOJI_ENTRY` and the new `DATA_EMOJI_REVISION`. Refusals use the [reply shape](Capabilities-Structured-Chat.md#reply-shape) with `DATA_CHAT_REASON`: `NotAllowed` (before the image is decoded), `InvalidName`, `NameTaken`, `CatalogFull` (at `Emoji.MaxCount` live entries), `InvalidImage` (with no more said), `NoSuchEmoji`, `RateLimited`.
 
 Adding an emoji puts an image on every capable screen on the server without anyone asking, so it is a privilege the operator grants. A server SHOULD rate-limit every action per account, adds most tightly, since each costs a decode.
 
@@ -220,7 +220,7 @@ Server emoji are one server's. Refs do not cross a link, and a server attaches n
 
 ## Data Objects
 
-Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#data-objects)). `DATA_CHAT_REASON` is the [Replies](Capabilities-Replies.md#data-objects) draft's. Integers are big-endian.
+Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#data-objects)). `DATA_CHAT_REASON` is the [Structured Chat](Capabilities-Structured-Chat.md#data-objects) draft's. Integers are big-endian.
 
 | ID (hex) | Decimal | Name | Type | Description |
 |---|---|---|---|---|
@@ -240,7 +240,7 @@ Within the family's block ([Structured Chat](Capabilities-Structured-Chat.md#dat
 
 ## Reason Codes
 
-The family's enumeration is the [Replies](Capabilities-Replies.md#reason-codes) draft's. This draft adds:
+The family's enumeration is the [Structured Chat](Capabilities-Structured-Chat.md#reason-codes) draft's. This draft adds:
 
 | Code | Name | Meaning |
 |---|---|---|
@@ -321,10 +321,10 @@ Fields: `0x0F38`–`0x0F42`, as in [Data Objects](#data-objects).
 
 Chat history sub-field `0x0022` `EMOJI_REFS`. Reason codes 7–11, in the family's enumeration.
 
-Access bit: `AccessManageEmoji`, **requested**. Bits 55–60 are taken, and no number is named here.
+Access bit: `AccessManageEmoji`, **requested**, most likely at 70 ([Access Bit](#access-bit)); not allocated, and not claimed here.
 
 ---
 
 ## Open Questions
 
-1. **The access bit.** Which number would you give `AccessManageEmoji`?
+1. **The access bit.** Is 70 the number to allocate `AccessManageEmoji` at?
