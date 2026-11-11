@@ -1,6 +1,6 @@
 # Instant Messaging Extension
 
-> Last updated: October 29, 2026
+> Last updated: November 11, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -163,6 +163,8 @@ Participation is gated per account by a privilege bit in `FieldUserAccess` (110)
 | 58 | `AccessMessaging` | The account MAY use the instant messaging subsystem (roster, presence, IM, discovery, transfer, calls). |
 
 Bits 0–57 are allocated by the base protocol and prior extensions; bit 58 lies in the free range (58–63) of the legacy 8-byte bitmap, so this extension does **not** depend on the 128-bit [extended privilege](Capabilities-Extended-Priv.md) encoding. The server MUST NOT confirm `CAPABILITY_MESSAGING` for an account that lacks `AccessMessaging`.
+
+Calls are voice chat, so they also need `AccessVoiceChat` (bit 55) to invite and to accept, and a server SHOULD NOT ring an invitee with no session that holds it. Declining needs no further bit. File Offer and File Accept check no file privilege: an account without upload or download bits can still send files to a friend who accepts, because they pass between the two and never touch the file area.
 
 An account that lacks `AccessMessaging`, or whose Login is shared by multiple concurrent humans (e.g. a `guest` role account), MUST NOT appear in any roster, MUST NOT be returned by discovery, and MUST NOT send or receive messaging transactions.
 
