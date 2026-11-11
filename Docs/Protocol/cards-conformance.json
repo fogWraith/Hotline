@@ -1,0 +1,1730 @@
+{
+ "about": "Conformance cases for card format 1.0 (Cards-Format.md). Each library is a folder below the fixture root, with every folder inside it; a library is laid out by its index.card, or by the defaults when it has none (the root has none). Files are given with the size Get File Name List reports, so a card store can be tested without the media; a file not listed is missing.",
+ "format": "1.0",
+ "files": [
+  {
+   "path": "Books/index.card",
+   "size": 366,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"index\",\n  \"title\": \"Books\",\n  \"subtitle\": \"Stories, novellas and fan works by the writers here\",\n  \"tabs\": [\n    {\n      \"label\": \"Books\",\n      \"type\": \"book\"\n    }\n  ],\n  \"facets\": [\n    \"vendor\",\n    \"fandom\",\n    \"rating\",\n    \"status\",\n    \"words\",\n    \"genre\",\n    \"language\"\n  ],\n  \"sort\": \"newest\",\n  \"layout\": \"grid\"\n}\n"
+  },
+  {
+   "path": "Books/Low Tide/low-tide.card",
+   "size": 573,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"book\",\n  \"id\": \"example.low-tide\",\n  \"name\": \"Low Tide\",\n  \"vendor\": {\n    \"name\": \"M. Harrow\"\n  },\n  \"form\": \"short-story\",\n  \"summary\": \"Twelve minutes on the causeway before the sea comes back.\",\n  \"released\": \"2026-05-02\",\n  \"languages\": [\n    \"en\"\n  ],\n  \"words\": 2400,\n  \"status\": \"complete\",\n  \"rating\": \"General\",\n  \"classification\": {\n    \"genres\": [\n      \"Literary\"\n    ],\n    \"tags\": [\n      \"flash fiction\"\n    ]\n  },\n  \"files\": [\n    {\n      \"format\": \"txt\",\n      \"file\": \"low-tide.txt\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Books/Low Tide/low-tide.txt",
+   "size": 261
+  },
+  {
+   "path": "Books/Second Light/cover.png",
+   "size": 739
+  },
+  {
+   "path": "Books/Second Light/second-light.card",
+   "size": 1691,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"book\",\n  \"id\": \"example.second-light\",\n  \"name\": \"Second Light\",\n  \"vendor\": {\n    \"name\": \"tidewrack\"\n  },\n  \"form\": \"novel\",\n  \"summary\": \"What if Tamsin had followed the second light out onto the shoals?\",\n  \"released\": \"2026-09-04\",\n  \"languages\": [\n    \"en\"\n  ],\n  \"status\": \"in-progress\",\n  \"rating\": \"Mature\",\n  \"warnings\": [\n    \"Graphic depictions of violence\"\n  ],\n  \"fandoms\": [\n    \"The Tidewater Cycle - M. Harrow\"\n  ],\n  \"characters\": [\n    \"Old Tamsin\",\n    \"Wren Harrow\"\n  ],\n  \"classification\": {\n    \"genres\": [\n      \"Fantasy\"\n    ],\n    \"tags\": [\n      \"alternate universe\",\n      \"angst\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"cover.png\"\n  },\n  \"chapters\": [\n    {\n      \"number\": 1,\n      \"title\": \"The Lamp Room\",\n      \"released\": \"2026-09-04\",\n      \"words\": 3120,\n      \"files\": [\n        {\n          \"format\": \"epub\",\n          \"file\": \"chapters/01.epub\",\n          \"sha256\": \"b03fb1e51d258fa2f6360fca463e5fc28b0aebf3e2f3d6588b8e6a68a7a9705b\"\n        }\n      ]\n    },\n    {\n      \"number\": 2,\n      \"title\": \"What the Tide Left\",\n      \"released\": \"2026-09-18\",\n      \"words\": 2875,\n      \"files\": [\n        {\n          \"format\": \"epub\",\n          \"file\": \"chapters/02.epub\",\n          \"sha256\": \"8bbca332131d94b94aebd046c8903d897bcf0857a7b91ee8edf13a7e15804e6b\"\n        }\n      ]\n    },\n    {\n      \"number\": 3,\n      \"title\": \"Signals\",\n      \"released\": \"2026-10-09\",\n      \"words\": 3340,\n      \"files\": [\n        {\n          \"format\": \"epub\",\n          \"file\": \"chapters/03.epub\",\n          \"sha256\": \"c180310551c82cc115eb995d6c62faf83e9495edb4df07f78edfad7e0a04e76a\"\n        }\n      ]\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Books/Second Light/chapters/01.epub",
+   "size": 2166
+  },
+  {
+   "path": "Books/Second Light/chapters/02.epub",
+   "size": 2191
+  },
+  {
+   "path": "Books/Second Light/chapters/03.epub",
+   "size": 2136
+  },
+  {
+   "path": "Books/The Drowned Bell/the-drowned-bell.card",
+   "size": 566,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"book\",\n  \"id\": \"example.drowned-bell\",\n  \"name\": \"The Drowned Bell\",\n  \"vendor\": {\n    \"name\": \"M. Harrow\"\n  },\n  \"form\": \"short-story\",\n  \"summary\": \"Only published as a web page: download it to read it.\",\n  \"released\": \"2026-04-11\",\n  \"languages\": [\n    \"en\"\n  ],\n  \"words\": 5100,\n  \"status\": \"complete\",\n  \"rating\": \"General\",\n  \"files\": [\n    {\n      \"format\": \"html\",\n      \"file\": \"the-drowned-bell.html\",\n      \"sha256\": \"f4c9a1245b21302809494119d06be1b37203ca524553662a5fcff4c8642f7bc4\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Books/The Drowned Bell/the-drowned-bell.html",
+   "size": 439
+  },
+  {
+   "path": "Books/The Lantern Keeper's Daughter/about.txt",
+   "size": 91
+  },
+  {
+   "path": "Books/The Lantern Keeper's Daughter/cover.png",
+   "size": 1015
+  },
+  {
+   "path": "Books/The Lantern Keeper's Daughter/the-lantern-keepers-daughter.card",
+   "size": 1325,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"book\",\n  \"id\": \"example.lantern-keepers-daughter\",\n  \"name\": \"The Lantern Keeper's Daughter\",\n  \"vendor\": {\n    \"name\": \"M. Harrow\"\n  },\n  \"form\": \"novella\",\n  \"series\": {\n    \"name\": \"The Tidewater Cycle\",\n    \"number\": 1\n  },\n  \"summary\": \"A keeper's daughter finds a second light on the shoals.\",\n  \"released\": \"2026-08-14\",\n  \"languages\": [\n    \"en\"\n  ],\n  \"words\": 38400,\n  \"status\": \"complete\",\n  \"rating\": \"Teen\",\n  \"warnings\": [\n    \"Major character injury\"\n  ],\n  \"characters\": [\n    \"Wren Harrow\",\n    \"Old Tamsin\"\n  ],\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"genres\": [\n      \"Fantasy\"\n    ],\n    \"tags\": [\n      \"found family\",\n      \"slow burn\"\n    ],\n    \"license\": \"CC BY-NC-ND 4.0\"\n  },\n  \"media\": {\n    \"thumbnail\": \"cover.png\"\n  },\n  \"files\": [\n    {\n      \"format\": \"epub\",\n      \"file\": \"the-lantern-keepers-daughter.epub\",\n      \"sha256\": \"dcf7d029dfcf5c300004f6936cfc2dbb8084b18321da74ed527ba4272468b795\"\n    },\n    {\n      \"format\": \"pdf\",\n      \"file\": \"the-lantern-keepers-daughter.pdf\",\n      \"sha256\": \"781d93a379e745035f8422877a89279297e377f3e5946cc0d7241229a7054273\"\n    }\n  ],\n  \"links\": [\n    {\n      \"label\": \"Ko-fi\",\n      \"url\": \"https://example.invalid/mharrow\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Books/The Lantern Keeper's Daughter/the-lantern-keepers-daughter.epub",
+   "size": 2813
+  },
+  {
+   "path": "Books/The Lantern Keeper's Daughter/the-lantern-keepers-daughter.pdf",
+   "size": 947
+  },
+  {
+   "path": "Music/index.card",
+   "size": 310,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"index\",\n  \"title\": \"Music\",\n  \"subtitle\": \"Albums from the artists on this server\",\n  \"tabs\": [\n    {\n      \"label\": \"Albums\",\n      \"type\": \"album\"\n    }\n  ],\n  \"facets\": [\n    \"genre\",\n    \"vendor\",\n    \"format\",\n    \"year\"\n  ],\n  \"sort\": \"newest\",\n  \"layout\": \"grid\"\n}\n"
+  },
+  {
+   "path": "Music/Harbour Lights/about.txt",
+   "size": 41
+  },
+  {
+   "path": "Music/Harbour Lights/cover.png",
+   "size": 597
+  },
+  {
+   "path": "Music/Harbour Lights/harbour-lights.card",
+   "size": 1553,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"album\",\n  \"id\": \"example.harbour-lights\",\n  \"name\": \"Harbour Lights\",\n  \"vendor\": {\n    \"name\": \"Maren Holt\"\n  },\n  \"summary\": \"Four songs for the last ferry out.\",\n  \"released\": \"2026-05-30\",\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"genres\": [\n      \"Folk\"\n    ],\n    \"tags\": [\n      \"acoustic\",\n      \"ep\"\n    ],\n    \"license\": \"CC BY-NC 4.0\"\n  },\n  \"media\": {\n    \"thumbnail\": \"cover.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"photos/studio.png\",\n        \"caption\": \"The lamp room\"\n      }\n    ]\n  },\n  \"tracks\": [\n    {\n      \"number\": 1,\n      \"title\": \"Last Ferry\",\n      \"duration\": 3,\n      \"files\": [\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/01 Last Ferry.mp3\"\n        }\n      ]\n    },\n    {\n      \"number\": 2,\n      \"title\": \"Salt\",\n      \"duration\": 2,\n      \"files\": [\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/02 Salt.mp3\"\n        }\n      ]\n    },\n    {\n      \"number\": 3,\n      \"title\": \"The Breakwater\",\n      \"duration\": 3,\n      \"files\": [\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/03 The Breakwater.mp3\"\n        }\n      ]\n    },\n    {\n      \"number\": 4,\n      \"title\": \"Home Light\",\n      \"duration\": 4,\n      \"files\": [\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/04 Home Light.mp3\"\n        }\n      ]\n    }\n  ],\n  \"form\": \"ep\",\n  \"links\": [\n    {\n      \"label\": \"Bandcamp\",\n      \"url\": \"https://example.invalid/harbour-lights\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Music/Harbour Lights/mp3/01 Last Ferry.mp3",
+   "size": 24658
+  },
+  {
+   "path": "Music/Harbour Lights/mp3/02 Salt.mp3",
+   "size": 16717
+  },
+  {
+   "path": "Music/Harbour Lights/mp3/04 Home Light.mp3",
+   "size": 32808
+  },
+  {
+   "path": "Music/Harbour Lights/photos/studio.png",
+   "size": 870
+  },
+  {
+   "path": "Music/Night Signals/about.txt",
+   "size": 92
+  },
+  {
+   "path": "Music/Night Signals/cover.png",
+   "size": 730
+  },
+  {
+   "path": "Music/Night Signals/night-signals-flac.zip",
+   "size": 215308
+  },
+  {
+   "path": "Music/Night Signals/night-signals-mp3.zip",
+   "size": 181202
+  },
+  {
+   "path": "Music/Night Signals/night-signals.card",
+   "size": 4037,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"album\",\n  \"id\": \"example.night-signals\",\n  \"name\": \"Night Signals\",\n  \"vendor\": {\n    \"name\": \"The Lantern Rooms\"\n  },\n  \"summary\": \"Synthwave from a lighthouse, recorded over one winter.\",\n  \"released\": \"2026-09-12\",\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"genres\": [\n      \"Synthwave\",\n      \"Electronic\"\n    ],\n    \"tags\": [\n      \"instrumental\"\n    ],\n    \"license\": \"CC BY-NC 4.0\"\n  },\n  \"media\": {\n    \"thumbnail\": \"cover.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"photos/studio.png\",\n        \"caption\": \"The lamp room\"\n      }\n    ]\n  },\n  \"tracks\": [\n    {\n      \"number\": 1,\n      \"title\": \"Carrier Wave\",\n      \"duration\": 4,\n      \"files\": [\n        {\n          \"format\": \"flac\",\n          \"file\": \"flac/01 Carrier Wave.flac\",\n          \"sha256\": \"0fce8010f27398d9a6a5543f2aec93373500e3839aa18e107ea3e4db8886888f\"\n        },\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/01 Carrier Wave.mp3\",\n          \"sha256\": \"2828e4b222c3276291c48eba21cd3991f1510a22ed07230335aeea7e6fc68985\"\n        }\n      ]\n    },\n    {\n      \"number\": 2,\n      \"title\": \"Fog Signal\",\n      \"duration\": 3,\n      \"files\": [\n        {\n          \"format\": \"flac\",\n          \"file\": \"flac/02 Fog Signal.flac\",\n          \"sha256\": \"aeae9c4ad36d182fbc95a5fd3f1fdf0bf63cb881e3dfa5207196bdeec3cc965a\"\n        },\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/02 Fog Signal.mp3\",\n          \"sha256\": \"91a7270c23b5f7da67b6a5d15499b6a06a9316427163091a4460853d97ca3fbd\"\n        }\n      ]\n    },\n    {\n      \"number\": 3,\n      \"title\": \"Keeper's Log\",\n      \"duration\": 5,\n      \"files\": [\n        {\n          \"format\": \"flac\",\n          \"file\": \"flac/03 Keeper's Log.flac\",\n          \"sha256\": \"8680c08da0bc3a01e16a98bef5bc284685d9ca2ba116008094ad5e68b826cf2d\"\n        },\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/03 Keeper's Log.mp3\",\n          \"sha256\": \"9a6b9b68a459674ac9d5abbe640e619a38499e2f9d5ef2854d7597df0d5ef125\"\n        }\n      ]\n    },\n    {\n      \"number\": 4,\n      \"title\": \"Low Water\",\n      \"duration\": 3,\n      \"files\": [\n        {\n          \"format\": \"flac\",\n          \"file\": \"flac/04 Low Water.flac\",\n          \"sha256\": \"9eb4a8cf8303f1a8a835bbaeff9e33a9b673c92da2b763504feebc67b553153d\"\n        },\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/04 Low Water.mp3\",\n          \"sha256\": \"2c69e470e78aa2604d175e38b96c736a344d1add4508b78a96e01c3dffb910f3\"\n        }\n      ]\n    },\n    {\n      \"number\": 5,\n      \"title\": \"Night Signals\",\n      \"duration\": 4,\n      \"files\": [\n        {\n          \"format\": \"flac\",\n          \"file\": \"flac/05 Night Signals.flac\",\n          \"sha256\": \"76e4c80d56ee35a7919fd87e4c0a91b667c24f0b4d3ad8f41d03ce74ad256c30\"\n        },\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/05 Night Signals.mp3\",\n          \"sha256\": \"ac3e2ef2416ece0a612587275c04931e538a88727e2dccbe6cbe6bf21b54f889\"\n        }\n      ]\n    },\n    {\n      \"number\": 6,\n      \"title\": \"Dawn Watch\",\n      \"duration\": 3,\n      \"files\": [\n        {\n          \"format\": \"flac\",\n          \"file\": \"flac/06 Dawn Watch.flac\",\n          \"sha256\": \"f41917b8b3a1f374a92a4741650501f5b099602dfffc2d90aeda5da4d4f9a314\"\n        },\n        {\n          \"format\": \"mp3\",\n          \"file\": \"mp3/06 Dawn Watch.mp3\",\n          \"sha256\": \"a191076493210d8401873879c344f5351205e03c56448f05c6a19ab50ea536d3\"\n        }\n      ]\n    }\n  ],\n  \"form\": \"album\",\n  \"downloads\": [\n    {\n      \"format\": \"flac\",\n      \"label\": \"Whole album (FLAC)\",\n      \"file\": \"night-signals-flac.zip\",\n      \"sha256\": \"27a35b1521bc474ee337a76fcb1bdb02d5b0dd4a66f537aa19837270b8a1ffea\"\n    },\n    {\n      \"format\": \"mp3\",\n      \"label\": \"Whole album (MP3)\",\n      \"file\": \"night-signals-mp3.zip\",\n      \"sha256\": \"9c389591221ca52739f90ef9e9dd5960f2e439c0d3044bd70b6c083c3852ae26\"\n    }\n  ],\n  \"links\": [\n    {\n      \"label\": \"Bandcamp\",\n      \"url\": \"https://example.invalid/night-signals\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Music/Night Signals/flac/01 Carrier Wave.flac",
+   "size": 34066
+  },
+  {
+   "path": "Music/Night Signals/flac/02 Fog Signal.flac",
+   "size": 28843
+  },
+  {
+   "path": "Music/Night Signals/flac/03 Keeper's Log.flac",
+   "size": 53416
+  },
+  {
+   "path": "Music/Night Signals/flac/05 Night Signals.flac",
+   "size": 34469
+  },
+  {
+   "path": "Music/Night Signals/flac/06 Dawn Watch.flac",
+   "size": 30853
+  },
+  {
+   "path": "Music/Night Signals/mp3/01 Carrier Wave.mp3",
+   "size": 32808
+  },
+  {
+   "path": "Music/Night Signals/mp3/02 Fog Signal.mp3",
+   "size": 24658
+  },
+  {
+   "path": "Music/Night Signals/mp3/03 Keeper's Log.mp3",
+   "size": 40750
+  },
+  {
+   "path": "Music/Night Signals/mp3/04 Low Water.mp3",
+   "size": 24658
+  },
+  {
+   "path": "Music/Night Signals/mp3/05 Night Signals.mp3",
+   "size": 32808
+  },
+  {
+   "path": "Music/Night Signals/mp3/06 Dawn Watch.mp3",
+   "size": 24658
+  },
+  {
+   "path": "Music/Night Signals/photos/studio.png",
+   "size": 1100
+  },
+  {
+   "path": "Problems/broken.card",
+   "size": 77,
+   "document": "{\"card_version\": \"1.0\", \"kind\": \"package\", \"name\": \"Broken\",\n  \"versions\": [\n"
+  },
+  {
+   "path": "Problems/escape.card",
+   "size": 637,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.escape\",\n  \"type\": \"game\",\n  \"name\": \"Escape Attempt\",\n  \"summary\": \"Every path here leaves the card's folder and must be refused.\",\n  \"media\": {\n    \"thumbnail\": \"../Software/Shadow Quest/media/thumb.png\"\n  },\n  \"versions\": [\n    {\n      \"tag\": \"1.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-01-01\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"file\": \"/etc/passwd\"\n        },\n        {\n          \"platform\": \"linux\",\n          \"arch\": \"x64\",\n          \"file\": \"files\\\\win.zip\"\n        }\n      ]\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Problems/future.card",
+   "size": 211,
+   "document": "{\n  \"card_version\": \"2.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.future\",\n  \"type\": \"game\",\n  \"name\": \"From The Future\",\n  \"summary\": \"Card version 2.0: shown read-only.\",\n  \"x_hologram\": {\n    \"depth\": 3\n  }\n}\n"
+  },
+  {
+   "path": "Problems/no-downloads.card",
+   "size": 187,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.no-downloads\",\n  \"type\": \"application\",\n  \"name\": \"No Downloads\",\n  \"summary\": \"A card with no versions and no builds.\"\n}\n"
+  },
+  {
+   "path": "Problems/untyped.card",
+   "size": 58,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"name\": \"No Kind, No Type\"\n}\n"
+  },
+  {
+   "path": "Software/index.card",
+   "size": 450,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"index\",\n  \"title\": \"Software & Games\",\n  \"subtitle\": \"Games and applications hosted on this server\",\n  \"tabs\": [\n    {\n      \"label\": \"All\"\n    },\n    {\n      \"label\": \"Games\",\n      \"type\": \"game\"\n    },\n    {\n      \"label\": \"Applications\",\n      \"type\": \"application\"\n    }\n  ],\n  \"facets\": [\n    \"channel\",\n    \"platform\",\n    \"arch\",\n    \"category\",\n    \"genre\"\n  ],\n  \"sort\": \"newest\",\n  \"layout\": \"grid\"\n}\n"
+  },
+  {
+   "path": "Software/BackupSync/backupsync.card",
+   "size": 989,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.backupsync\",\n  \"type\": \"application\",\n  \"name\": \"BackupSync\",\n  \"summary\": \"Automated backup with incremental sync and version history.\",\n  \"vendor\": {\n    \"name\": \"Driftwood\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Utilities\"\n    ],\n    \"tags\": [\n      \"backup\",\n      \"sync\"\n    ],\n    \"license\": \"Freeware\"\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\"\n  },\n  \"version\": \"2.3.0\",\n  \"channel\": \"stable\",\n  \"released\": \"2026-09-19\",\n  \"builds\": [\n    {\n      \"platform\": \"windows\",\n      \"arch\": \"x64\",\n      \"min_os\": \"10\",\n      \"file\": \"files/backupsync-2.3.0-windows-x64.zip\",\n      \"sha256\": \"99bd9809eac3414807e2c42a32b8c204d3843912dd5c1cbf3cf4676eb894d120\"\n    },\n    {\n      \"platform\": \"macos\",\n      \"arch\": \"arm64\",\n      \"min_os\": \"12.0\",\n      \"file\": \"files/backupsync-2.3.0-macos-arm64.zip\",\n      \"sha256\": \"f4fb368b7cd7966bb7453ea0644ecc3a131af82dcb7b534ce6a73c9c2934e854\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Software/BackupSync/files/backupsync-2.3.0-macos-arm64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/BackupSync/files/backupsync-2.3.0-windows-x64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/BackupSync/media/thumb.png",
+   "size": 527
+  },
+  {
+   "path": "Software/Kingdom Builder/about.txt",
+   "size": 103
+  },
+  {
+   "path": "Software/Kingdom Builder/kingdom-builder.card",
+   "size": 2110,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.kingdom-builder\",\n  \"type\": \"game\",\n  \"name\": \"Kingdom Builder\",\n  \"summary\": \"City-building strategy game with multiplayer alliances and seasonal events.\",\n  \"vendor\": {\n    \"name\": \"Castlewright Games\"\n  },\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Strategy\",\n      \"Simulation\"\n    ],\n    \"tags\": [\n      \"multiplayer\",\n      \"co-op\"\n    ],\n    \"license\": \"Proprietary\",\n    \"genres\": [\n      \"Strategy\",\n      \"City Builder\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"Harbour town\"\n      },\n      {\n        \"src\": \"media/shot-2.png\",\n        \"caption\": \"Alliance map\"\n      }\n    ]\n  },\n  \"versions\": [\n    {\n      \"tag\": \"2.0.1\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-10-02\",\n      \"summary\": \"Fixes alliance chat and a desync in winter events.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/kingdom-builder-2.0.1-windows-x64.zip\",\n          \"sha256\": \"0b947b9611741d8b31bfbbc225f73df585c1fc89c3d00d4e5a7f6e2b4c3246d7\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"13.0\",\n          \"file\": \"files/kingdom-builder-2.0.1-macos-arm64.zip\",\n          \"sha256\": \"e6f8d120596078e472f93b9a17443c20f93e5b6bea4b592cde1244d13f0079c2\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"2.0.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-08-21\",\n      \"summary\": \"Seasonal events and alliances.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/kingdom-builder-2.0.0-windows-x64.zip\",\n          \"sha256\": \"e9138c55d09d7fad158ad4b9309c2c1ddf4d45221359533be79a001398f08c60\"\n        }\n      ]\n    }\n  ],\n  \"publisher\": {\n    \"name\": \"Northwind Interactive\"\n  },\n  \"players\": 8,\n  \"multiplayer\": [\n    \"online\",\n    \"lan\"\n  ]\n}\n"
+  },
+  {
+   "path": "Software/Kingdom Builder/files/kingdom-builder-2.0.0-windows-x64.zip",
+   "size": 228
+  },
+  {
+   "path": "Software/Kingdom Builder/files/kingdom-builder-2.0.1-macos-arm64.zip",
+   "size": 228
+  },
+  {
+   "path": "Software/Kingdom Builder/files/kingdom-builder-2.0.1-windows-x64.zip",
+   "size": 228
+  },
+  {
+   "path": "Software/Kingdom Builder/media/shot-1.png",
+   "size": 1085
+  },
+  {
+   "path": "Software/Kingdom Builder/media/shot-2.png",
+   "size": 1085
+  },
+  {
+   "path": "Software/Kingdom Builder/media/thumb.png",
+   "size": 726
+  },
+  {
+   "path": "Software/PixelCraft/about.txt",
+   "size": 91
+  },
+  {
+   "path": "Software/PixelCraft/pixelcraft.card",
+   "size": 4082,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.pixelcraft\",\n  \"type\": \"application\",\n  \"name\": \"PixelCraft\",\n  \"summary\": \"Professional image editor with layers, filters, and batch processing.\",\n  \"vendor\": {\n    \"name\": \"Lumen Labs\"\n  },\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Graphics\",\n      \"Design\"\n    ],\n    \"tags\": [\n      \"layers\",\n      \"batch\",\n      \"raw\"\n    ],\n    \"license\": \"Proprietary\"\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"Layers\"\n      },\n      {\n        \"src\": \"media/shot-2.png\",\n        \"caption\": \"Batch\"\n      }\n    ]\n  },\n  \"versions\": [\n    {\n      \"tag\": \"4.2.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-10-15\",\n      \"summary\": \"Raw import.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/pixelcraft-4.2.0-windows-x64.zip\",\n          \"sha256\": \"0a76ec1f51cb5a30b4ab9cada4430833c4ff4fc6aab6e84bc094a7ab38c0c822\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"13.0\",\n          \"file\": \"files/pixelcraft-4.2.0-macos-arm64.zip\",\n          \"sha256\": \"9cd3cfd8fb5b5f8cc7b85977ae7440f681f40794cd6268de9deb70b8cf4d4cce\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"4.1.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-09-03\",\n      \"summary\": \"Batch rename.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/pixelcraft-4.1.0-windows-x64.zip\",\n          \"sha256\": \"efb1046b3158178d5a9256546d1798d15eddb5e4ca4d61fb8f28f801a2f6075f\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"13.0\",\n          \"file\": \"files/pixelcraft-4.1.0-macos-arm64.zip\",\n          \"sha256\": \"f3f224162946547f57fd906a1ad0414edf45b0eea5655ae6d45f88a50376599d\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"4.0.2\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-07-11\",\n      \"summary\": \"Fixes.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/pixelcraft-4.0.2-windows-x64.zip\",\n          \"sha256\": \"b9b94bd24f06b09736cb53686c8c2661e59427f6d3d46f2db7534ab099521eac\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"4.0.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-06-02\",\n      \"summary\": \"New engine.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/pixelcraft-4.0.0-windows-x64.zip\",\n          \"sha256\": \"81a1d1b4b79c5ff9c70fbff7ae1690f29fd8070384e8e5d06092a3cda022439b\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"3.9.0\",\n      \"channel\": \"legacy\",\n      \"released\": \"2026-03-01\",\n      \"summary\": \"Last 3.x.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"8\",\n          \"file\": \"files/pixelcraft-3.9.0-windows-x64.zip\",\n          \"sha256\": \"5fce4e1fe0baa5f7fe5aae9b264110c57c7d9f6ae37f0a082453b2b387ea299d\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"3.8.0\",\n      \"channel\": \"legacy\",\n      \"released\": \"2026-01-10\",\n      \"summary\": \"Filters.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x86\",\n          \"min_os\": \"7\",\n          \"file\": \"files/pixelcraft-3.8.0-windows-x86.zip\",\n          \"sha256\": \"5c19fd69af63c1658d5e8cc5b6dd6e04671d1a68bdb6751f99e005e782aa6e66\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"3.7.0\",\n      \"channel\": \"legacy\",\n      \"released\": \"2025-11-05\",\n      \"summary\": \"Plugins.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x86\",\n          \"min_os\": \"7\",\n          \"file\": \"files/pixelcraft-3.7.0-windows-x86.zip\",\n          \"sha256\": \"34b6f30e84454c47c2345a110425d16ccb9c7489065353ee1681d3182373155b\"\n        }\n      ]\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-3.7.0-windows-x86.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-3.8.0-windows-x86.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-3.9.0-windows-x64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-4.0.0-windows-x64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-4.0.2-windows-x64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-4.1.0-windows-x64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-4.2.0-macos-arm64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/files/pixelcraft-4.2.0-windows-x64.zip",
+   "size": 218
+  },
+  {
+   "path": "Software/PixelCraft/media/shot-1.png",
+   "size": 1121
+  },
+  {
+   "path": "Software/PixelCraft/media/shot-2.png",
+   "size": 1121
+  },
+  {
+   "path": "Software/PixelCraft/media/thumb.png",
+   "size": 741
+  },
+  {
+   "path": "Software/Puzzle Master/about.txt",
+   "size": 87
+  },
+  {
+   "path": "Software/Puzzle Master/puzzle-master.card",
+   "size": 3919,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.puzzle-master\",\n  \"type\": \"game\",\n  \"name\": \"Puzzle Master\",\n  \"summary\": \"Brain-teasing puzzle collection with 500+ levels and daily challenges.\",\n  \"vendor\": {\n    \"name\": \"Brainbox\"\n  },\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Puzzle\"\n    ],\n    \"tags\": [\n      \"offline\",\n      \"casual\"\n    ],\n    \"license\": \"Shareware\",\n    \"genres\": [\n      \"Puzzle\",\n      \"Casual\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"Level 212\"\n      }\n    ]\n  },\n  \"versions\": [\n    {\n      \"tag\": \"3.2.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-06-18\",\n      \"summary\": \"Daily challenges.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/puzzle-master-3.2.0-windows-x64.zip\",\n          \"sha256\": \"9d8bc143e7388a380cf1d146112874c380141991ee097a22965b20317a9ebf27\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"11.0\",\n          \"file\": \"files/puzzle-master-3.2.0-macos-arm64.zip\",\n          \"sha256\": \"004800d99b9ac1de6d0632c451c39317930503f4a960c6924c9228956a4a8637\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"x64\",\n          \"min_os\": \"11.0\",\n          \"file\": \"files/puzzle-master-3.2.0-macos-arm64.zip\",\n          \"sha256\": \"004800d99b9ac1de6d0632c451c39317930503f4a960c6924c9228956a4a8637\"\n        },\n        {\n          \"platform\": \"classic\",\n          \"arch\": \"ppc\",\n          \"min_os\": \"Mac OS 8.6\",\n          \"file\": \"files/puzzle-master-3.2.0-classic-ppc.zip\",\n          \"sha256\": \"6814cafa64ab5da0f27e0d2d166d6ba379beedfa620e9f9afff8537ca33817a4\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"3.1.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-02-02\",\n      \"summary\": \"100 new levels.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/puzzle-master-3.1.0-windows-x64.zip\",\n          \"sha256\": \"695e1e8c188656358368ae9931308e46269a1229c3f20c438b5d227752df2ecc\"\n        },\n        {\n          \"platform\": \"classic\",\n          \"arch\": \"68k\",\n          \"min_os\": \"System 7.5\",\n          \"file\": \"files/puzzle-master-3.1.0-classic-68k.zip\",\n          \"sha256\": \"708af98e18c20bd1a342269dacf5f8691cf66c48398f47860bcd577684237a40\"\n        }\n      ]\n    }\n  ],\n  \"series\": {\n    \"name\": \"Mindbender Trilogy\",\n    \"number\": 3\n  },\n  \"languages\": [\n    \"en\",\n    \"de\",\n    \"ja\"\n  ],\n  \"rating\": \"PEGI 3\",\n  \"players\": 4,\n  \"multiplayer\": [\n    \"hotseat\"\n  ],\n  \"requirements\": {\n    \"cpu\": \"68030 or PowerPC\",\n    \"ram_mb\": 1,\n    \"ram_kb\": 768,\n    \"disk_kb\": 1400,\n    \"display\": \"256 colours, 640×480\",\n    \"sound\": [\n      \"Sound Manager 3\"\n    ],\n    \"input\": [\n      \"mouse\",\n      \"keyboard\"\n    ],\n    \"software\": [\n      \"QuickTime 3\"\n    ]\n  },\n  \"releases\": [\n    {\n      \"date\": \"2026-02\",\n      \"regions\": [\n        \"Europe\"\n      ],\n      \"publisher\": \"Brainbox\",\n      \"media\": [\n        \"CD-ROM\"\n      ],\n      \"product_code\": \"BBX-0312\"\n    },\n    {\n      \"date\": \"2026-06-18\",\n      \"regions\": [\n        \"United States\",\n        \"Canada\"\n      ],\n      \"publisher\": \"Northwind Interactive\",\n      \"media\": [\n        \"3.5\\\" floppy\",\n        \"CD-ROM\"\n      ],\n      \"notes\": \"Big box edition with a puzzle booklet\"\n    },\n    {},\n    \"x\"\n  ],\n  \"related\": [\n    {\n      \"relation\": \"successor-of\",\n      \"card\": \"../Shadow Quest/shadow-quest.card\",\n      \"name\": \"Shadow Quest\"\n    },\n    {\n      \"relation\": \"part-of\",\n      \"card\": \"../../Books/index.card\",\n      \"name\": \"The Books\"\n    },\n    {\n      \"card\": \"../BackupSync/backupsync.card\"\n    },\n    {\n      \"name\": \"No path\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Software/Puzzle Master/files/puzzle-master-3.1.0-classic-68k.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Puzzle Master/files/puzzle-master-3.1.0-windows-x64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Puzzle Master/files/puzzle-master-3.2.0-classic-ppc.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Puzzle Master/files/puzzle-master-3.2.0-macos-arm64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Puzzle Master/files/puzzle-master-3.2.0-windows-x64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Puzzle Master/media/shot-1.png",
+   "size": 941
+  },
+  {
+   "path": "Software/Puzzle Master/media/thumb.png",
+   "size": 651
+  },
+  {
+   "path": "Software/SecureVault/about.txt",
+   "size": 67
+  },
+  {
+   "path": "Software/SecureVault/securevault.card",
+   "size": 2565,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.securevault\",\n  \"type\": \"application\",\n  \"name\": \"SecureVault\",\n  \"summary\": \"End-to-end encrypted password manager with biometric unlock support.\",\n  \"vendor\": {\n    \"name\": \"Lockstep\"\n  },\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Security\"\n    ],\n    \"tags\": [\n      \"privacy\",\n      \"passwords\"\n    ],\n    \"license\": \"GPL-3.0\"\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"Vault\"\n      }\n    ]\n  },\n  \"versions\": [\n    {\n      \"tag\": \"1.5.2\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-10-05\",\n      \"summary\": \"Passkey import.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/securevault-1.5.2-windows-x64.zip\",\n          \"sha256\": \"7e7754cdf74b92d6f1f48d18da0d63cb53df5423b7201fe602839ab97191b31c\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"12.0\",\n          \"file\": \"files/securevault-1.5.2-macos-arm64.zip\",\n          \"sha256\": \"33d8927063c3ef574fba8a70de81f9ab7eaec26f6525d2a231ea102a472bb7a6\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"1.5.1\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-09-12\",\n      \"summary\": \"Fixes biometric unlock on Windows.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/securevault-1.5.1-windows-x64.zip\",\n          \"sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"1.5.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-08-01\",\n      \"summary\": \"Shared vaults.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/securevault-1.5.0-windows-x64.zip\",\n          \"sha256\": \"8ec36452492d60a172ca05f54455b0a9385ce5362664082793da25fc1cf5483a\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"1.4.0\",\n      \"channel\": \"legacy\",\n      \"released\": \"2026-04-20\",\n      \"summary\": \"Biometric unlock.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/securevault-1.4.0-windows-x64.zip\",\n          \"sha256\": \"1280710b376537442cc2d351a05249d45001cc6484d4561bf2a07653a8deda7a\"\n        }\n      ]\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Software/SecureVault/files/securevault-1.4.0-windows-x64.zip",
+   "size": 220
+  },
+  {
+   "path": "Software/SecureVault/files/securevault-1.5.0-windows-x64.zip",
+   "size": 220
+  },
+  {
+   "path": "Software/SecureVault/files/securevault-1.5.1-windows-x64.zip",
+   "size": 220
+  },
+  {
+   "path": "Software/SecureVault/files/securevault-1.5.2-macos-arm64.zip",
+   "size": 220
+  },
+  {
+   "path": "Software/SecureVault/files/securevault-1.5.2-windows-x64.zip",
+   "size": 220
+  },
+  {
+   "path": "Software/SecureVault/media/shot-1.png",
+   "size": 962
+  },
+  {
+   "path": "Software/SecureVault/media/thumb.png",
+   "size": 646
+  },
+  {
+   "path": "Software/Shadow Quest/about.md",
+   "size": 610
+  },
+  {
+   "path": "Software/Shadow Quest/shadow-quest.card",
+   "size": 3624,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.shadow-quest\",\n  \"type\": \"game\",\n  \"name\": \"Shadow Quest\",\n  \"aka\": [\n    \"Schattensuche\"\n  ],\n  \"summary\": \"Turn-based fantasy RPG with an open world, deep character customisation, and epic boss battles.\",\n  \"vendor\": {\n    \"name\": \"Indie Studio A\"\n  },\n  \"description\": {\n    \"format\": \"markdown\",\n    \"path\": \"about.md\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Role Playing\",\n      \"Adventure\"\n    ],\n    \"tags\": [\n      \"single-player\",\n      \"story-rich\",\n      \"moddable\"\n    ],\n    \"license\": \"Proprietary\",\n    \"genres\": [\n      \"RPG\",\n      \"Turn-Based\",\n      \"Open World\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"The Ashen Vale\"\n      },\n      {\n        \"src\": \"media/shot-2.png\",\n        \"caption\": \"Combat\"\n      },\n      {\n        \"src\": \"media/shot-3.png\",\n        \"caption\": \"Skill Tree\"\n      }\n    ]\n  },\n  \"versions\": [\n    {\n      \"tag\": \"1.4.2\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-09-30\",\n      \"summary\": \"Bug fixes and performance improvements. Reduced load times by about 40%.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/shadow-quest-1.4.2-windows-x64.zip\",\n          \"sha256\": \"56cb522ca9758ff33da01898f3d8f41824be2efb981853e6a5fa3e2a1ae1e135\"\n        },\n        {\n          \"platform\": \"linux\",\n          \"arch\": \"x64\",\n          \"min_os\": \"glibc 2.35\",\n          \"file\": \"files/shadow-quest-1.4.2-linux-x64.tar.gz\",\n          \"sha256\": \"6dc08f8ec5c60bae0b49dee38d315af6af0827fb372ec57a9c732159dbb8d5a2\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"12.0\",\n          \"file\": \"files/shadow-quest-1.4.2-macos-arm64.zip\",\n          \"sha256\": \"1e50b18912c7ce9588798f0baa3a157de991c50fc42ffb96c20807fdb764edee\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"1.4.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-07-15\",\n      \"summary\": \"Added a new region, the Ashen Wastes. Fixed save corruption in chapter 3.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/shadow-quest-1.4.0-windows-x64.zip\",\n          \"sha256\": \"7ea534a7707999f781c9c4fc4eaca7d2e131da6a31c86ff46cdbddcc7a52e26e\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"1.3.5\",\n      \"channel\": \"legacy\",\n      \"released\": \"2026-03-08\",\n      \"summary\": \"Initial public release.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/shadow-quest-1.3.5-windows-x64.zip\",\n          \"sha256\": \"13d9d7c24c3ba7d86cdf9a97de06c6d776187fec7e20ae6386904456bae0d5a1\"\n        }\n      ],\n      \"deprecated\": true,\n      \"deprecation_notice\": \"This version lacks critical security patches introduced in 1.4.0. Only use it if you need the original balancing.\"\n    }\n  ],\n  \"players\": 1,\n  \"requirements\": {\n    \"cpu\": \"Quad core 2.5 GHz\",\n    \"ram_mb\": 8192,\n    \"gpu\": \"Vulkan 1.2, 2 GB\",\n    \"disk_mb\": 4200\n  },\n  \"links\": [\n    {\n      \"label\": \"Homepage\",\n      \"url\": \"https://example.invalid/shadowquest\"\n    },\n    {\n      \"label\": \"Changelog\",\n      \"url\": \"https://example.invalid/shadowquest/patch-notes\"\n    },\n    {\n      \"label\": \"Review\",\n      \"url\": \"https://example.invalid/retro-gamer/shadow-quest\"\n    },\n    {\n      \"label\": \"Review\",\n      \"url\": \"https://example.invalid/pixel-digest/shadow-quest\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Software/Shadow Quest/files/shadow-quest-1.3.5-windows-x64.zip",
+   "size": 222
+  },
+  {
+   "path": "Software/Shadow Quest/files/shadow-quest-1.4.0-windows-x64.zip",
+   "size": 222
+  },
+  {
+   "path": "Software/Shadow Quest/files/shadow-quest-1.4.2-linux-x64.tar.gz",
+   "size": 196
+  },
+  {
+   "path": "Software/Shadow Quest/files/shadow-quest-1.4.2-macos-arm64.zip",
+   "size": 222
+  },
+  {
+   "path": "Software/Shadow Quest/files/shadow-quest-1.4.2-windows-x64.zip",
+   "size": 222
+  },
+  {
+   "path": "Software/Shadow Quest/media/shot-1.png",
+   "size": 938
+  },
+  {
+   "path": "Software/Shadow Quest/media/shot-2.png",
+   "size": 938
+  },
+  {
+   "path": "Software/Shadow Quest/media/shot-3.png",
+   "size": 938
+  },
+  {
+   "path": "Software/Shadow Quest/media/thumb.png",
+   "size": 636
+  },
+  {
+   "path": "Software/Stellar Drift/about.txt",
+   "size": 88
+  },
+  {
+   "path": "Software/Stellar Drift/stellar-drift.card",
+   "size": 4263,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.stellar-drift\",\n  \"type\": \"game\",\n  \"name\": \"Stellar Drift\",\n  \"summary\": \"Arcade space shooter with procedurally generated levels and boss battles.\",\n  \"vendor\": {\n    \"name\": \"Nullpoint\"\n  },\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Arcade\"\n    ],\n    \"tags\": [\n      \"fast-paced\",\n      \"single-player\"\n    ],\n    \"license\": \"Freeware\",\n    \"genres\": [\n      \"Shooter\",\n      \"Arcade\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"Sector 7\"\n      },\n      {\n        \"src\": \"media/shot-2.png\",\n        \"caption\": \"The Hollow Star\"\n      }\n    ]\n  },\n  \"versions\": [\n    {\n      \"tag\": \"0.9.5-beta\",\n      \"channel\": \"beta\",\n      \"released\": \"2026-10-22\",\n      \"summary\": \"New boss: the Hollow Star. Controller rumble.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/stellar-drift-0.9.5-beta-windows-x64.zip\",\n          \"sha256\": \"f46b4b96560bc150e1fd58b428cf16d93b8b37de710aa1277207d0adee415656\"\n        },\n        {\n          \"platform\": \"linux\",\n          \"arch\": \"x64\",\n          \"min_os\": \"glibc 2.31\",\n          \"file\": \"files/stellar-drift-0.9.5-beta-linux-x64.tar.gz\",\n          \"sha256\": \"619159afbb3417fe08afdb554b864d27cbf42442331a3583e670671931af44e5\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"12.0\",\n          \"file\": \"files/stellar-drift-0.9.5-beta-macos-arm64.zip\",\n          \"sha256\": \"f60cdc765ca197dcf9316ed8cccc6aed87316732ae6f0d6f3785edbdaa0e94ba\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"0.9.4\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-10-10\",\n      \"summary\": \"Balance pass on weapons.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/stellar-drift-0.9.4-windows-x64.zip\",\n          \"sha256\": \"6b4f938113232bd971ac271fd5be450f9874cf5462f2109e168a00636e0f00fb\"\n        },\n        {\n          \"platform\": \"linux\",\n          \"arch\": \"x64\",\n          \"min_os\": \"glibc 2.31\",\n          \"file\": \"files/stellar-drift-0.9.4-linux-x64.tar.gz\",\n          \"sha256\": \"6f5d46477ac2280a74a4f18e709c265813b76b1d34600b3845279772eeb2b953\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"0.9.3\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-09-28\",\n      \"summary\": \"Leaderboards.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/stellar-drift-0.9.3-windows-x64.zip\",\n          \"sha256\": \"0ea8627f66fd4d7952d09174d5ed23435aa9b9c12d9d470c22f78f271b6ee353\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"0.9.2\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-09-01\",\n      \"summary\": \"Gamepad support.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/stellar-drift-0.9.2-windows-x64.zip\",\n          \"sha256\": \"d51b963e4679234e4c33087940fc2093f5b348b5d1613801ae6cae95fd02dc91\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"0.9.1\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-08-12\",\n      \"summary\": \"Crash fixes.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/stellar-drift-0.9.1-windows-x64.zip\",\n          \"sha256\": \"6aed9c0bcf10e8fa1643dd3647a379ef27fccf0b13cafefd4ecd994417b27a85\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"0.9.0\",\n      \"channel\": \"legacy\",\n      \"released\": \"2026-07-30\",\n      \"summary\": \"First public build.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x86\",\n          \"min_os\": \"7\",\n          \"file\": \"files/stellar-drift-0.9.0-windows-x86.zip\",\n          \"sha256\": \"a3c11393986fac7fc7fbb8b719014c816067686464d54056c14a327225bc9705\"\n        }\n      ],\n      \"deprecated\": true,\n      \"deprecation_notice\": \"Saves from 0.9.0 do not carry over.\"\n    }\n  ],\n  \"players\": 2,\n  \"multiplayer\": [\n    \"split-screen\"\n  ]\n}\n"
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.0-windows-x86.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.1-windows-x64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.2-windows-x64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.3-windows-x64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.4-linux-x64.tar.gz",
+   "size": 196
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.4-windows-x64.zip",
+   "size": 224
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.5-beta-linux-x64.tar.gz",
+   "size": 203
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.5-beta-macos-arm64.zip",
+   "size": 234
+  },
+  {
+   "path": "Software/Stellar Drift/files/stellar-drift-0.9.5-beta-windows-x64.zip",
+   "size": 234
+  },
+  {
+   "path": "Software/Stellar Drift/media/shot-1.png",
+   "size": 882
+  },
+  {
+   "path": "Software/Stellar Drift/media/shot-2.png",
+   "size": 882
+  },
+  {
+   "path": "Software/Stellar Drift/media/thumb.png",
+   "size": 610
+  },
+  {
+   "path": "Software/TaskMaster Pro/about.txt",
+   "size": 101
+  },
+  {
+   "path": "Software/TaskMaster Pro/taskmaster-pro.card",
+   "size": 4148,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"id\": \"example.taskmaster-pro\",\n  \"type\": \"application\",\n  \"name\": \"TaskMaster Pro\",\n  \"summary\": \"Project planning, time tracking and team collaboration in one place.\",\n  \"vendor\": {\n    \"name\": \"DevStudio Inc.\"\n  },\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Productivity\",\n      \"Project Management\"\n    ],\n    \"tags\": [\n      \"kanban\",\n      \"gantt\",\n      \"time-tracking\",\n      \"offline-first\"\n    ],\n    \"license\": \"MIT\"\n  },\n  \"media\": {\n    \"thumbnail\": \"media/thumb.png\",\n    \"screenshots\": [\n      {\n        \"src\": \"media/shot-1.png\",\n        \"caption\": \"Kanban board\"\n      },\n      {\n        \"src\": \"media/shot-2.png\",\n        \"caption\": \"Timeline\"\n      },\n      {\n        \"src\": \"media/shot-3.png\",\n        \"caption\": \"Reports\"\n      }\n    ]\n  },\n  \"current_version\": \"2.1.0\",\n  \"versions\": [\n    {\n      \"tag\": \"2.1.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-10-20\",\n      \"summary\": \"Timeline view and CSV export.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/taskmaster-pro-2.1.0-windows-x64.zip\",\n          \"sha256\": \"571399c7ccaa247c6375d0b15bfb2915cf8d01dbbce7637a4f64ad9f437e1beb\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"12.0\",\n          \"file\": \"files/taskmaster-pro-2.1.0-macos-arm64.zip\",\n          \"sha256\": \"6a599cd0437d83e38794b6cb01bd7bcc167fc925d44bac71185a52ddc790d53f\"\n        },\n        {\n          \"platform\": \"linux\",\n          \"arch\": \"x64\",\n          \"min_os\": \"glibc 2.31\",\n          \"file\": \"files/taskmaster-pro-2.1.0-linux-x64.tar.gz\",\n          \"sha256\": \"738625143f5f52a46cb4cb1a1474defdb72b8af070155764e501012dfce9444a\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"2.0.3\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-08-30\",\n      \"summary\": \"Sync fixes.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/taskmaster-pro-2.0.3-windows-x64.zip\",\n          \"sha256\": \"508cbf7efacc89561b358eed7d2b658d0f3d59511ef335c3b0450f7838fdd71e\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"12.0\",\n          \"file\": \"files/taskmaster-pro-2.0.3-macos-arm64.zip\",\n          \"sha256\": \"62550afd15285c0f0e3c6a0f8c30b7a84bf964090c4175ad4dd70c2d8a41dc54\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"2.0.0\",\n      \"channel\": \"stable\",\n      \"released\": \"2026-06-01\",\n      \"summary\": \"Team workspaces.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x64\",\n          \"min_os\": \"10\",\n          \"file\": \"files/taskmaster-pro-2.0.0-windows-x64.zip\",\n          \"sha256\": \"38d4d4890e0cb2a70880419bf08e1498dd0001126748ba7e4eadbfa846a13fe4\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"1.9.2\",\n      \"channel\": \"legacy\",\n      \"released\": \"2026-03-14\",\n      \"summary\": \"Last 1.x release.\",\n      \"builds\": [\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x86\",\n          \"min_os\": \"7\",\n          \"file\": \"files/taskmaster-pro-1.9.2-windows-x86.zip\",\n          \"sha256\": \"5bc2bc3ef236534935926367aed5ce030a1ccd2773728c1abb20c96ecf52109e\"\n        }\n      ]\n    },\n    {\n      \"tag\": \"2.2.0-beta1\",\n      \"channel\": \"beta\",\n      \"released\": \"2026-10-25\",\n      \"summary\": \"Gantt dependencies.\",\n      \"builds\": [\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"arm64\",\n          \"min_os\": \"13.0\",\n          \"file\": \"files/taskmaster-pro-2.2.0-beta1-macos-arm64.zip\",\n          \"sha256\": \"40105d40e251e9258ed638025eb32efb76eeaea7a1070604c87b26210a8ae02b\"\n        }\n      ]\n    }\n  ],\n  \"requirements\": {\n    \"cpu\": \"Dual core\",\n    \"ram_mb\": 512,\n    \"disk_mb\": 260,\n    \"notes\": \"First launch migrates the local database.\"\n  },\n  \"links\": [\n    {\n      \"label\": \"Homepage\",\n      \"url\": \"https://example.invalid/taskmaster\"\n    },\n    {\n      \"label\": \"Issues\",\n      \"url\": \"https://example.invalid/taskmaster/issues\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-1.9.2-windows-x86.zip",
+   "size": 226
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.0.0-windows-x64.zip",
+   "size": 226
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.0.3-macos-arm64.zip",
+   "size": 226
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.0.3-windows-x64.zip",
+   "size": 226
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.1.0-linux-x64.tar.gz",
+   "size": 197
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.1.0-macos-arm64.zip",
+   "size": 226
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.1.0-windows-x64.zip",
+   "size": 226
+  },
+  {
+   "path": "Software/TaskMaster Pro/files/taskmaster-pro-2.2.0-beta1-macos-arm64.zip",
+   "size": 238
+  },
+  {
+   "path": "Software/TaskMaster Pro/media/shot-1.png",
+   "size": 1035
+  },
+  {
+   "path": "Software/TaskMaster Pro/media/shot-2.png",
+   "size": 1035
+  },
+  {
+   "path": "Software/TaskMaster Pro/media/shot-3.png",
+   "size": 1035
+  },
+  {
+   "path": "Software/TaskMaster Pro/media/thumb.png",
+   "size": 699
+  },
+  {
+   "path": "Video/index.card",
+   "size": 310,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"index\",\n  \"title\": \"Videos\",\n  \"subtitle\": \"Made by the people on this server\",\n  \"tabs\": [\n    {\n      \"label\": \"Videos\",\n      \"type\": \"video\"\n    }\n  ],\n  \"facets\": [\n    \"vendor\",\n    \"category\",\n    \"quality\",\n    \"year\"\n  ],\n  \"sort\": \"newest\",\n  \"layout\": \"grid\"\n}\n"
+  },
+  {
+   "path": "Video/Building a Hotline Server/about.txt",
+   "size": 89
+  },
+  {
+   "path": "Video/Building a Hotline Server/building-a-hotline-server.card",
+   "size": 1052,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"video\",\n  \"id\": \"example.building-a-hotline-server\",\n  \"name\": \"Building a Hotline Server\",\n  \"vendor\": {\n    \"name\": \"Pixel & Solder\"\n  },\n  \"summary\": \"From an empty folder to a server people can find.\",\n  \"released\": \"2026-08-20\",\n  \"duration\": 2,\n  \"description\": {\n    \"format\": \"text\",\n    \"path\": \"about.txt\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Tutorial\"\n    ],\n    \"tags\": [\n      \"hotline\",\n      \"servers\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"poster.png\"\n  },\n  \"files\": [\n    {\n      \"quality\": \"1080p\",\n      \"format\": \"mp4\",\n      \"file\": \"video/building-1080p.mp4\",\n      \"sha256\": \"cc3fda5cd7fc9e1c8d1f231979cec3d1a2485e97c6a6b995af59c23f8a33c404\"\n    },\n    {\n      \"quality\": \"480p\",\n      \"format\": \"mp4\",\n      \"file\": \"video/building-480p.mp4\",\n      \"sha256\": \"af10946dd5fe56f4ca2504a3eec142462b11b24c401750d6f9a51d34c4a62f3e\"\n    }\n  ],\n  \"links\": [\n    {\n      \"label\": \"Patreon\",\n      \"url\": \"https://example.invalid/pixelandsolder\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Video/Building a Hotline Server/poster.png",
+   "size": 829
+  },
+  {
+   "path": "Video/Building a Hotline Server/video/building-1080p.mp4",
+   "size": 309784
+  },
+  {
+   "path": "Video/Building a Hotline Server/video/building-480p.mp4",
+   "size": 91703
+  },
+  {
+   "path": "Video/Retro Repairs/poster.png",
+   "size": 898
+  },
+  {
+   "path": "Video/Retro Repairs/retro-repairs.card",
+   "size": 2509,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"video\",\n  \"id\": \"example.retro-repairs\",\n  \"name\": \"Retro Repairs\",\n  \"vendor\": {\n    \"name\": \"Pixel & Solder\"\n  },\n  \"summary\": \"Bringing old Macs back to life, one board at a time.\",\n  \"released\": \"2026-09-02\",\n  \"classification\": {\n    \"categories\": [\n      \"Repair\"\n    ],\n    \"tags\": [\n      \"vintage\",\n      \"macintosh\"\n    ]\n  },\n  \"media\": {\n    \"thumbnail\": \"poster.png\"\n  },\n  \"episodes\": [\n    {\n      \"number\": 1,\n      \"title\": \"The SE that wouldn't chime\",\n      \"released\": \"2026-09-02\",\n      \"duration\": 2,\n      \"summary\": \"A Macintosh SE with a dead startup chime.\",\n      \"thumbnail\": \"thumbs/ep1.png\",\n      \"files\": [\n        {\n          \"quality\": \"1080p\",\n          \"format\": \"mp4\",\n          \"file\": \"video/ep1-1080p.mp4\",\n          \"sha256\": \"19ece8997acecde5b1077c49c9764def8c08215c99944e849e166a0084bf2993\"\n        },\n        {\n          \"quality\": \"480p\",\n          \"format\": \"mp4\",\n          \"file\": \"video/ep1-480p.mp4\",\n          \"sha256\": \"57a9735aa544b4fffe3a5638fe44213ccb1234a5388b35081a2d61646a9c8356\"\n        }\n      ]\n    },\n    {\n      \"number\": 2,\n      \"title\": \"Recapping a Color Classic\",\n      \"released\": \"2026-09-30\",\n      \"duration\": 2,\n      \"summary\": \"Every capacitor on the analog board.\",\n      \"thumbnail\": \"thumbs/ep2.png\",\n      \"files\": [\n        {\n          \"quality\": \"1080p\",\n          \"format\": \"mp4\",\n          \"file\": \"video/ep2-1080p.mp4\",\n          \"sha256\": \"55e7993f08042cdf40c1e9d0a644cc1691b9ddda84c42ae23df87dc83f3280a5\"\n        },\n        {\n          \"quality\": \"480p\",\n          \"format\": \"mp4\",\n          \"file\": \"video/ep2-480p.mp4\",\n          \"sha256\": \"f2b6c54b62767e21ab921ebdf14b827f1ca25b63d719695c54d8fbbe0ca9bd91\"\n        }\n      ]\n    },\n    {\n      \"number\": 3,\n      \"title\": \"A PowerBook 170's screen\",\n      \"released\": \"2026-10-21\",\n      \"duration\": 2,\n      \"summary\": \"Fixing the lines across a passive-matrix screen.\",\n      \"thumbnail\": \"thumbs/ep3.png\",\n      \"files\": [\n        {\n          \"quality\": \"480p\",\n          \"format\": \"mp4\",\n          \"file\": \"video/ep3-480p.mp4\",\n          \"sha256\": \"50edb54a6d73ff8a5d2a569ad1f0ec24b6a200d1b2c41b04a6dfeacd0b9b919d\"\n        },\n        {\n          \"quality\": \"1080p\",\n          \"format\": \"mp4\",\n          \"file\": \"../Building a Hotline Server/video/building-1080p.mp4\"\n        }\n      ]\n    }\n  ],\n  \"links\": [\n    {\n      \"label\": \"Patreon\",\n      \"url\": \"https://example.invalid/pixelandsolder\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Video/Retro Repairs/thumbs/ep1.png",
+   "size": 499
+  },
+  {
+   "path": "Video/Retro Repairs/thumbs/ep2.png",
+   "size": 496
+  },
+  {
+   "path": "Video/Retro Repairs/thumbs/ep3.png",
+   "size": 521
+  },
+  {
+   "path": "Video/Retro Repairs/video/ep1-1080p.mp4",
+   "size": 25408
+  },
+  {
+   "path": "Video/Retro Repairs/video/ep1-480p.mp4",
+   "size": 22486
+  },
+  {
+   "path": "Video/Retro Repairs/video/ep2-1080p.mp4",
+   "size": 29709
+  },
+  {
+   "path": "Video/Retro Repairs/video/ep2-480p.mp4",
+   "size": 23385
+  },
+  {
+   "path": "Video/Retro Repairs/video/ep3-480p.mp4",
+   "size": 31985
+  },
+  {
+   "path": "Vintage/Lander Tutorial/lander-tutorial.card",
+   "size": 399,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"video\",\n  \"id\": \"example.lander-tutorial\",\n  \"name\": \"Lander Tutorial\",\n  \"summary\": \"Forty-five minutes on landing softly.\",\n  \"vendor\": {\n    \"name\": \"Moonbase Software\"\n  },\n  \"released\": \"1990-05-01\",\n  \"duration\": 2700,\n  \"files\": [\n    {\n      \"quality\": \"480p\",\n      \"format\": \"mp4\",\n      \"file\": \"lander-tutorial.mp4\"\n    }\n  ]\n}\n"
+  },
+  {
+   "path": "Vintage/Lunar Lander/lunar-lander.card",
+   "size": 2635,
+   "document": "{\n  \"card_version\": \"1.0\",\n  \"kind\": \"package\",\n  \"type\": \"game\",\n  \"id\": \"example.lunar-lander\",\n  \"name\": \"Lunar Lander\",\n  \"summary\": \"Land the module before the fuel runs out.\",\n  \"vendor\": {\n    \"name\": \"Moonbase Software\"\n  },\n  \"classification\": {\n    \"categories\": [\n      \"Simulation\"\n    ],\n    \"license\": \"Shareware\"\n  },\n  \"versions\": [\n    {\n      \"tag\": \"1.2\",\n      \"channel\": \"stable\",\n      \"released\": \"1989-04-02\",\n      \"builds\": [\n        {\n          \"platform\": \"classic\",\n          \"arch\": \"68k\",\n          \"min_os\": \"System 6.0.8\",\n          \"max_os\": \"7.6\",\n          \"file\": \"files/lunar-lander-68k.sit\"\n        },\n        {\n          \"platform\": \"macos\",\n          \"arch\": \"ppc\",\n          \"min_os\": \"Mac OS X 10.2\",\n          \"file\": \"files/lunar-lander-osx.dmg\"\n        },\n        {\n          \"platform\": \"windows\",\n          \"arch\": \"x86\",\n          \"min_os\": \"Windows 95\",\n          \"max_os\": \"XP\",\n          \"file\": \"files/lunar-lander-win.zip\"\n        },\n        {\n          \"platform\": \"dos\",\n          \"arch\": \"x86\",\n          \"min_os\": \"MS-DOS 5.0\",\n          \"file\": \"files/lunar-lander-dos.zip\"\n        },\n        {\n          \"platform\": \"amiga\",\n          \"arch\": \"68k\",\n          \"min_os\": \"Kickstart 1.3\",\n          \"file\": \"files/lunar-lander.adf\"\n        },\n        {\n          \"platform\": \"atari-st\",\n          \"arch\": \"68k\",\n          \"min_os\": \"TOS 1.04\",\n          \"file\": \"files/lunar-lander.st\"\n        },\n        {\n          \"platform\": \"atari-8bit\",\n          \"arch\": \"6502\",\n          \"min_os\": \"800XL\",\n          \"file\": \"files/lunar-lander.atr\"\n        },\n        {\n          \"platform\": \"c64\",\n          \"arch\": \"6502\",\n          \"min_os\": \"C64\",\n          \"file\": \"files/lunar-lander.d64\"\n        },\n        {\n          \"platform\": \"zx-spectrum\",\n          \"arch\": \"z80\",\n          \"min_os\": \"48K\",\n          \"file\": \"files/lunar-lander.tzx\"\n        },\n        {\n          \"platform\": \"linux\",\n          \"arch\": \"x86\",\n          \"min_os\": \"glibc 2.3\",\n          \"max_os\": \"glibc 2.12\",\n          \"file\": \"files/lunar-lander-linux.tar.gz\"\n        },\n        {\n          \"platform\": \"beos\",\n          \"arch\": \"x86\",\n          \"min_os\": \"R5\",\n          \"file\": \"files/lunar-lander-beos.zip\"\n        },\n        {\n          \"platform\": \"irix\",\n          \"arch\": \"mips\",\n          \"min_os\": \"IRIX 5.3\",\n          \"file\": \"files/lunar-lander-irix.tar.gz\"\n        },\n        {\n          \"platform\": \"solaris\",\n          \"arch\": \"sparc\",\n          \"min_os\": \"SunOS 5.6\",\n          \"max_os\": \"Solaris 8\",\n          \"file\": \"files/lunar-lander-solaris.tar.gz\"\n        }\n      ]\n    }\n  ]\n}\n"
+  }
+ ],
+ "reading": [
+  {
+   "card": "Problems/broken.card",
+   "expect": {
+    "problem": "malformed",
+    "line": 3
+   }
+  },
+  {
+   "card": "Problems/untyped.card",
+   "expect": {
+    "problem": "not a card"
+   }
+  },
+  {
+   "card": "Problems/future.card",
+   "expect": {
+    "newer": true,
+    "name": "From The Future"
+   }
+  },
+  {
+   "card": "Problems/no-downloads.card",
+   "expect": {
+    "versions": 0,
+    "current": null
+   }
+  },
+  {
+   "card": "Problems/escape.card",
+   "expect": {
+    "thumbnail": null,
+    "builds_resolved": 0
+   }
+  },
+  {
+   "card": "Software/TaskMaster Pro/taskmaster-pro.card",
+   "expect": {
+    "current": "2.1.0"
+   }
+  },
+  {
+   "card": "Software/BackupSync/backupsync.card",
+   "expect": {
+    "versions": 1,
+    "current": "2.3.0",
+    "builds": 2
+   }
+  },
+  {
+   "card": "Software/Shadow Quest/shadow-quest.card",
+   "expect": {
+    "versions": 3,
+    "deprecated": [
+     false,
+     false,
+     true
+    ],
+    "links": [
+     "Homepage",
+     "Changelog",
+     "Review",
+     "Review"
+    ]
+   }
+  },
+  {
+   "document": "{\"kind\":\"package\",\"name\":5,\"links\":[1],\"classification\":{\"tags\":\"x\"},\"versions\":[{\"tag\":\"1\",\"builds\":[{\"file\":7},{\"file\":\"a.zip\",\"sha256\":\"nothex\"}]}]}",
+   "expect": {
+    "name": null,
+    "links": [],
+    "tags": [],
+    "builds": 1,
+    "checksums": [
+     null
+    ]
+   }
+  },
+  {
+   "document": "{\"type\":\"game\",\"links\":[{\"label\":\"Review\",\"url\":\"a\"},{\"label\":\"Review\",\"url\":\"b\"},{\"label\":\"Shop\"},{\"url\":\"c\"},\"d\"]}",
+   "expect": {
+    "links": [
+     "Review",
+     "Review"
+    ]
+   }
+  },
+  {
+   "document": "{\"type\":\"game\",\"links\":{\"Homepage\":\"a\"}}",
+   "expect": {
+    "links": []
+   }
+  },
+  {
+   "card": "Books/Second Light/second-light.card",
+   "expect": {
+    "words": 9335,
+    "status": "in-progress",
+    "languages": [
+     "en"
+    ],
+    "rating": "Mature"
+   }
+  },
+  {
+   "card": "Software/Puzzle Master/puzzle-master.card",
+   "expect": {
+    "series": [
+     "Mindbender Trilogy",
+     3
+    ],
+    "languages": [
+     "en",
+     "de",
+     "ja"
+    ],
+    "rating": "PEGI 3",
+    "ram_kb": 768,
+    "disk_kb": 1400,
+    "builds": 4
+   }
+  },
+  {
+   "card": "Software/Kingdom Builder/kingdom-builder.card",
+   "expect": {
+    "publisher": "Northwind Interactive",
+    "players": 8,
+    "multiplayer": [
+     "online",
+     "lan"
+    ]
+   }
+  },
+  {
+   "card": "Software/Shadow Quest/shadow-quest.card",
+   "expect": {
+    "aka": [
+     "Schattensuche"
+    ]
+   }
+  },
+  {
+   "document": "{\"type\":\"video\",\"aka\":[\"  \", \"Other\", 3]}",
+   "expect": {
+    "aka": [
+     "Other"
+    ]
+   }
+  },
+  {
+   "document": "{\"type\":\"album\",\"publisher\":{\"name\":\"Label\"},\"players\":4,\"multiplayer\":[\"lan\"]}",
+   "expect": {
+    "publisher": "Label",
+    "players": null,
+    "multiplayer": []
+   }
+  },
+  {
+   "document": "{\"type\":\"game\",\"publisher\":\"Label\",\"players\":0,\"multiplayer\":\"lan\"}",
+   "expect": {
+    "publisher": null,
+    "players": null,
+    "multiplayer": []
+   }
+  },
+  {
+   "document": "{\"type\":\"album\",\"series\":{\"name\":\"S\",\"number\":-1},\"languages\":\"en\",\"rating\":7}",
+   "expect": {
+    "series": [
+     "S",
+     null
+    ],
+    "languages": [],
+    "rating": null
+   }
+  },
+  {
+   "document": "{\"type\":\"game\",\"series\":{\"number\":2},\"requirements\":{\"ram_mb\":4,\"disk_mb\":20,\"disk_kb\":\"x\"}}",
+   "expect": {
+    "series": null,
+    "ram_kb": 4096,
+    "disk_kb": 20480
+   }
+  },
+  {
+   "document": "{\"kind\":\"package\",\"extra\":[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]}",
+   "expect": {
+    "problem": "too complex"
+   }
+  },
+  {
+   "document": "{\"kind\":\"package\",\"media\":{\"screenshots\":[{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"},{\"src\":\"a.png\"}]}}",
+   "expect": {
+    "problem": "too complex"
+   }
+  },
+  {
+   "document": "{\"type\":\"game\",\"releases\":[{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"},{\"date\":\"1995\"}]}",
+   "expect": {
+    "problem": "too complex"
+   }
+  },
+  {
+   "document": "{\"type\":\"album\",\"related\":[{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"},{\"card\":\"a.card\"}]}",
+   "expect": {
+    "problem": "too complex"
+   }
+  }
+ ],
+ "paths": [
+  {
+   "declared": "media/../files/a.zip",
+   "resolved": [
+    "files",
+    "a.zip"
+   ]
+  },
+  {
+   "declared": "./a.png",
+   "resolved": [
+    "a.png"
+   ]
+  },
+  {
+   "declared": "",
+   "resolved": null
+  },
+  {
+   "declared": "/etc/passwd",
+   "resolved": null
+  },
+  {
+   "declared": "a//b",
+   "resolved": null
+  },
+  {
+   "declared": "..",
+   "resolved": null
+  },
+  {
+   "declared": "a/../../b",
+   "resolved": null
+  },
+  {
+   "declared": "C:/x",
+   "resolved": null
+  },
+  {
+   "declared": "files\\x.zip",
+   "resolved": null
+  },
+  {
+   "declared": ".",
+   "resolved": null
+  }
+ ],
+ "libraries": [
+  {
+   "library": "Software",
+   "case": "tab counts",
+   "expect": {
+    "tabs": [
+     [
+      "All",
+      8
+     ],
+     [
+      "Games",
+      4
+     ],
+     [
+      "Applications",
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "order",
+   "sort": "newest",
+   "expect": {
+    "first": [
+     "Stellar Drift",
+     "TaskMaster Pro",
+     "PixelCraft",
+     "SecureVault"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "channel",
+   "expect": {
+    "counts": [
+     [
+      "stable",
+      7
+     ],
+     [
+      "beta",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "platform",
+   "expect": {
+    "counts": [
+     [
+      "classic",
+      1
+     ],
+     [
+      "linux",
+      3
+     ],
+     [
+      "macos",
+      8
+     ],
+     [
+      "windows",
+      8
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "genre",
+   "tab": "application",
+   "expect": {
+    "counts": []
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "ticked": {
+    "platform": [
+     "linux",
+     "classic"
+    ]
+   },
+   "expect": {
+    "count": 4
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "ticked": {
+    "platform": [
+     "linux",
+     "classic"
+    ],
+    "channel": [
+     "beta"
+    ]
+   },
+   "expect": {
+    "names": [
+     "Stellar Drift"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "platform",
+   "ticked": {
+    "platform": [
+     "linux",
+     "classic"
+    ],
+    "channel": [
+     "beta"
+    ]
+   },
+   "expect": {
+    "counts": [
+     [
+      "windows",
+      1
+     ]
+    ],
+    "only": true
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "search": "pass",
+   "expect": {
+    "names": [
+     "SecureVault"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "search": "TURN rpg",
+   "expect": {
+    "names": [
+     "Shadow Quest"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "search": "ault",
+   "expect": {
+    "names": []
+   }
+  },
+  {
+   "library": "Software",
+   "case": "size",
+   "expect": {
+    "product": "PixelCraft",
+    "bytes": 436
+   }
+  },
+  {
+   "library": "Software",
+   "case": "size",
+   "expect": {
+    "product": "Puzzle Master",
+    "bytes": 672
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "series",
+   "expect": {
+    "counts": [
+     [
+      "Mindbender Trilogy",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "search": "mindbender",
+   "expect": {
+    "names": [
+     "Puzzle Master"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "players",
+   "expect": {
+    "counts": [
+     [
+      "1",
+      1
+     ],
+     [
+      "2",
+      1
+     ],
+     [
+      "3–4",
+      1
+     ],
+     [
+      "5 and over",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "multiplayer",
+   "expect": {
+    "counts": [
+     [
+      "hotseat",
+      1
+     ],
+     [
+      "lan",
+      1
+     ],
+     [
+      "online",
+      1
+     ],
+     [
+      "split-screen",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "publisher",
+   "expect": {
+    "counts": [
+     [
+      "Northwind Interactive",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "search": "northwind",
+   "expect": {
+    "names": [
+     "Kingdom Builder"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "search": "schatten",
+   "expect": {
+    "names": [
+     "Shadow Quest"
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "counts",
+   "facet": "os",
+   "expect": {
+    "counts": [
+     [
+      "Mac OS 8",
+      1
+     ],
+     [
+      "Mac OS 9",
+      1
+     ],
+     [
+      "macOS 11",
+      1
+     ],
+     [
+      "macOS 13",
+      8
+     ],
+     [
+      "Windows 10",
+      8
+     ]
+    ],
+    "only": true
+   }
+  },
+  {
+   "library": "Vintage",
+   "case": "counts",
+   "facet": "os",
+   "expect": {
+    "counts": [
+     [
+      "System 6",
+      1
+     ],
+     [
+      "System 7",
+      1
+     ],
+     [
+      "Mac OS X 10.2",
+      1
+     ],
+     [
+      "Mac OS X 10.3",
+      1
+     ],
+     [
+      "Mac OS X 10.4",
+      1
+     ],
+     [
+      "Mac OS X 10.5",
+      1
+     ],
+     [
+      "Mac OS X 10.6",
+      1
+     ],
+     [
+      "Windows 95",
+      1
+     ],
+     [
+      "Windows 98",
+      1
+     ],
+     [
+      "Windows ME",
+      1
+     ],
+     [
+      "Windows 2000",
+      1
+     ],
+     [
+      "Windows XP",
+      1
+     ],
+     [
+      "DOS 5",
+      1
+     ],
+     [
+      "DOS 6",
+      1
+     ],
+     [
+      "Linux glibc 2.3",
+      1
+     ],
+     [
+      "Linux glibc 2.5",
+      1
+     ],
+     [
+      "Linux glibc 2.12",
+      1
+     ],
+     [
+      "BeOS R5",
+      1
+     ],
+     [
+      "Haiku",
+      1
+     ],
+     [
+      "IRIX 5",
+      1
+     ],
+     [
+      "IRIX 6",
+      1
+     ],
+     [
+      "IRIX 6.5",
+      1
+     ],
+     [
+      "Solaris 2.x",
+      1
+     ],
+     [
+      "Solaris 7",
+      1
+     ],
+     [
+      "Solaris 8",
+      1
+     ],
+     [
+      "AmigaOS 1.x",
+      1
+     ],
+     [
+      "AmigaOS 2.x",
+      1
+     ],
+     [
+      "AmigaOS 3.x",
+      1
+     ],
+     [
+      "TOS 1.x",
+      1
+     ],
+     [
+      "TOS 2.x",
+      1
+     ],
+     [
+      "TOS 3.x",
+      1
+     ],
+     [
+      "TOS 4.x",
+      1
+     ],
+     [
+      "Atari XL",
+      1
+     ],
+     [
+      "Atari XE",
+      1
+     ],
+     [
+      "Commodore 64",
+      1
+     ],
+     [
+      "Commodore 128",
+      1
+     ],
+     [
+      "ZX Spectrum 48K",
+      1
+     ],
+     [
+      "ZX Spectrum 128K",
+      1
+     ],
+     [
+      "ZX Spectrum +2",
+      1
+     ],
+     [
+      "ZX Spectrum +3",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Vintage",
+   "case": "shown",
+   "ticked": {
+    "os": [
+     "Mac OS X 10.4"
+    ]
+   },
+   "expect": {
+    "names": [
+     "Lunar Lander"
+    ]
+   }
+  },
+  {
+   "library": "Vintage",
+   "case": "shown",
+   "ticked": {
+    "os": [
+     "Mac OS 8",
+     "macOS 10.14",
+     "Windows Vista",
+     "AmigaOS 4.x",
+     "ZX Spectrum 16K",
+     "Atari 400/800",
+     "Linux glibc 2.17",
+     "BeOS R4",
+     "Solaris 9"
+    ]
+   },
+   "expect": {
+    "names": []
+   }
+  },
+  {
+   "library": "Vintage",
+   "case": "counts",
+   "facet": "decade",
+   "expect": {
+    "counts": [
+     [
+      "1980s",
+      1
+     ],
+     [
+      "1990s",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "",
+   "case": "counts",
+   "facet": "duration",
+   "expect": {
+    "counts": [
+     [
+      "Under 10 min",
+      4
+     ],
+     [
+      "30–60 min",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Music",
+   "case": "counts",
+   "facet": "form",
+   "expect": {
+    "counts": [
+     [
+      "album",
+      1
+     ],
+     [
+      "ep",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Video",
+   "case": "counts",
+   "facet": "form",
+   "expect": {
+    "counts": [
+     [
+      "series",
+      1
+     ],
+     [
+      "video",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "counts",
+   "facet": "form",
+   "expect": {
+    "counts": [
+     [
+      "novel",
+      1
+     ],
+     [
+      "novella",
+      1
+     ],
+     [
+      "short-story",
+      2
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "counts",
+   "facet": "warning",
+   "expect": {
+    "counts": [
+     [
+      "Graphic depictions of violence",
+      1
+     ],
+     [
+      "Major character injury",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Software",
+   "case": "shown",
+   "ticked": {
+    "players": [
+     "2",
+     "3–4",
+     "5 and over"
+    ]
+   },
+   "expect": {
+    "names": [
+     "Kingdom Builder",
+     "Puzzle Master",
+     "Stellar Drift"
+    ]
+   }
+  },
+  {
+   "library": "",
+   "case": "counts",
+   "facet": "language",
+   "expect": {
+    "counts": [
+     [
+      "de",
+      1
+     ],
+     [
+      "en",
+      5
+     ],
+     [
+      "ja",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "",
+   "case": "counts",
+   "facet": "rating",
+   "expect": {
+    "counts": [
+     [
+      "General",
+      2
+     ],
+     [
+      "Mature",
+      1
+     ],
+     [
+      "PEGI 3",
+      1
+     ],
+     [
+      "Teen",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "",
+   "case": "default tabs",
+   "expect": {
+    "tab_labels": [
+     "All",
+     "Games",
+     "Applications",
+     "Albums",
+     "Videos",
+     "Books"
+    ]
+   }
+  },
+  {
+   "library": "Music",
+   "case": "order",
+   "sort": "newest",
+   "expect": {
+    "names": [
+     "Night Signals",
+     "Harbour Lights"
+    ]
+   }
+  },
+  {
+   "library": "Music",
+   "case": "counts",
+   "facet": "format",
+   "expect": {
+    "counts": [
+     [
+      "flac",
+      1
+     ],
+     [
+      "mp3",
+      2
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Music",
+   "case": "size",
+   "expect": {
+    "product": "Harbour Lights",
+    "bytes": 74183
+   }
+  },
+  {
+   "library": "Video",
+   "case": "order",
+   "sort": "newest",
+   "expect": {
+    "names": [
+     "Retro Repairs",
+     "Building a Hotline Server"
+    ]
+   }
+  },
+  {
+   "library": "Video",
+   "case": "counts",
+   "facet": "quality",
+   "expect": {
+    "counts": [
+     [
+      "1080p",
+      2
+     ],
+     [
+      "480p",
+      2
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Video",
+   "case": "shown",
+   "search": "powerbook",
+   "expect": {
+    "names": [
+     "Retro Repairs"
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "order",
+   "sort": "newest",
+   "expect": {
+    "names": [
+     "Second Light",
+     "The Lantern Keeper's Daughter",
+     "Low Tide",
+     "The Drowned Bell"
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "counts",
+   "facet": "words",
+   "expect": {
+    "counts": [
+     [
+      "Under 10k",
+      3
+     ],
+     [
+      "10k–40k",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "counts",
+   "facet": "fandom",
+   "expect": {
+    "counts": [
+     [
+      "The Tidewater Cycle - M. Harrow",
+      1
+     ]
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "order",
+   "sort": "newest",
+   "search": "tide left",
+   "expect": {
+    "first": [
+     "Second Light"
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "order",
+   "sort": "newest",
+   "search": "tamsin",
+   "expect": {
+    "first": [
+     "Second Light"
+    ]
+   }
+  },
+  {
+   "library": "Books",
+   "case": "order",
+   "sort": "newest",
+   "search": "injury",
+   "expect": {
+    "first": [
+     "The Lantern Keeper's Daughter"
+    ]
+   }
+  }
+ ]
+}
