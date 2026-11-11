@@ -42,8 +42,9 @@ page, checks it as you type, and says where it doesn't read.
 | [Videos](Videos.md) | A single video, or a series of episodes |
 | [Books](Books.md) | Novels, stories and fan works, whole or a chapter at a time |
 
-Every example in these guides is a working card. Zephyr's test fixtures hold
-a complete set, with the files the cards name.
+Every example in these guides is a working card. For a complete set, every
+kind with its index cards, see the documents in the
+[conformance set](../Protocol/cards-conformance.json).
 
 ## How people open a card
 
