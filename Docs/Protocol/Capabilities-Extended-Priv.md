@@ -1,6 +1,6 @@
 # Extended Privilege Bitmap Extension
 
-> Last updated: October 1, 2026
+> Last updated: November 11, 2026
 
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
@@ -177,9 +177,9 @@ Only a confirmed bit 5 raises a session to 127. Version inference, an operator's
 
 ### Account creation
 
-New User (350), and the create branch of Update User (349), have no stored value to merge. The server takes bits `0..max_bit` from the client, clears everything above, clears any bit it does not define, and MAY substitute its configured new-account default if the result is empty. That default MUST be safe with every high bit clear.
+New User (350), and the create branch of Update User (349), have no stored value to merge. The server takes bits `0..max_bit` from the client, clears everything above, clears any bit it does not define, and MAY substitute its configured new-account default if the result is empty. If the result is not empty, it MAY fill the bits above `max_bit` from that default, because a client that cannot state a bit has not chosen to leave it clear. Bits within `0..max_bit` always stand as the client sent them. That default MUST be safe with every high bit clear.
 
-The default is the operator's policy, not the client's request, so the [escalation guard](#privilege-escalation-checks) does not apply to it: a client that sent an empty bitmap asked for nothing, and the account gets what the operator configured. A server MUST NOT refuse such a creation because the creating session lacks a bit the default holds.
+The default is the operator's policy, not the client's request, so the [escalation guard](#privilege-escalation-checks) does not apply to it: a client that sent an empty bitmap asked for nothing, and the account gets what the operator configured. The same holds for bits filled above `max_bit`. A server MUST NOT refuse such a creation because the creating session lacks a bit the default holds.
 
 ### Batches
 
@@ -188,6 +188,8 @@ Update User (349) carries a list of accounts, so "reject the transaction and lea
 ### Privilege escalation checks
 
 A server implementing this extension MUST refuse any account edit or creation that grants a privilege the acting session does not itself hold, and MUST make that check over all 128 bits; one that stops at 64 lets a capable client grant bits 64–127 it does not have. The guard applies to edits as much as to creation: without it on the edit path, any session that may modify accounts can grant itself, through a second account, everything it lacks.
+
+A server MAY exempt Don't Show Agreement (bit 27) from this check, as OpenLine, GLoarbLine and Janus do. It only spares someone reading the agreement, and clients of those servers leave its box enabled for editors who don't hold it.
 
 The check MUST run over the bits the operation **adds** (`result &^ stored`), not over the whole resulting bitmap. Checking the result breaks the merge: a preserved high bit the editing session does not hold - precisely the bit the merge protects - would make an ordinary operator unable to edit any account a more privileged one had touched. For a creation, `stored` is empty, so every bit the client sent is an added bit.
 
@@ -314,10 +316,11 @@ Each MUST produce an error reply with the account **byte-identical** to `stored`
 
 | # | Setup | Expected |
 |---|---|---|
-| C1 | Tier 40 session creates an account, sends 8 bytes with bit 58 set | Bit 58 cleared - creation clamps at `max_bit` too |
+| C1 | Tier 40 session creates an account, sends 8 bytes with bit 58 set, and the server's default doesn't hold bit 58 | Bit 58 cleared - creation clamps at `max_bit` too |
 | C2 | Capable session creates an account, sends 16 bytes with bit 70 set, server defines 0–58 | Bit 70 cleared; creation preserves nothing |
 | C3 | Any session creates an account with an all-zero bitmap, on a server that has a new-account default | The default applied, even where it holds bits the creating session lacks |
 | C4 | Capable session creates an account with a non-zero bitmap | Default NOT applied; the client's bits stand |
+| C5 | Tier 40 session creates an account with a non-zero bitmap, on a server whose default holds bit 45 and fills from it | Bit 45 set from the default; bits 0-40 stand as sent |
 
 ### Escalation vectors
 
@@ -388,4 +391,5 @@ Three consequences:
 | 58 | Instant messaging - `AccessMessaging` |
 | 59–60 | Video chat - `AccessVideoChat`, `AccessScreenShare` |
 | 61–63 | **Unallocated.** Treat as reserve, not inventory - see [Background](#background). |
-| 64–127 | Available only to sessions that negotiated this capability. No bit allocated. |
+| 64–68 | Card store (draft) - `AccessManageCards`, `AccessManageLibraries`, `AccessCommentCards`, `AccessRateCards`, `AccessModerateCards`. See the [Card Store Extension](Capabilities-Cards.md#privileges) |
+| 69–127 | Available only to sessions that negotiated this capability. No bit allocated. |
