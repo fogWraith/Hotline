@@ -1,5 +1,7 @@
 # Chat History Extension
 
+> Last updated: November 11, 2026
+
 > **Conformance language:** The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://datatracker.ietf.org/doc/html/rfc2119).
 
 This document describes the chat history extension to the Hotline protocol. It adds server-side persistence of chat messages with cursor-based pagination, allowing clients to retrieve historical messages in batches - similar to how Discord loads channel history as a user scrolls. The extension is entirely optional for both server and client, uses the standard capability negotiation mechanism, and is designed to be storage-agnostic so that any Hotline server implementation can adopt it regardless of backend technology.
@@ -195,6 +197,8 @@ All new data objects use field IDs in the `0x0F01`–`0x0F1F` range, following t
 
 Transaction IDs 700–709 are chosen to avoid collision with existing Hotline transaction types (base protocol: 101–355, keepalive: 500, voice: 600–606, GIF icons: 1861–1864).
 
+The block after it, 710–719, and fields `0x0F20`–`0x0F4F` beside this extension's `0x0F01`–`0x0F1F`, are reserved for the [structured chat](Capabilities-Structured-Chat.md) family of drafts (not adopted), which build on this extension's entry format. They are not part of this extension; 705–709 stay this extension's own.
+
 ### Get Chat History (700)
 
 **Client → Server (request/reply)**
@@ -327,8 +331,10 @@ one was. They are sent **only** to a recipient that negotiated
 the attachment degrade rather than vanish.
 
 Ranges: `0x0001`–`0x000F` are reserved for core chat-history sub-fields,
-`0x0010`–`0x001F` for the inline-media extension. Sub-types outside a range a
-reader knows are skipped by Sub-Length, per the parsing rule above.
+`0x0010`–`0x001F` for the inline-media extension, and `0x0020`–`0x002F` are
+reserved for the [structured chat](Capabilities-Structured-Chat.md#chat-history)
+family of drafts (not adopted). Sub-types outside a range a reader knows are
+skipped by Sub-Length, per the parsing rule above.
 
 #### Proposed, not allocated
 
@@ -341,6 +347,9 @@ commitments and nothing should emit them:
 | `0x0002` | Reply-To ID | 8 | Message ID of the message being replied to |
 | `0x0003` | Account Login | variable | The sender's account login name (vs display nick) |
 
+If the [replies draft](Capabilities-Replies.md#chat-history) is adopted, `0x0002`
+is retired in favor of its `0x0020` `REPLY_TO`, so that a reply has one spelling.
+
 ### Flags
 
 | Bit | Mask | Name | Description |
@@ -348,7 +357,7 @@ commitments and nothing should emit them:
 | 0 | `0x0001` | `is_action` | Message was a `/me` emote (displayed as `*** nick does something`). Corresponds to `DATA_CHATOPTIONS` (`0x006E`) value `1` on the live chat path - the server sets this flag when recording an emote. |
 | 1 | `0x0002` | `is_server_msg` | Message originated from the server (e.g., admin broadcast), not a user. |
 | 2 | `0x0004` | `is_deleted` | Message has been removed by an administrator (tombstone). See below. |
-| 3–15 | - | *Reserved* | MUST be zero. Clients MUST ignore unknown flag bits. |
+| 3–15 | - | *Reserved* | MUST be zero. Clients MUST ignore unknown flag bits. Bit 3 is proposed as `is_ephemeral` by the [structured chat draft](Capabilities-Structured-Chat.md#data-objects), for live lines only; it is never set in a 700 entry. |
 
 **Tombstoned entries** (bit 2 set): The message has been deleted by an administrator. The `message_id` and `timestamp` are preserved - this is critical for cursor stability, as removing entries entirely would break pagination for clients mid-scroll. The `nick` and `message` fields MAY have zero length. Clients SHOULD display a placeholder such as "[message removed]" and SHOULD NOT attempt to recover or display the original content.
 
@@ -508,6 +517,8 @@ The following transaction type IDs are reserved for future extensions to the cha
 | 703 | *Delete Chat History Message* | Administrator removal of a message (sets tombstone flag) |
 | 704 | *Edit Chat History Message* | Administrator or user editing of a message |
 | 705–709 | *Unassigned* | Future chat history extensions |
+
+Replies, reactions and server emoji are not here: the [structured chat](Capabilities-Structured-Chat.md#additions-to-the-tables) family of drafts has its own block, 710–719, since five numbers are too few for it.
 
 ---
 
